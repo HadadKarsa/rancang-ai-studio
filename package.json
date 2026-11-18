@@ -1,0 +1,36 @@
+{
+  "name": "rancang-ai",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:reset": "rm -rf data && pnpm db:migrate && pnpm db:seed",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.106",
+    "@ai-sdk/google": "^4.0.122",
+    "@ai-sdk/openai": "^4.0.121",
+    "@libsql/client": "^0.18.0",
+    "ai": "^7.0.176",
+    "nanoid": "^6.0.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "dotenv-cli": "^11.1.0",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}
