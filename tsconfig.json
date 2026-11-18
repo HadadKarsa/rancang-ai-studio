@@ -31,7 +31,8 @@
     ],
     "types": [
       "node"
-    ]
+    ],
+    "allowJs": true
   },
   "include": [
     "next-env.d.ts",

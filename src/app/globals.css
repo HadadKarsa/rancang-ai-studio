@@ -1,0 +1,136 @@
+/* rancang-ai design tokens — locked v2 (Pixel, 2026-11-18).
+   Concept: a friendly workbench. One vermilion accent = "wet ink" only
+   (streaming generation / primary action). Schibsted Grotesk for text,
+   JetBrains Mono for numbers, ids and statuses. */
+@font-face {
+  font-family: 'Schibsted Grotesk';
+  src: url('/fonts/schibsted-var.woff2') format('woff2');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-206F, U+2018, U+2019, U+201C, U+201D;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jbmono.woff2') format('woff2');
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-206F;
+}
+
+:root {
+  --paper: #faf7f0;
+  --card: #fffdf8;
+  --ink: #24201a;
+  --ink-2: #575046;
+  --ink-3: #8f877b;
+  --line: #e6dfd0;
+  --line-2: #d5cbb8;
+  --vermilion: #c2401a;
+  --vermilion-ink: #8f2e10;
+  --vermilion-wash: #fbeee7;
+  --ok: #2f6b3a;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sans: 'Schibsted Grotesk', system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { color-scheme: light; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 15px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; background: none; border: none; color: inherit; }
+input, textarea, select { font: inherit; color: inherit; }
+
+.btn {
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  background: var(--card);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn.primary { background: var(--vermilion); border-color: var(--vermilion); color: #fff; }
+.btn.primary:hover { background: var(--vermilion-ink); border-color: var(--vermilion-ink); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn:disabled:hover { background: var(--card); color: var(--ink); }
+.btn.primary:disabled:hover { background: var(--vermilion); color: #fff; }
+.btn.ghost { border-color: var(--line-2); color: var(--ink-2); }
+.btn.ghost:hover { border-color: var(--ink); background: transparent; color: var(--ink); }
+
+.pill {
+  font: 600 10.5px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.pill.live { color: var(--vermilion-ink); background: var(--vermilion-wash); border-color: transparent; }
+.pill.live .dot { background: var(--vermilion); animation: pulse 1.4s infinite; }
+.pill.ready { color: var(--ink-2); }
+.pill.ready .dot { background: var(--ink); }
+.pill.ok { color: var(--ok); }
+.pill.ok .dot { background: var(--ok); }
+.pill.err { color: var(--vermilion-ink); }
+.pill.err .dot { background: var(--vermilion); }
+
+@keyframes pulse { 50% { opacity: 0.3; } }
+
+.cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: var(--vermilion);
+  vertical-align: -2px;
+  animation: pulse 1s infinite;
+}
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label {
+  font: 600 11px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.field input, .field textarea {
+  border: 1.5px solid var(--line-2);
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--paper);
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+}
+.field input:focus, .field textarea:focus { border-color: var(--ink); }
+.field input::placeholder, .field textarea::placeholder { color: var(--ink-3); }
+.field .help { font-size: 11.5px; color: var(--ink-3); }
+
+.card {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+}
+
+.mono { font-family: var(--mono); }
+.muted { color: var(--ink-3); }
+
+:focus-visible { outline: 2px solid var(--vermilion); outline-offset: 2px; }
