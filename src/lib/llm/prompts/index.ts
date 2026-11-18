@@ -1,0 +1,176 @@
+import type { DocumentType } from '@/lib/documents/types';
+
+/**
+ * Prompt templates (T-303). Each builder returns { system, prompt }.
+ * Output contract: strict Markdown; Mermaid fenced blocks where applicable;
+ * wireframe = raw HTML with Tailwind CDN.
+ */
+export interface GenerationInput {
+  projectName: string;
+  projectDescription: string | null;
+  interviewTranscript: { role: 'assistant' | 'user' | 'system'; content: string }[];
+  baselineAssumptions: string[];
+  injectedAssets: { name: string; content: string }[];
+  /** Regeneration only. */
+  currentContent?: string;
+  userInstruction?: string;
+}
+
+const HUMANIZE_PREAMBLE = `You write like a senior human product person, not like a template.
+Rules:
+- Concrete over generic. Name real trade-offs; never pad with filler.
+- No "In today's fast-paced world". No restating the question.
+- Short paragraphs, tight tables, decisions stated with reasons.
+- Where a diagram helps, use a Mermaid fenced block.
+- Output Markdown only. No preamble, no closing summary of what you wrote.`;
+
+function transcriptBlock(transcript: GenerationInput['interviewTranscript']): string {
+  if (transcript.length === 0) return '(no interview transcript — work from the baseline assumptions)';
+  return transcript.map((m) => `${m.role === 'user' ? 'Founder' : 'Interviewer'}: ${m.content}`).join('\n');
+}
+
+function assetsBlock(assets: GenerationInput['injectedAssets']): string {
+  if (assets.length === 0) return '(none)';
+  return assets.map((a) => `### ${a.name}\n${a.content}`).join('\n\n');
+}
+
+function contextBlock(input: GenerationInput): string {
+  return `PROJECT: ${input.projectName}
+${input.projectDescription ? `DESCRIPTION: ${input.projectDescription}` : ''}
+
+BASELINE ASSUMPTIONS:
+${input.baselineAssumptions.length > 0 ? input.baselineAssumptions.map((a) => `- ${a}`).join('\n') : '(none)'}
+
+INTERVIEW TRANSCRIPT:
+${transcriptBlock(input.interviewTranscript)}
+
+INJECTED CONTEXT (user assets):
+${assetsBlock(input.injectedAssets)}`;
+}
+
+const SYSTEM = `${HUMANIZE_PREAMBLE}\nYou are producing one document of a product spec suite. Stay in scope of the document you are asked for.`;
+
+// ── per-document builders ────────────────────────────────────────────────────
+
+function prdPrompt(input: GenerationInput): string {
+  return `${contextBlock(input)}
+
+Write the Product Requirements Document. Sections: Problem & audience; Goals and non-goals; Personas; Core user journeys; Feature set (P0/P1/P2); Success metrics; Risks and open questions.`;
+}
+
+function architecturePrompt(input: GenerationInput): string {
+  return `${contextBlock(input)}
+
+Write the System Architecture document. Sections: Architectural pattern and why; Component diagram (Mermaid flowchart); Data flow for the core loop; Key technical decisions with trade-offs; Scaling path; Failure modes.`;
+}
+
+function databasePrompt(input: GenerationInput): string {
+  return `${contextBlock(input)}
+
+Write the Database Schema document. Sections: Engine choice and justification; ERD (Mermaid erDiagram); Table definitions with columns, types, constraints; Indexing strategy; Migration approach. Use portable SQL (no SQLite-only features).`;
+}
+
+function apiPrompt(input: GenerationInput): string {
+  return `${contextBlock(input)}
+
+Write the API Contracts document. Sections: API style and versioning; Authentication; Error envelope with codes; Every endpoint with method, path, request, response, errors; Pagination and rate limiting. Use fenced json code blocks for payloads.`;
+}
+
+function tasksPrompt(input: GenerationInput): string {
+  return `${contextBlock(input)}
+
+Write the Task Checklist document. Phases 0–8, sequential; each phase lists tasks with a one-line acceptance criterion. Mark dependencies between tasks explicitly. No task longer than one agent turn.`;
+}
+
+function memoryPrompt(input: GenerationInput): string {
+  return `${contextBlock(input)}
+
+Write the Project Memory document: the context pack a future AI agent (or a new engineer) reads first. Sections: What this product is in two sentences; Decisions made and why (dated); Vocabulary and naming conventions; Things that must not change; Known gaps and next steps. Dense, factual, no prose padding.`;
+}
+
+function wireframePrompt(input: GenerationInput): string {
+  return `${contextBlock(input)}
+
+Produce wireframe screens as raw HTML. Contract:
+- Each screen is wrapped in <screen name="Screen Name"> ... </screen>.
+- Inside, a complete self-contained HTML fragment styled with Tailwind utility classes (CDN script tag <script src="https://cdn.tailwindcss.com"></script> at the top of the first screen only).
+- 2–5 screens covering the core loop. Desktop-first, clean, Linear-like density.
+- No JavaScript beyond the Tailwind CDN. No external images; use colored divs for placeholders.
+Output the screens directly, no commentary.`;
+}
+
+const REGEN_INSTRUCTION = (input: GenerationInput): string => `
+CURRENT DOCUMENT CONTENT:
+${input.currentContent ?? '(none — treat as fresh generation)'}
+
+USER INSTRUCTION FOR THIS REVISION:
+${input.userInstruction ?? '(none)'}
+
+Rewrite the document applying the instruction. Keep everything else stable. Output the full revised document, not a diff.`;
+
+const BUILDERS: Record<DocumentType, (input: GenerationInput) => string> = {
+  prd: prdPrompt,
+  architecture: architecturePrompt,
+  database: databasePrompt,
+  api: apiPrompt,
+  tasks: tasksPrompt,
+  memory: memoryPrompt,
+  wireframe: wireframePrompt,
+};
+
+export function buildDocumentPrompt(type: DocumentType, input: GenerationInput): { system: string; prompt: string } {
+  const base = BUILDERS[type](input);
+  const prompt = input.userInstruction !== undefined ? `${base}\n${REGEN_INSTRUCTION(input)}` : base;
+  return { system: SYSTEM, prompt };
+}
+
+// ── interview turn ───────────────────────────────────────────────────────────
+
+export function buildInterviewPrompt(input: {
+  projectName: string;
+  baselineAssumptions: string[];
+  transcript: GenerationInput['interviewTranscript'];
+  questionIndex: number;
+  maxQuestions: number;
+}): { system: string; prompt: string } {
+  return {
+    system: `You run a warm, sharp product interview. One question at a time. Adaptive: aim for ${input.maxQuestions} questions total (never more), wrap up early when you have enough.
+You speak like a thoughtful human collaborator — no corporate filler, no restating answers back verbatim.
+Every reply is STRICT JSON, no markdown fence:
+{"question": "...", "suggestions": ["...", "..."], "isComplete": false, "reasoning": "one line, why you ask this"}
+"suggestions" holds 2–3 short candidate answers the user might tap. Set "isComplete": true only when the picture is genuinely enough to spec the product.`,
+    prompt: `PROJECT: ${input.projectName}
+BASELINE ASSUMPTIONS:
+${input.baselineAssumptions.map((a) => `- ${a}`).join('\n') || '(none)'}
+
+TRANSCRIPT SO FAR:
+${transcriptBlock(input.transcript)}
+
+This is question ${input.questionIndex} of at most ${input.maxQuestions}. Reply with the JSON object only.`,
+  };
+}
+
+export interface InterviewTurn {
+  question: string;
+  suggestions: string[];
+  isComplete: boolean;
+  reasoning: string;
+}
+
+export function parseInterviewTurn(raw: string): InterviewTurn {
+  const cleaned = raw.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    // Model broke the JSON contract — degrade to treating the whole output as the question.
+    return { question: raw.trim(), suggestions: [], isComplete: false, reasoning: 'unparseable turn' };
+  }
+  const obj = (parsed ?? {}) as Record<string, unknown>;
+  return {
+    question: typeof obj.question === 'string' && obj.question.length > 0 ? obj.question : raw.trim(),
+    suggestions: Array.isArray(obj.suggestions) ? obj.suggestions.filter((s): s is string => typeof s === 'string').slice(0, 3) : [],
+    isComplete: obj.isComplete === true,
+    reasoning: typeof obj.reasoning === 'string' ? obj.reasoning : '',
+  };
+}
