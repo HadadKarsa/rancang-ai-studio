@@ -89,7 +89,8 @@ export interface RouteContext {
   req: Request;
   session: AppSession;
   requestId: string;
-  params: Record<string, string>;
+  /** Path params; guaranteed present for the named key (throws otherwise). */
+  params: Record<string, string> & { get(name: string): string };
 }
 
 export interface HandlerOptions {
@@ -122,7 +123,17 @@ export function withRoute(
       }
       const rate = checkRateLimit(bucket, rateScope);
 
-      const params = (await routeCtx?.params) ?? {};
+      const rawParams = (await routeCtx?.params) ?? {};
+      const params = new Proxy(rawParams as Record<string, string>, {
+        get(target, prop) {
+          if (prop === 'get') return (name: string) => {
+            const value = target[name];
+            if (value === undefined) throw new Error(`Missing route param: ${name}`);
+            return value;
+          };
+          return target[prop as string];
+        },
+      }) as RouteContext['params'];
 
       // Idempotency replay (POST + Idempotency-Key header).
       if (options.idempotent && req.method === 'POST' && session) {

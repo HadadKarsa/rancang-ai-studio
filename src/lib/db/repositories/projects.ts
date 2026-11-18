@@ -6,7 +6,7 @@ import { newId, nowIso } from '@/lib/ids';
 export interface CreateProjectInput {
   userId: string;
   name: string;
-  description?: string;
+  description?: string | null;
   templateId?: string | null;
   defaultPresetId?: string | null;
   accentColor?: string;
@@ -67,6 +67,12 @@ export async function createProjectWithScaffold(input: CreateProjectInput): Prom
 
 export async function getProjectById(id: string, userId: string): Promise<Project | null> {
   const row = await queryOne<ProjectRow>('SELECT * FROM projects WHERE id = ? AND user_id = ?', [id, userId]);
+  return row ? mapProject(row) : null;
+}
+
+/** Ownership-free lookup for the public share view. */
+export async function getProjectRowById(id: string): Promise<Project | null> {
+  const row = await queryOne<ProjectRow>('SELECT * FROM projects WHERE id = ?', [id]);
   return row ? mapProject(row) : null;
 }
 
@@ -142,7 +148,7 @@ export async function listProjectsByUser(userId: string, opts: ListProjectsOpts 
 
 export interface UpdateProjectPatch {
   name?: string;
-  description?: string;
+  description?: string | null;
   status?: ProjectStatus;
   defaultPresetId?: string | null;
   icon?: string | null;
