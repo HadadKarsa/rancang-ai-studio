@@ -74,4 +74,4 @@ export const DELETE = withRoute(async (ctx) => {
 }, { bucket: 'write' });
 
 export const dynamic = 'force-dynamic';
-export { decryptKey, updateCredentialValidation };
+

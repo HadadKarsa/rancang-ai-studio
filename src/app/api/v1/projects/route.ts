@@ -77,4 +77,4 @@ export const GET = withRoute(async (ctx) => {
 }, { bucket: 'read' });
 
 export const dynamic = 'force-dynamic';
-export { DOCUMENT_TYPES };
+
