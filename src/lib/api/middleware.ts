@@ -71,6 +71,16 @@ function assertOrigin(req: Request): void {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return;
   const origin = req.headers.get('origin');
   if (!origin) return; // non-browser clients (curl) — no CSRF surface
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    throw new AppError('FORBIDDEN', `Invalid origin: ${origin}`, 403);
+  }
+  const requestHost = req.headers.get('host');
+  // Same-origin by host: covers APP_URL, the tunnel hostname, and any dev host.
+  // Cross-host origins must still match APP_URL exactly.
+  if (requestHost && originHost === requestHost) return;
   const appUrl = getEnv().APP_URL;
   if (origin !== appUrl) {
     throw new AppError('FORBIDDEN', `Origin mismatch: ${origin}`, 403);
