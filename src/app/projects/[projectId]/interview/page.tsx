@@ -120,7 +120,7 @@ export default function InterviewPage() {
   return (
     <div className="pg-interview">
       <header className="head">
-        <Link href="/studio" className="mono muted back">← Studio</Link>
+        <Link href="/studio" className="mono muted back"><svg className="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M8 2 4 6l4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>Studio</Link>
         <div className="meter" role="progressbar" aria-valuenow={step} aria-valuemin={0} aria-valuemax={total}>
           <span className="mono label">{state === 'done' ? 'selesai' : `pertanyaan ${Math.min(step + 1, total)} / ${total}`}</span>
           <div className="bar"><span style={{ width: `${Math.min(100, (state === 'done' ? total : step) / total * 100)}%` }} /></div>
@@ -131,10 +131,12 @@ export default function InterviewPage() {
 
       {!session && state !== 'done' && (
         <div className="start card">
-          <h1>Wawancara spesifikasi</h1>
+          <p className="eyebrow mono">wawancara spesifikasi</p>
+          <h1>Ceritakan idemu.<br />Saya tanya sisanya.</h1>
           <p className="muted">
-            5–8 pertanyaan tentang idemu: siapa pemakainya, alur inti, dan batasannya.
-            Jawab dengan bahasa sehari-hari — rancang-ai yang merapikan.
+            5–8 pertanyaan: siapa pemakainya, alur inti, batasannya.
+            Jawab dengan bahasa sehari-hari — rancang-ai yang merapikan
+            menjadi tujuh dokumen spesifikasi.
           </p>
           <button className="btn primary" onClick={() => void start(false)} disabled={starting}>
             {starting ? 'Menyiapkan…' : 'Mulai wawancara'}
@@ -144,10 +146,11 @@ export default function InterviewPage() {
 
       {session && messages.length === 0 && !turn && state !== 'done' && (
         <div className="start card">
+          <p className="eyebrow mono">langkah pertama</p>
           <h2>Ceritakan idemu dulu.</h2>
           <p className="muted">
-            Satu paragraf saja: aplikasi apa, untuk siapa, dan masalah apa yang
-            diselesaikan. Rancang-ai menanggapi dengan pertanyaan pertama.
+            Satu paragraf saja: aplikasi apa, untuk siapa, dan masalah apa
+            yang diselesaikan. Rancang-ai menanggapi dengan pertanyaan pertama.
           </p>
         </div>
       )}
@@ -163,9 +166,12 @@ export default function InterviewPage() {
               </li>
             ))}
             {turn && (
-              <li className="msg assistant pending">
+              <li className={`msg assistant ${state === 'sending' ? 'pending' : ''}`}>
                 <span className="mono who">rancang</span>
-                <div className="bubble">{turn.question}</div>
+                <div className="bubble">
+                  {state === 'sending' ? <span className="cursor" aria-hidden="true" /> : null}
+                  {turn.question}
+                </div>
               </li>
             )}
             <div ref={endRef} />
@@ -183,11 +189,12 @@ export default function InterviewPage() {
 
           {state === 'done' ? (
             <div className="done card">
-              <h2>Wawancara selesai.</h2>
-              <p className="muted">Spesifikasi siap ditulis — 7 dokumen sekaligus, butuh beberapa menit.</p>
+              <p className="eyebrow mono">wawancara selesai</p>
+              <h2>Spesifikasi siap ditulis.</h2>
+              <p className="muted">Tujuh dokumen sekaligus — butuh beberapa menit. Kamu bisa menontonnya ditulis.</p>
               <div className="row">
                 <button className="btn primary" onClick={() => void generateAll()} disabled={generating}>
-                  {generating ? 'Menulis…' : 'Buat semua dokumen'}
+                  {generating ? <><span className="cursor" aria-hidden="true" /> Menulis…</> : 'Buat semua dokumen'}
                 </button>
                 <button className="btn ghost" onClick={() => void start(true)} disabled={generating}>Mulai ulang</button>
               </div>
