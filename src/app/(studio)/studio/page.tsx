@@ -8,14 +8,14 @@ import { api, ApiError } from '@/lib/client/api';
 /* ── Types (mirror forge's /api/v1 responses) ─────────────────────── */
 type ProjectStatus = 'draft' | 'interviewing' | 'generating' | 'ready' | 'archived';
 interface Project {
-  id: string; name: string; slug: string; description: string | null;
+  id: string; name: string; description: string | null;
   status: ProjectStatus; icon: string | null; accentColor: string;
   updatedAt: string; createdAt: string;
 }
 interface ListResp { projects: Project[]; pagination: { total: number; limit: number; nextCursor: string | null } }
 
 const STATUS_ID: Record<ProjectStatus, string> = {
-  draft: 'draft', interviewing: 'menulis', generating: 'menulis', ready: 'siap', archived: 'arsip',
+  draft: 'draft', interviewing: 'wawancara', generating: 'menulis', ready: 'siap', archived: 'arsip',
 };
 const STATUS_CLASS: Record<ProjectStatus, string> = {
   draft: '', interviewing: 'live', generating: 'live', ready: 'ok', archived: 'ready',
@@ -23,7 +23,7 @@ const STATUS_CLASS: Record<ProjectStatus, string> = {
 const FILTERS: { key: ProjectStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'Semua' },
   { key: 'draft', label: 'Draft' },
-  { key: 'interviewing', label: 'Menulis' },
+  { key: 'interviewing', label: 'Wawancara' },
   { key: 'generating', label: 'Menulis' },
   { key: 'ready', label: 'Siap' },
   { key: 'archived', label: 'Arsip' },
@@ -35,6 +35,17 @@ function timeAgo(iso: string): string {
   if (s < 3600) return `${Math.floor(s / 60)} mnt lalu`;
   if (s < 86400) return `${Math.floor(s / 3600)} jam lalu`;
   return `${Math.floor(s / 86400)} hari lalu`;
+}
+
+/* Inline mark for projects without an icon — the fallback glyph used to be
+   a unicode diamond the self-hosted fonts don't carry (tofu on screen). */
+function Mark({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <rect x="2" y="2" width="12" height="12" rx="2.5" fill="none" stroke={color} strokeWidth="1.8" />
+      <circle cx="8" cy="8" r="2.4" fill={color} />
+    </svg>
+  );
 }
 
 export default function StudioPage() {
@@ -79,13 +90,15 @@ export default function StudioPage() {
   }
 
   const cards = useMemo(() => data?.projects ?? [], [data]);
+  const live = cards.filter((p) => p.status === 'interviewing' || p.status === 'generating').length;
 
   return (
     <div className="pg-studio">
       <header className="head">
         <div>
+          <p className="eyebrow mono">ruang kerja{live > 0 ? ` · ${live} sedang berjalan` : ''}</p>
           <h1>Studio</h1>
-          <p className="muted">Ubah ide jadi spesifikasi aplikasi lengkap — lewat percakapan.</p>
+          <p className="muted lede">Ceritakan idemu sekali — rancang-ai mewawancarai, lalu menulis tujuh dokumen spesifikasi.</p>
         </div>
         <button className="btn primary" onClick={() => setNewOpen(true)}>+ Proyek baru</button>
       </header>
@@ -118,12 +131,13 @@ export default function StudioPage() {
       {!data && !error && <div className="loading mono" aria-live="polite">memuat…</div>}
 
       {data && cards.length === 0 && (
-        <div className="empty card">
-          <h2>Belum ada proyek{q || status !== 'all' ? ' yang cocok' : ''}.</h2>
+        <div className="empty">
+          <p className="eyebrow mono">{q || status !== 'all' ? 'tidak ada hasil' : 'mulai di sini'}</p>
+          <h2>{q || status !== 'all' ? 'Tidak ada proyek yang cocok.' : 'Lembar kerja masih kosong.'}</h2>
           <p className="muted">
             {q || status !== 'all'
               ? 'Coba kata kunci lain, atau buka filter Semua.'
-              : 'Mulai satu: ceritakan idemu lewat wawancara singkat, rancang-ai menulis spesifikasinya.'}
+              : 'Satu wawancara singkat — lima sampai delapan pertanyaan — dan idemu menjadi PRD, skema data, sampai rencana rilis.'}
           </p>
           {!q && status === 'all' && (
             <button className="btn primary" onClick={() => setNewOpen(true)}>Mulai proyek pertama</button>
@@ -132,22 +146,22 @@ export default function StudioPage() {
       )}
 
       <ul className="grid">
-        {cards.map((p) => (
+        {cards.map((p, i) => (
           <li key={p.id}>
             <Link href={`/projects/${p.id}/interview`} className="job card">
               <div className="job-top">
-                <span className="mono icon" style={{ background: p.accentColor + '22', color: p.accentColor }}>
-                  {p.icon ?? '◆'}
+                <span className="icon" style={{ background: p.accentColor + '22', color: p.accentColor }}>
+                  <Mark color={p.accentColor} />
                 </span>
-                <span className={`pill ${STATUS_CLASS[p.status]}`}>
-                  <span className="dot" />{STATUS_ID[p.status]}
-                </span>
+                <span className="idx mono muted">{String(i + 1).padStart(2, '0')}</span>
               </div>
               <h3>{p.name}</h3>
               <p className="muted desc">{p.description ?? 'Tanpa deskripsi.'}</p>
-              <div className="job-foot mono muted">
-                <span>{timeAgo(p.updatedAt)}</span>
-                {p.status === 'ready' && <span className="go">buka dokumen →</span>}
+              <div className="job-foot">
+                <span className={`pill ${STATUS_CLASS[p.status]}`}>
+                  <span className="dot" />{STATUS_ID[p.status]}
+                </span>
+                <span className="mono muted when">{timeAgo(p.updatedAt)}</span>
               </div>
             </Link>
           </li>
