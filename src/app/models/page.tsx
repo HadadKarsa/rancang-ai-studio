@@ -39,6 +39,7 @@ export default function ModelsPage() {
   const [label, setLabel] = useState('');
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
+  const [selectedModel, setSelectedModel] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -63,11 +64,13 @@ export default function ModelsPage() {
   const entry = providers.find((p) => p.id === provider);
   const canTest = provider !== '' && (mode === 'subscription' || apiKey.trim().length > 0);
   const testPassed = test?.ok === true;
+  const models = testPassed && test?.models ? test.models : [];
 
   async function runTest() {
     if (!provider) return;
     setTesting(true);
     setTest(null);
+    setSelectedModel('');
     setError(null);
     try {
       const body: Record<string, unknown> = { provider };
@@ -85,25 +88,41 @@ export default function ModelsPage() {
   }
 
   async function save() {
-    if (!provider || !apiKey.trim()) return;
+    if (!provider || !selectedModel) return;
     setSaving(true);
     setError(null);
     try {
-      await api.post('/settings/credentials', {
+      const cred = await api.post<Credential>('/settings/credentials', {
         provider,
         label: label.trim() || entry?.label || provider,
         apiKey: apiKey.trim(),
         baseUrl: baseUrl.trim() || undefined,
         test: true,
       });
+      try {
+        await api.post('/settings/presets', {
+          name: label.trim() || entry?.label || provider,
+          provider,
+          credentialId: cred.id,
+          modelId: selectedModel,
+          isDefault: true,
+        });
+      } catch (pe) {
+        throw new Error(
+          pe instanceof ApiError
+            ? `Kredensial tersimpan, tetapi preset gagal dibuat: ${pe.message}`
+            : 'Kredensial tersimpan, tetapi preset gagal dibuat.',
+        );
+      }
       setSaved(true);
       setApiKey('');
       setLabel('');
       setTest(null);
+      setSelectedModel('');
       await load();
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal menyimpan kredensial');
+      setError(e instanceof Error ? e.message : 'Gagal menyimpan kredensial');
     }
     setSaving(false);
   }
@@ -213,8 +232,8 @@ export default function ModelsPage() {
               <button type="button" className="btn" onClick={() => void runTest()} disabled={!canTest || testing}>
                 {testing ? 'Menguji…' : 'Uji koneksi'}
               </button>
-              <button type="submit" className="btn primary" disabled={!testPassed || saving}>
-                {saving ? 'Menyimpan…' : saved ? 'Tersimpan ✓' : 'Simpan kredensial'}
+              <button type="submit" className="btn primary" disabled={!testPassed || !selectedModel || saving}>
+                {saving ? 'Menyimpan…' : saved ? 'Tersimpan ✓' : selectedModel ? 'Simpan kredensial' : 'Simpan — pilih model dulu'}
               </button>
             </div>
 
@@ -224,10 +243,27 @@ export default function ModelsPage() {
                 {test.ok ? (
                   <div className="res-body">
                     <strong>Koneksi berhasil{test.latencyMs ? ` · ${test.latencyMs} ms` : ''}</strong>
-                    {test.models && test.models.length > 0 && (
-                      <div className="models">
-                        {test.models.slice(0, 6).map((m) => <span key={m} className="mono chip-m">{m}</span>)}
-                      </div>
+                    {models.length === 0 ? (
+                      <p className="muted small">Tidak ada model terdeteksi.</p>
+                    ) : (
+                      <fieldset className="pick">
+                        <legend className="small muted">Pilih model untuk preset utama</legend>
+                        <div role="listbox" aria-label="Model terdeteksi" className="pick-list">
+                          {models.map((m) => (
+                            <label key={m} className={`pick-item ${selectedModel === m ? 'on' : ''}`}>
+                              <input
+                                type="radio"
+                                name="model"
+                                value={m}
+                                checked={selectedModel === m}
+                                onChange={() => setSelectedModel(m)}
+                              />
+                              <span className="mono pick-name">{m}</span>
+                              <span className="pick-mark" aria-hidden="true" />
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
                     )}
                   </div>
                 ) : (
