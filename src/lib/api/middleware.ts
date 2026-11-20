@@ -114,7 +114,7 @@ export interface HandlerOptions {
 export function withRoute(
   handler: (ctx: RouteContext) => Promise<Response>,
   options: HandlerOptions = {},
-): (req: Request, routeCtx?: { params?: Promise<Record<string, string>> }) => Promise<Response> {
+): (req: Request, routeCtx: { params: Promise<Record<string, string>> }) => Promise<Response> {
   return async (req, routeCtx) => {
     const requestId = randomUUID();
     const url = new URL(req.url);
@@ -134,6 +134,7 @@ export function withRoute(
       const rate = checkRateLimit(bucket, rateScope);
 
       const rawParams = (await routeCtx?.params) ?? {};
+      void rawParams;
       const params = new Proxy(rawParams as Record<string, string>, {
         get(target, prop) {
           if (prop === 'get') return (name: string) => {

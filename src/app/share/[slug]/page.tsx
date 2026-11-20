@@ -85,7 +85,7 @@ export default function SharePage() {
 
   if (needPassword) {
     return (
-      <main className="gate">
+      <main className="pg-share gate">
         <form className="card" onSubmit={(e) => { e.preventDefault(); void fetchShare(password); }}>
           <h1>Halaman ini terkunci.</h1>
           <p className="muted">Masukkan kata sandi yang diberikan pemilik proyek.</p>
@@ -108,7 +108,7 @@ export default function SharePage() {
 
   if (state === 'gone' || !data) {
     return (
-      <main className="gate">
+      <main className="pg-share gate">
         <div className="card">
           <h1>Tautan tidak tersedia.</h1>
           <p className="muted">{error ?? 'Tautan ini sudah kedaluwarsa atau dicabut.'}</p>
@@ -124,7 +124,7 @@ export default function SharePage() {
 
   if (data.scope === 'document') {
     return (
-      <main className="pub">
+      <main className="pg-share pub">
         <header className="top">
           <span className="brand">rancang-ai<small>baca-saja</small></span>
         </header>
@@ -155,7 +155,7 @@ export default function SharePage() {
     data.versions.find((v) => v.documentId === docId)?.contentMd ?? '';
 
   return (
-    <main className="pub">
+    <main className="pg-share pub">
       <header className="top">
         <span className="brand">rancang-ai<small>baca-saja</small></span>
       </header>

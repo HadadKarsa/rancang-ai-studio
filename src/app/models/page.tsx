@@ -121,7 +121,7 @@ export default function ModelsPage() {
   if (state === 'loading') return <div className="mono muted" style={{ padding: 40 }}>memuat…</div>;
 
   return (
-    <div className="wrap">
+    <div className="pg-models">
       <header className="head">
         <h1>Models</h1>
         <p className="muted">Satu sumber kecerdasan untuk seluruh studio: langganan yang sudah ada, atau kunci sendiri.</p>
@@ -260,43 +260,6 @@ export default function ModelsPage() {
         </ul>
       </section>
 
-      <style jsx>{`
-        .wrap { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
-        .head h1 { font-size: 30px; letter-spacing: -0.02em; }
-        .head p { margin-top: 4px; }
-        .form { padding: 28px; display: flex; flex-direction: column; gap: 30px; }
-        .step { font-size: 11px; letter-spacing: 0.1em; color: var(--ink-2); display: flex; align-items: center; gap: 10px; }
-        .step span { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-size: 10px; }
-        .prov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 12px; }
-        .prov { border: 1.5px solid var(--line-2); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; background: var(--card); text-align: left; }
-        .prov:hover { border-color: var(--ink); }
-        .prov.on { border-color: var(--ink); background: var(--paper); box-shadow: inset 0 0 0 1px var(--ink); }
-        .pname { font-weight: 700; font-size: 14px; }
-        .modes { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-        .mode { flex: 1; min-width: 240px; border: 1.5px solid var(--line-2); border-radius: 12px; padding: 14px 16px; display: flex; gap: 10px; cursor: pointer; background: var(--card); }
-        .mode.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-        .mode input { margin-top: 3px; accent-color: var(--vermilion); }
-        .mode strong { font-size: 14px; }
-        .mode p { margin-top: 3px; }
-        .byok { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
-        .note { margin-top: 12px; }
-        .row { display: flex; gap: 10px; margin-top: 12px; }
-        .result { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 13.5px; }
-        .result.pass { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 6%, var(--card)); }
-        .result.fail { border-color: var(--vermilion); background: var(--vermilion-wash); }
-        .lamp { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex: none; }
-        .lamp.ok { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
-        .lamp.err { background: var(--vermilion); box-shadow: 0 0 0 3px var(--vermilion-wash); }
-        .res-body { display: flex; flex-direction: column; gap: 8px; }
-        .models { display: flex; gap: 6px; flex-wrap: wrap; }
-        .chip-m { font-size: 10.5px; border: 1px solid var(--line-2); border-radius: 99px; padding: 3px 9px; color: var(--ink-2); }
-        .h { font-size: 10.5px; letter-spacing: 0.12em; color: var(--ink-3); margin-bottom: 10px; }
-        .list ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-        .cred { padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-        .right { display: flex; gap: 10px; align-items: center; }
-        .small { font-size: 12px; }
-        .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; }
-      `}</style>
     </div>
   );
 }

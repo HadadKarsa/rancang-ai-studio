@@ -118,7 +118,7 @@ export default function InterviewPage() {
   const total = session?.maxQuestions ?? 7;
 
   return (
-    <div className="wrap">
+    <div className="pg-interview">
       <header className="head">
         <Link href="/studio" className="mono muted back">← Studio</Link>
         <div className="meter" role="progressbar" aria-valuenow={step} aria-valuemin={0} aria-valuemax={total}>
@@ -219,41 +219,6 @@ export default function InterviewPage() {
         </>
       )}
 
-      <style jsx>{`
-        .wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-        .head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-        .back { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
-        .meter { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; min-width: 200px; }
-        .label { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
-        .bar { width: 200px; height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
-        .bar span { display: block; height: 100%; background: var(--vermilion); transition: width 300ms; }
-        .start { padding: 40px 36px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
-        .start h1 { font-size: 26px; letter-spacing: -0.02em; }
-        .transcript { list-style: none; display: flex; flex-direction: column; gap: 18px; padding: 8px 0; }
-        .msg { display: flex; flex-direction: column; gap: 4px; max-width: 85%; }
-        .msg.user { align-self: flex-end; align-items: flex-end; }
-        .msg.assistant { align-self: flex-start; }
-        .who { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
-        .bubble { background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 16px; font-size: 14.5px; white-space: pre-wrap; }
-        .msg.user .bubble { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-        .at { font-size: 9.5px; }
-        .pending .bubble { border-style: dashed; }
-        .slips { display: flex; gap: 8px; flex-wrap: wrap; }
-        .slip { border: 1.5px dashed var(--line-2); border-radius: 10px; padding: 8px 14px; font-size: 13px; color: var(--ink-2); background: transparent; }
-        .slip:hover { border-color: var(--vermilion); color: var(--vermilion-ink); border-style: solid; }
-        .composer { display: flex; gap: 10px; align-items: flex-end; position: sticky; bottom: 16px; }
-        .composer textarea { flex: 1; border: 1.5px solid var(--line-2); border-radius: 12px; padding: 12px 14px; background: var(--card); resize: vertical; outline: none; }
-        .composer textarea:focus { border-color: var(--ink); }
-        .done { padding: 26px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-        .done h2 { font-size: 19px; }
-        .row { display: flex; gap: 10px; }
-        .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; }
-        @media (max-width: 720px) {
-          .msg { max-width: 100%; }
-          .meter { min-width: 0; }
-          .bar { width: 130px; }
-        }
-      `}</style>
     </div>
   );
 }

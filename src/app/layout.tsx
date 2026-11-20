@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import StyledJsxRegistry from '@/components/StyledJsxRegistry';
 import './globals.css';
 
 
@@ -12,7 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="id">
       <body>
-        <StyledJsxRegistry>{children}</StyledJsxRegistry>
+        <>{children}</>
       </body>
     </html>
   );

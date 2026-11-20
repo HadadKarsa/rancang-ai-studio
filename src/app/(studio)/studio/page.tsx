@@ -81,7 +81,7 @@ export default function StudioPage() {
   const cards = useMemo(() => data?.projects ?? [], [data]);
 
   return (
-    <div className="studio">
+    <div className="pg-studio">
       <header className="head">
         <div>
           <h1>Studio</h1>
@@ -181,35 +181,6 @@ export default function StudioPage() {
         </div>
       )}
 
-      <style jsx>{`
-        .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 28px; }
-        h1 { font-size: 30px; letter-spacing: -0.02em; }
-        .head p { margin-top: 4px; max-width: 46ch; }
-        .tools { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 24px; }
-        .search { border: 1.5px solid var(--line-2); border-radius: 10px; padding: 9px 14px; background: var(--card); width: min(340px, 100%); outline: none; }
-        .search:focus { border-color: var(--ink); }
-        .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-        .chip { font: 600 11px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 7px 12px; border-radius: 99px; border: 1.5px solid var(--line-2); color: var(--ink-2); }
-        .chip:hover { border-color: var(--ink); color: var(--ink); }
-        .chip.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-        .grid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-        .job { display: flex; flex-direction: column; gap: 10px; padding: 20px; height: 100%; transition: border-color 120ms; }
-        .job:hover { border-color: var(--ink); }
-        .job-top { display: flex; justify-content: space-between; align-items: center; }
-        .icon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font-size: 15px; }
-        .job h3 { font-size: 17px; letter-spacing: -0.01em; }
-        .desc { font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .job-foot { display: flex; justify-content: space-between; margin-top: auto; font-size: 11px; }
-        .go { color: var(--vermilion-ink); font-weight: 600; }
-        .empty { padding: 48px 32px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
-        .empty h2 { font-size: 19px; }
-        .loading { padding: 40px 0; color: var(--ink-3); }
-        .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; margin-bottom: 20px; font-size: 13.5px; }
-        .veil { position: fixed; inset: 0; background: rgb(36 32 26 / 0.35); display: grid; place-items: center; padding: 20px; z-index: 40; }
-        .sheet { width: min(460px, 100%); padding: 26px; display: flex; flex-direction: column; gap: 16px; }
-        .sheet h2 { font-size: 19px; }
-        .sheet-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
-      `}</style>
     </div>
   );
 }

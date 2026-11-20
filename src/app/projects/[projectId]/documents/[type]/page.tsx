@@ -183,7 +183,7 @@ export default function DocPage() {
   const ordered = DOC_ORDER.filter((t) => docs.some((d) => d.type === t));
 
   return (
-    <div className="wrap">
+    <div className="pg-documents">
       <header className="head">
         <div className="crumbs">
           <Link href="/studio" className="mono muted">Studio</Link>
@@ -286,55 +286,6 @@ export default function DocPage() {
 
       {error && <div className="alert" role="alert">{error}</div>}
 
-      <style jsx>{`
-        .wrap { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-        .crumbs { display: flex; gap: 8px; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; align-items: center; }
-        .pname { color: var(--ink-2); }
-        .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
-        .tab { font: 600 11px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 7px 12px; border-radius: 99px; border: 1.5px solid var(--line-2); color: var(--ink-2); }
-        .tab:hover { border-color: var(--ink); color: var(--ink); }
-        .tab.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-        .tab.dim { opacity: 0.5; }
-        .proof { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; }
-        .sheet { padding: 0; overflow: hidden; }
-        .running { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 22px 26px; border-bottom: 1.5px solid var(--line); }
-        .running h1 { font-size: 21px; letter-spacing: -0.01em; }
-        .meta { font-size: 10.5px; color: var(--ink-3); margin-top: 4px; letter-spacing: 0.05em; text-transform: uppercase; }
-        .acts { display: flex; gap: 8px; flex: none; }
-        .body { padding: 26px 30px 34px; max-height: calc(100vh - 260px); overflow-y: auto; }
-        .body :global(h2) { font-size: 18px; margin: 26px 0 10px; letter-spacing: -0.01em; }
-        .body :global(h3) { font-size: 15px; margin: 20px 0 8px; }
-        .body :global(h4) { font-size: 13.5px; margin: 16px 0 6px; color: var(--ink-2); }
-        .body :global(h2:first-child), .body :global(h1:first-child) { margin-top: 0; }
-        .body :global(p) { margin: 8px 0; font-size: 14.5px; }
-        .body :global(ul), .body :global(ol) { margin: 8px 0 8px 22px; font-size: 14.5px; }
-        .body :global(code) { font: 12.5px var(--mono); background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
-        .body :global(pre) { background: var(--ink); color: var(--paper); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
-        .body :global(pre code) { background: none; border: none; color: inherit; font-size: 12.5px; }
-        .body :global(table) { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; }
-        .body :global(td) { border: 1px solid var(--line); padding: 7px 10px; }
-        .wet { padding: 10px 26px 16px; color: var(--vermilion-ink); font-size: 11px; display: flex; align-items: center; gap: 8px; }
-        .marginalia { display: flex; flex-direction: column; gap: 14px; }
-        .pad { padding: 18px; }
-        .marginalia h3 { font-size: 10px; letter-spacing: 0.12em; color: var(--ink-3); margin-bottom: 10px; }
-        dl { display: flex; flex-direction: column; gap: 7px; }
-        dl div { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; }
-        dt { color: var(--ink-3); }
-        dd { text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .revs { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-        .revs li { display: flex; gap: 8px; align-items: baseline; font-size: 12px; }
-        .v { font-weight: 600; color: var(--vermilion-ink); flex: none; }
-        .small { font-size: 12px; }
-        .empty { padding: 44px 32px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; max-width: 560px; margin: 0 auto; }
-        .empty h2 { font-size: 20px; }
-        .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; }
-        @media (max-width: 900px) {
-          .proof { grid-template-columns: 1fr; }
-          .body { max-height: none; }
-          .running { flex-direction: column; }
-          .acts { flex-wrap: wrap; }
-        }
-      `}</style>
     </div>
   );
 }
