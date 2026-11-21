@@ -75,6 +75,7 @@ input, textarea, select { font: inherit; color: inherit; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 44px; /* tap target floor, whatever the label length */
   transition: background 120ms, color 120ms, border-color 120ms;
 }
 .btn:hover { background: var(--card); color: var(--ink); }
