@@ -8,7 +8,7 @@ import { getProjectById } from '@/lib/db/repositories/projects';
 import { getTemplateById } from '@/lib/db/repositories/templates';
 import { createRun, markRunFailed, markRunSucceeded } from '@/lib/db/repositories/generationRuns';
 import { ForbiddenError } from '@/lib/auth/errors';
-import { NotFoundError, ProviderError, ValidationError } from '@/lib/errors';
+import { NotFoundError, ProviderError, ProviderNotConfiguredError, ValidationError } from '@/lib/errors';
 import { nowIso } from '@/lib/ids';
 
 /**
@@ -85,6 +85,9 @@ export async function startInterviewTurn(input: {
     return turn;
   } catch (e) {
     await markRunFailed(run.id, 'PROVIDER_ERROR', e instanceof Error ? e.message : String(e));
+    if (e instanceof ProviderNotConfiguredError) {
+      throw new ProviderNotConfiguredError('Model belum punya API key — atur di halaman Models');
+    }
     throw new ProviderError(e instanceof Error ? e.message : 'Interview turn failed');
   }
 }

@@ -68,8 +68,8 @@ export class PayloadTooLargeError extends AppError {
 }
 
 export class ProviderNotConfiguredError extends AppError {
-  constructor(provider: string) {
-    super('PROVIDER_NOT_CONFIGURED', `No API key on file for provider: ${provider}`, 422);
+  constructor(provider: string, message?: string) {
+    super('PROVIDER_NOT_CONFIGURED', message ?? `No API key on file for provider: ${provider}`, 422, { provider });
   }
 }
 
