@@ -195,7 +195,8 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-studio .grid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--s4); }
 .pg-studio .job { display: flex; flex-direction: column; gap: 10px; padding: var(--s5); height: 100%; transition: border-color 120ms, transform 120ms; }
 .pg-studio .job:hover { border-color: var(--ink); transform: translateY(-2px); }
-.pg-studio .job-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+/* right padding keeps the card's index clear of the delete control */
+.pg-studio .job-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding-right: 62px; }
 .pg-studio .icon { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; }
 .pg-studio .idx { font-size: 11px; }
 .pg-studio .job h3 { font-size: 20px; }
