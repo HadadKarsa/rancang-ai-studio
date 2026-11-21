@@ -262,6 +262,8 @@ export default function DocPage() {
             </header>
             {type === 'wireframe' ? (
               <div className="editor" style={{ padding: 'var(--s5)' }}>
+                {/* Live HTML preview: the editor renders the screen markup into a
+                    sandboxed iframe's srcdoc, so edits show up as you type. */}
                 <WireframeEditor projectId={projectId} />
               </div>
             ) : (
