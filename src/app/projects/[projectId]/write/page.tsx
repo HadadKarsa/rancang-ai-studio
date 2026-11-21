@@ -143,16 +143,27 @@ export default function WritePage() {
     abortRef.current = ctrl;
 
     try {
-      const res = await fetch(`/api/v1/projects/${projectId}/documents/generate-stream`, {
-        credentials: 'same-origin',
-        signal: ctrl.signal,
-        headers: { Accept: 'text/event-stream' },
-      });
+      // A 409 means another stream holds the project's batch. That happens
+      // legitimately in dev, where React StrictMode mounts twice and the first
+      // request is still releasing the guard. Wait for it and try again before
+      // telling the reader anything is wrong.
+      let res: Response | null = null;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        res = await fetch(`/api/v1/projects/${projectId}/documents/generate-stream`, {
+          credentials: 'same-origin',
+          signal: ctrl.signal,
+          headers: { Accept: 'text/event-stream' },
+        });
+        if (res.status !== 409) break;
+        if (attempt === 5) break;
+        await new Promise((r) => setTimeout(r, 1200));
+        if (ctrl.signal.aborted) return;
+      }
 
-      if (!res.ok || !res.body) {
-        let message = `Gagal memulai (${res.status})`;
+      if (!res || !res.ok || !res.body) {
+        let message = `Gagal memulai (${res?.status ?? 0})`;
         try {
-          const body = await res.json();
+          const body = await res?.json();
           message = body?.error?.message ?? message;
         } catch { /* non-JSON */ }
         setFatal(message);
