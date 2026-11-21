@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { withRoute, parseJson } from '@/lib/api/middleware';
+import { withRoute } from '@/lib/api/middleware';
 import { assertProjectOwnership } from '@/lib/services/interview';
-import { generateAllDocuments } from '@/lib/services/orchestrator';
-import { ValidationError } from '@/lib/errors';
+import { generateAllDocuments, type BatchResult } from '@/lib/services/orchestrator';
+import { ConflictError, ValidationError } from '@/lib/errors';
 
 
 const bodySchema = z.object({
@@ -12,9 +12,18 @@ const bodySchema = z.object({
 });
 
 /**
+ * Projects with a batch currently running in this process. A second POST for the
+ * same project gets 409 instead of starting a duplicate batch (which would
+ * double the provider spend and race on document versions). Released in
+ * `finally` so a throw cannot wedge the project forever.
+ */
+const inFlight = new Set<string>();
+
+/**
  * POST /api/v1/projects/:projectId/documents/generate-all
- * Batch generation, sequential with dependency context. Returns the batch
- * result when done (long request; the UI shows per-document status via GET).
+ * Starts the batch and returns 202 immediately — the work runs detached, since
+ * the batch takes tens of seconds and a proxy in front of the app will drop a
+ * long-held request. Progress is read from GET .../documents.
  */
 export const POST = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
@@ -28,14 +37,39 @@ export const POST = withRoute(async (ctx) => {
     input = parsed.data;
   }
 
-  const result = await generateAllDocuments({
-    userId: ctx.session.user.id,
+  if (inFlight.has(projectId)) {
+    throw new ConflictError('Pembuatan dokumen sedang berjalan');
+  }
+  inFlight.add(projectId);
+
+  const { requestId } = ctx;
+  const userId = ctx.session.user.id;
+  console.log(`[${requestId}] generate-all start project=${projectId} user=${userId}`);
+
+  void generateAllDocuments({
+    userId,
     projectId,
     presetId: input.presetId,
     ephemeralKey: input.apiKey,
     skipWireframe: input.skipWireframe,
-  });
-  return Response.json(result);
+  })
+    .then((result: BatchResult) => {
+      console.log(
+        `[${requestId}] generate-all done project=${projectId} generated=${result.generated.join(',') || '-'}` +
+        ` failed=${result.failed.length} skipped=${result.skipped.join(',') || '-'}`,
+      );
+      for (const f of result.failed) {
+        console.error(`[${requestId}] generate-all document failed project=${projectId} type=${f.type} error=${f.error}`);
+      }
+    })
+    .catch((e: unknown) => {
+      console.error(`[${requestId}] generate-all failed project=${projectId}`, e);
+    })
+    .finally(() => {
+      inFlight.delete(projectId);
+    });
+
+  return Response.json({ started: true }, { status: 202 });
 }, { bucket: 'generate' });
 
 export const maxDuration = 300;

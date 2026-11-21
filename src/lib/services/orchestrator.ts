@@ -78,6 +78,9 @@ export async function generateAllDocuments(opts: BatchOptions): Promise<BatchRes
     });
 
     const started = Date.now();
+    // Mark it in flight so a polling UI sees which document is being written.
+    const { setDocumentStatus: setStatus } = await import('@/lib/db/repositories/documents');
+    await setStatus(doc.id, 'generating');
     try {
       const res = await generateText({
         model, system: prompt.system, prompt: prompt.prompt,
