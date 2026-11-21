@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api, ApiError } from '@/lib/client/api';
 
 /* ── Types (mirror forge's /api/v1) ───────────────────────────────── */
