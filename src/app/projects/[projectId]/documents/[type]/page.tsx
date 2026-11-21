@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/client/api';
+import { WireframeEditor } from '@/components/WireframeEditor';
 
 /* ── Types (mirror forge's /api/v1) ───────────────────────────────── */
 type DocumentType = 'prd' | 'architecture' | 'database' | 'api' | 'tasks' | 'memory' | 'wireframe';
@@ -103,6 +104,8 @@ export default function DocPage() {
   const [streaming, setStreaming] = useState(false);
   const [streamTail, setStreamTail] = useState('');
   const [copied, setCopied] = useState(false);
+  const [savingLib, setSavingLib] = useState(false);
+  const [libSaved, setLibSaved] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
@@ -167,6 +170,26 @@ export default function DocPage() {
     setTimeout(() => setCopied(false), 1600);
   }
 
+  async function saveToLibrary() {
+    if (!doc) return;
+    setSavingLib(true);
+    setError(null);
+    try {
+      await api.post('/library', {
+        kind: type === 'wireframe' ? 'wireframe' : 'document',
+        title: doc.title,
+        projectId,
+        documentId: doc.id,
+        payload: content || '(kosong)',
+      });
+      setLibSaved(true);
+      setTimeout(() => setLibSaved(false), 2000);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Gagal menyimpan ke library');
+    }
+    setSavingLib(false);
+  }
+
   if (state === 'loading') return <div className="mono muted" style={{ padding: 40 }}>memuat…</div>;
   if (state === 'error') return <div className="alert" role="alert" style={{ margin: 40 }}>{error}</div>;
 
@@ -215,6 +238,9 @@ export default function DocPage() {
               </div>
               <div className="acts">
                 <button className="btn ghost" onClick={() => void copyMd()}>{copied ? 'Tersalin ✓' : 'Salin'}</button>
+                <button className="btn ghost" onClick={() => void saveToLibrary()} disabled={savingLib || !content}>
+                  {libSaved ? 'Tersimpan ✓' : savingLib ? 'Menyimpan…' : 'Simpan ke library'}
+                </button>
                 <div className="dl" role="group" aria-label="Unduh proyek">
                   <span className="dl-label mono">Unduh</span>
                   {(['md', 'zip', 'json'] as const).map((f) => (
@@ -234,7 +260,13 @@ export default function DocPage() {
                 </button>
               </div>
             </header>
-            <div className="body" ref={bodyRef} dangerouslySetInnerHTML={{ __html: renderMd(content) }} />
+            {type === 'wireframe' ? (
+              <div className="editor" style={{ padding: 'var(--s5)' }}>
+                <WireframeEditor projectId={projectId} />
+              </div>
+            ) : (
+              <div className="body" ref={bodyRef} dangerouslySetInnerHTML={{ __html: renderMd(content) }} />
+            )}
             {streaming && <div className="wet mono"><span className="cursor" /> {streamTail.slice(-40)}</div>}
           </article>
 

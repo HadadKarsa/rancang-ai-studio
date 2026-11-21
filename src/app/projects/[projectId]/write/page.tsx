@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { api, ApiError } from '@/lib/client/api';
 
 /* ── Why this screen looks like this ─────────────────────────────────
    Ndan's brief: the wait must not be boring — you should watch a document
@@ -200,6 +201,8 @@ export default function WritePage() {
   const [elapsed, setElapsed] = useState(0);
   const [wireframing, setWireframing] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [savingLib, setSavingLib] = useState(false);
+  const [libSaved, setLibSaved] = useState(0);
 
   const boxRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
@@ -648,6 +651,36 @@ export default function WritePage() {
     })();
   }, [docs, startBatch, watch]);
 
+  /** Save every finished document of this batch into the library, one item
+   *  each. The batch page holds no text for a finished document, so each one
+   *  is read from its own endpoint first. Wireframe is not part of the batch. */
+  const saveAllToLibrary = useCallback(async () => {
+    setSavingLib(true);
+    setFatal(null);
+    let saved = 0;
+    try {
+      for (const d of docs) {
+        if (d.status !== 'ready') continue;
+        const full = await api.get<{ document: { id: string; title: string }; content: string | null }>(
+          `/projects/${projectId}/documents/${d.type}?content=1`,
+        );
+        if (!full.content) continue;
+        await api.post('/library', {
+          kind: 'document',
+          title: full.document.title || LABEL[d.type],
+          projectId,
+          documentId: full.document.id,
+          payload: full.content,
+        });
+        saved += 1;
+        setLibSaved(saved);
+      }
+    } catch (e) {
+      setFatal(e instanceof ApiError ? e.message : 'Gagal menyimpan ke library');
+    }
+    setSavingLib(false);
+  }, [docs, projectId]);
+
   const startWireframe = useCallback(async () => {
     setWireframing(true);
     setFatal(null);
@@ -834,6 +867,13 @@ export default function WritePage() {
                     </a>
                   ))}
                 </div>
+                <button
+                  className="btn ghost"
+                  onClick={() => void saveAllToLibrary()}
+                  disabled={savingLib || doneCount === 0}
+                >
+                  {savingLib ? 'Menyimpan…' : libSaved > 0 ? `Tersimpan ✓ ${libSaved}` : 'Simpan ke library'}
+                </button>
                 <Link className="btn primary" href={`/projects/${projectId}/documents/prd`}>
                   Baca dokumen
                 </Link>
