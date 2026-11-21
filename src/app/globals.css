@@ -844,3 +844,44 @@ input, textarea, select { font: inherit; color: inherit; }
   .pg-write .inkline .bar { animation: none; width: 100%; opacity: 0.5; }
   .pg-write .step.writing .mark { animation: none; }
 }
+
+/* ── /login, /register (v0.1.2) ─────────────────────────────────────
+   One card on paper. The card is the page: a quiet title, two fields,
+   one press. Vermilion is only the error rule and the focus ring. */
+.pg-auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background:
+    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--card) 70%, transparent) 0%, transparent 60%),
+    var(--paper);
+}
+.auth-wrap { width: min(420px, 100%); display: flex; flex-direction: column; gap: 18px; }
+.auth-wrap .back { color: var(--ink-2); align-self: flex-start; }
+.auth-wrap .back:hover { color: var(--ink); }
+.auth-card {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  box-shadow: 0 1px 0 var(--line), 0 18px 40px -32px rgb(29 26 22 / 0.5);
+}
+.auth-head { display: flex; flex-direction: column; gap: 6px; }
+.auth-head h1 { font-size: 30px; letter-spacing: -0.03em; }
+.auth-head p { font-size: 14px; }
+.auth-card form { display: flex; flex-direction: column; gap: 16px; }
+.auth-card .field.bad input { border-color: var(--vermilion); }
+.auth-card .err-msg { font-size: 12px; color: var(--vermilion-ink); }
+.auth-submit { width: 100%; justify-content: center; margin-top: 4px; }
+.auth-switch { font-size: 13.5px; text-align: center; }
+.auth-switch a { color: var(--ink); font-weight: 600; border-bottom: 1.5px solid var(--line-2); }
+.auth-switch a:hover { border-color: var(--ink); }
+.auth-card .alert {
+  border: 1.5px solid var(--vermilion); background: var(--vermilion-wash);
+  color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13px;
+}
+@media (max-width: 480px) {
+  .auth-card { padding: 24px 20px; }
+  .auth-head h1 { font-size: 26px; }
+}
