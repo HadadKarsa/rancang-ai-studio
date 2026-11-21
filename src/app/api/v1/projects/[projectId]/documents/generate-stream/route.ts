@@ -1,7 +1,7 @@
 import { withRoute } from '@/lib/api/middleware';
 import { ConflictError } from '@/lib/errors';
 import { assertProjectOwnership } from '@/lib/services/interview';
-import { snapshot, subscribe, type BatchSnapshot } from '@/lib/services/batchRunner';
+import { snapshot, subscribe, isBatchRunning, type BatchSnapshot } from '@/lib/services/batchRunner';
 import type { BatchStreamEvent } from '@/lib/services/orchestrator';
 
 /**
@@ -30,10 +30,9 @@ import type { BatchStreamEvent } from '@/lib/services/orchestrator';
  * an idle connection. Comments are ignored by EventSource and by the client's
  * parser.
  *
- * No batch for this project → 409 with the plain JSON error envelope (not SSE).
- * A batch that already finished is still replayed (snapshot + finish) while it
- * is in the registry, so a client that was away for the last document can catch
- * up; after that it is 409 too.
+ * No batch running for this project → 409 with the plain JSON error envelope
+ * (not SSE), as before. A batch that already finished is not replayed: a page
+ * that comes back after the end reads GET .../documents instead.
  *
  * Starting a batch is POST .../documents/generate-all.
  */
@@ -50,7 +49,7 @@ export const GET = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
   await assertProjectOwnership(ctx.session.user.id, projectId);
 
-  const initial: BatchSnapshot | null = snapshot(projectId);
+  const initial: BatchSnapshot | null = isBatchRunning(projectId) ? snapshot(projectId) : null;
   if (!initial) {
     throw new ConflictError('Tidak ada pembuatan dokumen yang berjalan untuk proyek ini', { projectId });
   }
@@ -76,11 +75,6 @@ export const GET = withRoute(async (ctx) => {
 
       // Replay everything written so far, partial text included.
       push('snapshot', initial);
-
-      if (initial.finished) {
-        close();
-        return;
-      }
 
       unsubscribe = subscribe(projectId, (ev: BatchStreamEvent) => {
         push(ev.event, ev.data);
