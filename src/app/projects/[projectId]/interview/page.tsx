@@ -20,7 +20,7 @@ interface InterviewResp { sessions: Session[]; active: Session | null; latest: S
 interface AnswerResp { questionIndex: number; isComplete: boolean; nextTurn: Turn | null }
 interface ProjectResp { project: { id: string; name: string; description: string | null } }
 
-const DOCS = ['PRD', 'Arsitektur', 'Database', 'API', 'Tugas', 'Memori', 'Wireframe'];
+const DOCS = ['PRD', 'Arsitektur', 'Database', 'API', 'Tugas', 'Memori'];
 
 function timeOf(iso: string): string {
   return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -139,15 +139,10 @@ export default function InterviewPage() {
   }
 
   async function generateAll() {
+    // The writing page opens the SSE stream itself — no request here, so the
+    // first token lands as soon as it is produced.
     setGenerating(true);
-    setError(null);
-    try {
-      await api.post(`/projects/${projectId}/documents/generate-all`, {});
-      router.push(`/projects/${projectId}/documents/prd`);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal memulai pembuatan dokumen');
-      setGenerating(false);
-    }
+    router.push(`/projects/${projectId}/write`);
   }
 
   if (loading) {
@@ -225,11 +220,11 @@ export default function InterviewPage() {
           {completed && (
             <section className="finish">
               <p className="cap mono">wawancara selesai · {answers} jawaban</p>
-              <h2>Tujuh dokumen siap ditulis.</h2>
+              <h2>Enam dokumen siap ditulis.</h2>
               <p className="note">
-                Semua yang kamu ceritakan sudah cukup. Rancang-ai menulis tujuh
-                dokumen spesifikasi sekaligus — butuh beberapa menit, dan kamu
-                bisa menontonnya ditulis.
+                Semua yang kamu ceritakan sudah cukup. Rancang-ai menulis enam
+                dokumen spesifikasi sekaligus, dan kamu bisa menonton tiap
+                dokumen ditulis kata demi kata. Wireframe bisa dibuat belakangan.
               </p>
               <ol className="docs">
                 {DOCS.map((d) => (
@@ -238,7 +233,7 @@ export default function InterviewPage() {
               </ol>
               <div className="row">
                 <button className="btn primary" onClick={() => void generateAll()} disabled={generating}>
-                  {generating ? 'Menyiapkan…' : 'Tulis semua dokumen'}
+                  {generating ? 'Membuka…' : 'Tulis dokumen'}
                   {!generating && <Arrow />}
                 </button>
                 <button className="btn ghost" onClick={() => void restart()} disabled={generating || starting}>

@@ -1,29 +1,32 @@
 import { z } from 'zod';
 import { withRoute } from '@/lib/api/middleware';
 import { assertProjectOwnership } from '@/lib/services/interview';
-import { generateAllDocuments, type BatchResult } from '@/lib/services/orchestrator';
+import {
+  generateAllDocuments, beginBatch, endBatch, resolveGenerationOrder,
+  type BatchResult,
+} from '@/lib/services/orchestrator';
 import { ConflictError, ValidationError } from '@/lib/errors';
-
+import { isDocumentType } from '@/lib/documents/types';
+import type { DocumentType } from '@/lib/db/enums';
 
 const bodySchema = z.object({
   presetId: z.string().optional(),
   apiKey: z.string().min(8).max(400).optional(),
+  /** Deprecated: wireframe is opt-in now. Accepted so old clients keep working. */
   skipWireframe: z.boolean().optional(),
+  /** Explicit document selection. Wireframe is only written when named here. */
+  types: z.array(z.string()).optional(),
 });
 
 /**
- * Projects with a batch currently running in this process. A second POST for the
- * same project gets 409 instead of starting a duplicate batch (which would
- * double the provider spend and race on document versions). Released in
- * `finally` so a throw cannot wedge the project forever.
- */
-const inFlight = new Set<string>();
-
-/**
  * POST /api/v1/projects/:projectId/documents/generate-all
+ *
  * Starts the batch and returns 202 immediately — the work runs detached, since
  * the batch takes tens of seconds and a proxy in front of the app will drop a
  * long-held request. Progress is read from GET .../documents.
+ *
+ * Defaults to the six core documents and stops before wireframe; pass
+ * `types: ["wireframe"]` to write the wireframe.
  */
 export const POST = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
@@ -37,21 +40,32 @@ export const POST = withRoute(async (ctx) => {
     input = parsed.data;
   }
 
-  if (inFlight.has(projectId)) {
-    throw new ConflictError('Pembuatan dokumen sedang berjalan');
+  let types: DocumentType[] | undefined;
+  if (input.types && input.types.length > 0) {
+    const out: DocumentType[] = [];
+    for (const t of input.types) {
+      if (t === 'all') { out.push('prd', 'architecture', 'database', 'api', 'tasks', 'memory', 'wireframe'); continue; }
+      if (!isDocumentType(t)) throw new ValidationError(`Unknown document type: ${t}`, { type: t });
+      out.push(t);
+    }
+    types = out;
   }
-  inFlight.add(projectId);
+
+  if (!beginBatch(projectId)) {
+    throw new ConflictError('Pembuatan dokumen sedang berjalan untuk proyek ini', { projectId });
+  }
 
   const { requestId } = ctx;
   const userId = ctx.session.user.id;
-  console.log(`[${requestId}] generate-all start project=${projectId} user=${userId}`);
+  const order = resolveGenerationOrder({ types });
+  console.log(`[${requestId}] generate-all start project=${projectId} user=${userId} order=${order.join(',')}`);
 
   void generateAllDocuments({
     userId,
     projectId,
     presetId: input.presetId,
     ephemeralKey: input.apiKey,
-    skipWireframe: input.skipWireframe,
+    types,
   })
     .then((result: BatchResult) => {
       console.log(
@@ -66,10 +80,10 @@ export const POST = withRoute(async (ctx) => {
       console.error(`[${requestId}] generate-all failed project=${projectId}`, e);
     })
     .finally(() => {
-      inFlight.delete(projectId);
+      endBatch(projectId);
     });
 
-  return Response.json({ started: true }, { status: 202 });
+  return Response.json({ started: true, order }, { status: 202 });
 }, { bucket: 'generate' });
 
 export const maxDuration = 300;
