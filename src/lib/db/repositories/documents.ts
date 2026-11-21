@@ -28,6 +28,24 @@ export async function setDocumentStatus(documentId: string, status: SpecDocument
   }
 }
 
+/**
+ * Repair documents whose status got stuck while their text is already stored.
+ * A batch that is cancelled, or a server that dies mid-stream, leaves the row
+ * `pending`/`generating` even though a version was persisted — and the
+ * documents page filters on status, so the text the user already paid for
+ * looks like it never arrived. `failed` is deliberately left alone: it is a
+ * real signal, not a stuck state.
+ */
+export async function repairStaleDocumentStatuses(projectId: string): Promise<number> {
+  const now = nowIso();
+  const r = await execute(
+    `UPDATE spec_documents SET status = 'ready', last_generated_at = COALESCE(last_generated_at, ?), updated_at = ?
+     WHERE project_id = ? AND current_version_id IS NOT NULL AND status IN ('pending', 'generating')`,
+    [now, now, projectId],
+  );
+  return r.rowsAffected;
+}
+
 export async function setDocumentLock(documentId: string, locked: boolean): Promise<void> {
   await execute('UPDATE spec_documents SET is_locked = ?, updated_at = ? WHERE id = ?', [locked ? 1 : 0, nowIso(), documentId]);
 }

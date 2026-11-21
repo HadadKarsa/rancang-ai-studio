@@ -1,6 +1,6 @@
 import { withRoute } from '@/lib/api/middleware';
 import { assertProjectOwnership } from '@/lib/services/interview';
-import { listDocuments, listCurrentVersionsForProject } from '@/lib/db/repositories/documents';
+import { listDocuments, listCurrentVersionsForProject, repairStaleDocumentStatuses } from '@/lib/db/repositories/documents';
 
 /**
  * GET /api/v1/projects/:projectId/documents
@@ -14,6 +14,12 @@ import { listDocuments, listCurrentVersionsForProject } from '@/lib/db/repositor
 export const GET = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
   await assertProjectOwnership(ctx.session.user.id, projectId);
+
+  // Self-heal before reading: a cancelled or interrupted batch can leave a
+  // document `pending`/`generating` while its text is already stored, which
+  // reads as "the document never arrived".
+  const repaired = await repairStaleDocumentStatuses(projectId);
+  if (repaired > 0) console.log(`[documents] repaired ${repaired} stale status(es) project=${projectId}`);
 
   const [docs, current] = await Promise.all([
     listDocuments(projectId),

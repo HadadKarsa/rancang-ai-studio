@@ -58,6 +58,10 @@ export default function StudioPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [debounceTick, setDebounceTick] = useState(0);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Project | null>(null);
+  const [delError, setDelError] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -71,7 +75,7 @@ export default function StudioPage() {
         .catch((e: unknown) => setError(e instanceof ApiError ? e.message : 'Gagal memuat proyek'));
     }, 250);
     return () => { if (debounce.current) clearTimeout(debounce.current); };
-  }, [q, status]);
+  }, [q, status, debounceTick]);
 
   async function createProject() {
     if (!newName.trim()) return;
@@ -90,6 +94,21 @@ export default function StudioPage() {
   }
 
   const cards = useMemo(() => data?.projects ?? [], [data]);
+
+  async function deleteProject(p: Project) {
+    setDeleting(p.id);
+    setDelError(null);
+    try {
+      // hard=1: the row and all its documents, versions and sessions go.
+      await api.delete(`/projects/${p.id}?hard=1`);
+      setConfirmDel(null);
+      setDebounceTick((t) => t + 1);
+    } catch (e) {
+      setDelError(e instanceof ApiError ? e.message : 'Gagal menghapus proyek');
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   // Where a card leads depends on how far the project got. It used to always
   // open the interview, so coming back from the documents felt like starting
@@ -156,7 +175,7 @@ export default function StudioPage() {
 
       <ul className="grid">
         {cards.map((p, i) => (
-          <li key={p.id}>
+          <li key={p.id} className="job-wrap">
             <Link href={cardHref(p)} className="job card">
               <div className="job-top">
                 <span className="icon" style={{ background: p.accentColor + '22', color: p.accentColor }}>
@@ -173,9 +192,41 @@ export default function StudioPage() {
                 <span className="mono muted when">{timeAgo(p.updatedAt)}</span>
               </div>
             </Link>
+            <button
+              type="button"
+              className="job-del mono"
+              aria-label={`Hapus proyek ${p.name}`}
+              title="Hapus proyek"
+              onClick={() => { setDelError(null); setConfirmDel(p); }}
+            >
+              Hapus
+            </button>
           </li>
         ))}
       </ul>
+
+      {confirmDel && (
+        <div className="veil" role="dialog" aria-modal="true" aria-label="Hapus proyek"
+          onClick={(e) => { if (e.target === e.currentTarget && !deleting) setConfirmDel(null); }}>
+          <div className="sheet card">
+            <p className="eyebrow mono">tidak bisa dibatalkan</p>
+            <h2>Hapus “{confirmDel.name}”?</h2>
+            <p className="muted">
+              Seluruh wawancara, dokumen, versi, dan riwayat proyek ini ikut terhapus permanen.
+              Kalau hanya ingin menyembunyikannya, arsipkan saja — tapi arsip belum ada di layar ini.
+            </p>
+            {delError && <div className="alert" role="alert">{delError}</div>}
+            <div className="sheet-foot">
+              <button type="button" className="btn ghost" disabled={!!deleting}
+                onClick={() => setConfirmDel(null)}>Batal</button>
+              <button type="button" className="btn danger" disabled={!!deleting}
+                onClick={() => void deleteProject(confirmDel)}>
+                {deleting ? 'Menghapus…' : 'Hapus permanen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {newOpen && (
         <div className="veil" role="dialog" aria-modal="true" aria-label="Proyek baru"
