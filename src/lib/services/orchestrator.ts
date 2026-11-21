@@ -1,21 +1,33 @@
 import { assertProjectOwnership, loadTranscript } from './interview';
 import { resolveProvider } from '@/lib/llm/credentials';
 import { buildModel } from '@/lib/llm/registry';
-import { generateText } from 'ai';
+import { generateText, streamText } from 'ai';
 import { getProjectById } from '@/lib/db/repositories/projects';
-import { getDocumentByType, getCurrentVersion } from '@/lib/db/repositories/documents';
+import {
+  getDocumentByType, getCurrentVersion, setDocumentStatus, createVersionSnapshot,
+} from '@/lib/db/repositories/documents';
+import { createRun, markRunFailed, markRunSucceeded } from '@/lib/db/repositories/generationRuns';
 import { getTemplateById } from '@/lib/db/repositories/templates';
 import { listInjectedAssets } from '@/lib/db/repositories/assets';
 import { buildDocumentPrompt } from '@/lib/llm/prompts';
-import { NotFoundError, ProviderError } from '@/lib/errors';
+import { NotFoundError } from '@/lib/errors';
 import type { DocumentType } from '@/lib/db/enums';
+import type { GenerationInput } from '@/lib/llm/prompts';
 
 /**
- * Batch generation orchestrator (T-308): generate all 7 documents sequentially,
- * respecting dependencies. Wireframe last (it reads everything else).
- * Runs in the background from the API route; progress lands in generation_runs.
+ * Batch generation orchestrator (T-308): generate the project's documents
+ * sequentially, respecting dependencies.
+ *
+ * Wireframe is LAST and OPTIONAL: the default batch stops before it. It is
+ * generated only when explicitly requested (`types: ['wireframe']`), because it
+ * reads every other document and is the slowest, least essential one.
  */
+
+/** Full generation order, wireframe last (it reads everything else). */
 export const GENERATION_ORDER: DocumentType[] = ['prd', 'architecture', 'database', 'api', 'tasks', 'memory', 'wireframe'];
+
+/** The six core documents — everything the default batch writes. */
+export const CORE_GENERATION_ORDER: DocumentType[] = GENERATION_ORDER.filter((t) => t !== 'wireframe');
 
 export interface BatchOptions {
   userId: string;
@@ -24,8 +36,10 @@ export interface BatchOptions {
   ephemeralKey?: string;
   /** Stop after N documents (used by tests). */
   limit?: number;
-  /** Skip wireframe (interactive-only flow). */
+  /** Skip wireframe. The default already does; kept for older callers. */
   skipWireframe?: boolean;
+  /** Explicit document selection. Wireframe is only generated this way. */
+  types?: DocumentType[];
 }
 
 export interface BatchResult {
@@ -34,7 +48,53 @@ export interface BatchResult {
   skipped: DocumentType[];
 }
 
-export async function generateAllDocuments(opts: BatchOptions): Promise<BatchResult> {
+/**
+ * Which documents this batch writes, in dependency order.
+ * No `types` → the six core documents (wireframe is opt-in).
+ */
+export function resolveGenerationOrder(opts: Pick<BatchOptions, 'types' | 'limit'>): DocumentType[] {
+  const requested = opts.types && opts.types.length > 0 ? opts.types : CORE_GENERATION_ORDER;
+  let order = GENERATION_ORDER.filter((t) => requested.includes(t));
+  if (opts.limit) order = order.slice(0, opts.limit);
+  return order;
+}
+
+// ── in-flight guard ─────────────────────────────────────────────────────────
+//
+// One batch per project per process. A second request (a second click, a second
+// browser tab, a stream racing the async POST) gets 409 instead of starting a
+// duplicate batch, which would double the provider spend and race on document
+// versions. Released in `finally` so a throw cannot wedge the project forever.
+
+const inFlight = new Set<string>();
+
+/** Claim the project for a batch. False when one is already running. */
+export function beginBatch(projectId: string): boolean {
+  if (inFlight.has(projectId)) return false;
+  inFlight.add(projectId);
+  return true;
+}
+
+export function endBatch(projectId: string): void {
+  inFlight.delete(projectId);
+}
+
+export function isBatchRunning(projectId: string): boolean {
+  return inFlight.has(projectId);
+}
+
+// ── shared batch setup ──────────────────────────────────────────────────────
+
+interface BatchContext {
+  project: Awaited<ReturnType<typeof getProjectById>> & object;
+  model: ReturnType<typeof buildModel>;
+  resolved: Awaited<ReturnType<typeof resolveProvider>>;
+  transcript: GenerationInput['interviewTranscript'];
+  baselineAssumptions: string[];
+  assets: { name: string; content: string }[];
+}
+
+async function prepareBatch(opts: BatchOptions): Promise<BatchContext> {
   await assertProjectOwnership(opts.userId, opts.projectId);
   const project = await getProjectById(opts.projectId, opts.userId);
   if (!project) throw new NotFoundError('Project not found');
@@ -50,74 +110,125 @@ export async function generateAllDocuments(opts: BatchOptions): Promise<BatchRes
   const template = project.templateId ? await getTemplateById(project.templateId) : null;
   const assets = await listInjectedAssets(opts.projectId);
 
+  return {
+    project,
+    model,
+    resolved,
+    transcript: await loadTranscriptForProject(opts.projectId),
+    baselineAssumptions: template?.baselineAssumptions ?? [],
+    assets: assets.filter((a) => a.contentText).map((a) => ({ name: a.name, content: a.contentText as string })),
+  };
+}
+
+/** Prompt for one document, fed the documents already written this batch. */
+async function promptFor(
+  ctx: BatchContext,
+  projectId: string,
+  type: DocumentType,
+  written: DocumentType[],
+): Promise<{ system: string; prompt: string }> {
+  const priorContext: { name: string; content: string }[] = [];
+  for (const prior of written) {
+    const priorDoc = await getDocumentByType(projectId, prior);
+    if (!priorDoc) continue;
+    const version = await getCurrentVersion(priorDoc.id);
+    if (version) priorContext.push({ name: prior, content: version.contentMd.slice(0, 12_000) });
+  }
+
+  return buildDocumentPrompt(type, {
+    projectName: ctx.project.name,
+    projectDescription: ctx.project.description,
+    interviewTranscript: ctx.transcript,
+    baselineAssumptions: ctx.baselineAssumptions,
+    injectedAssets: [...ctx.assets, ...priorContext],
+  });
+}
+
+interface PersistInput {
+  projectId: string;
+  documentId: string;
+  type: DocumentType;
+  text: string;
+  userId: string;
+  startedAt: number;
+  resolved: BatchContext['resolved'];
+  usage?: { inputTokens?: number | null; outputTokens?: number | null } | null;
+}
+
+/**
+ * The one place a generated document is written. Both the batch (generateText)
+ * and the stream (streamText) go through here, so what lands in the database is
+ * identical whichever path produced it: optional wireframe extraction, a
+ * generation run, a version snapshot, then status 'ready'.
+ */
+async function persistDocument(input: PersistInput): Promise<void> {
+  const { projectId, documentId, type, text, userId, startedAt, resolved } = input;
+  const latency = Date.now() - startedAt;
+
+  const run = await createRun({
+    projectId, documentId,
+    kind: type === 'wireframe' ? 'wireframe_generate' : 'document_generate',
+    provider: resolved.provider, modelId: resolved.modelId,
+    presetId: resolved.presetId, credentialId: resolved.credentialId,
+  });
+  if (type === 'wireframe') {
+    const { persistWireframeScreens } = await import('./generation');
+    await persistWireframeScreens(projectId, text);
+  }
+  await createVersionSnapshot({
+    documentId, contentMd: text, source: 'initial',
+    modelUsed: resolved.modelId, provider: resolved.provider, presetId: resolved.presetId,
+    promptTokens: input.usage?.inputTokens ?? null, completionTokens: input.usage?.outputTokens ?? null,
+    generationMs: latency, createdByUserId: userId,
+  });
+  await setDocumentStatus(documentId, 'ready');
+  await markRunSucceeded(run.id, {
+    promptTokens: input.usage?.inputTokens ?? null, completionTokens: input.usage?.outputTokens ?? null,
+    latencyMs: latency,
+  });
+}
+
+async function recordFailure(
+  projectId: string, documentId: string, type: DocumentType,
+  resolved: BatchContext['resolved'], error: unknown,
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error);
+  const run = await createRun({
+    projectId, documentId,
+    kind: type === 'wireframe' ? 'wireframe_generate' : 'document_generate',
+    provider: resolved.provider, modelId: resolved.modelId,
+    presetId: resolved.presetId, credentialId: resolved.credentialId,
+  });
+  await markRunFailed(run.id, 'PROVIDER_ERROR', message);
+  await setDocumentStatus(documentId, 'failed');
+}
+
+// ── batch (non-streaming) ───────────────────────────────────────────────────
+
+export async function generateAllDocuments(opts: BatchOptions): Promise<BatchResult> {
+  const ctx = await prepareBatch(opts);
   const result: BatchResult = { generated: [], failed: [], skipped: [] };
-  const order = opts.skipWireframe ? GENERATION_ORDER.filter((t) => t !== 'wireframe') : GENERATION_ORDER;
-  const selected = opts.limit ? order.slice(0, opts.limit) : order;
+  const order = resolveGenerationOrder(opts);
 
-  for (const type of selected) {
+  for (const type of order) {
     const doc = await getDocumentByType(opts.projectId, type);
-    if (!doc) { result.skipped.push(type); continue; }
-    if (doc.isLocked) { result.skipped.push(type); continue; }
+    if (!doc || doc.isLocked) { result.skipped.push(type); continue; }
 
-    // Feed previously generated docs as context (dependency chain).
-    const priorContext: { name: string; content: string }[] = [];
-    for (const prior of result.generated) {
-      const version = await getCurrentVersion((await getDocumentByType(opts.projectId, prior))!.id);
-      if (version) priorContext.push({ name: prior, content: version.contentMd.slice(0, 12_000) });
-    }
-
-    const prompt = buildDocumentPrompt(type, {
-      projectName: project.name,
-      projectDescription: project.description,
-      interviewTranscript: await loadTranscriptForProject(opts.projectId),
-      baselineAssumptions: template?.baselineAssumptions ?? [],
-      injectedAssets: [
-        ...assets.filter((a) => a.contentText).map((a) => ({ name: a.name, content: a.contentText as string })),
-        ...priorContext,
-      ],
-    });
-
+    await setDocumentStatus(doc.id, 'generating');
     const started = Date.now();
-    // Mark it in flight so a polling UI sees which document is being written.
-    const { setDocumentStatus: setStatus } = await import('@/lib/db/repositories/documents');
-    await setStatus(doc.id, 'generating');
     try {
+      const prompt = await promptFor(ctx, opts.projectId, type, result.generated);
       const res = await generateText({
-        model, system: prompt.system, prompt: prompt.prompt,
-        temperature: resolved.temperature, maxOutputTokens: resolved.maxTokens,
+        model: ctx.model, system: prompt.system, prompt: prompt.prompt,
+        temperature: ctx.resolved.temperature, maxOutputTokens: ctx.resolved.maxTokens,
       });
-      const { createVersionSnapshot, setDocumentStatus } = await import('@/lib/db/repositories/documents');
-      const { createRun, markRunSucceeded } = await import('@/lib/db/repositories/generationRuns');
-      const run = await createRun({
-        projectId: opts.projectId, documentId: doc.id,
-        kind: type === 'wireframe' ? 'wireframe_generate' : 'document_generate',
-        provider: resolved.provider, modelId: resolved.modelId, presetId: resolved.presetId, credentialId: resolved.credentialId,
-      });
-      if (type === 'wireframe') {
-        const { extractScreens, persistWireframeScreens } = await import('./generation');
-        await persistWireframeScreens(opts.projectId, res.text);
-      }
-      await createVersionSnapshot({
-        documentId: doc.id, contentMd: res.text, source: 'initial',
-        modelUsed: resolved.modelId, provider: resolved.provider, presetId: resolved.presetId,
-        promptTokens: res.usage?.inputTokens ?? null, completionTokens: res.usage?.outputTokens ?? null,
-        generationMs: Date.now() - started, createdByUserId: opts.userId,
-      });
-      await setDocumentStatus(doc.id, 'ready');
-      await markRunSucceeded(run.id, {
-        promptTokens: res.usage?.inputTokens ?? null, completionTokens: res.usage?.outputTokens ?? null,
-        latencyMs: Date.now() - started,
+      await persistDocument({
+        projectId: opts.projectId, documentId: doc.id, type, text: res.text,
+        userId: opts.userId, startedAt: started, resolved: ctx.resolved, usage: res.usage,
       });
       result.generated.push(type);
     } catch (e) {
-      const { setDocumentStatus } = await import('@/lib/db/repositories/documents');
-      const { createRun, markRunFailed } = await import('@/lib/db/repositories/generationRuns');
-      const run = await createRun({
-        projectId: opts.projectId, documentId: doc.id, kind: 'document_generate',
-        provider: resolved.provider, modelId: resolved.modelId, presetId: resolved.presetId, credentialId: resolved.credentialId,
-      });
-      await markRunFailed(run.id, 'PROVIDER_ERROR', e instanceof Error ? e.message : String(e));
-      await setDocumentStatus(doc.id, 'failed');
+      await recordFailure(opts.projectId, doc.id, type, ctx.resolved, e);
       result.failed.push({ type, error: e instanceof Error ? e.message : String(e) });
     }
   }
@@ -125,10 +236,129 @@ export async function generateAllDocuments(opts: BatchOptions): Promise<BatchRes
   return result;
 }
 
+// ── batch (streaming) ───────────────────────────────────────────────────────
+
+export type BatchStreamEvent =
+  | { event: 'start'; data: { order: DocumentType[] } }
+  | { event: 'doc'; data: { type: DocumentType; status: 'writing' } }
+  | { event: 'delta'; data: { type: DocumentType; text: string } }
+  | { event: 'done'; data: { type: DocumentType; status: 'ready'; bytes: number } }
+  | { event: 'error'; data: { type: DocumentType; message: string } }
+  | { event: 'finish'; data: BatchResult };
+
+export interface BatchStreamOptions extends BatchOptions {
+  /** Aborted when the client goes away (req.signal). */
+  signal?: AbortSignal;
+}
+
+/**
+ * Same batch, streamed: yields one event per step so a page can render each
+ * document as it is written. Persists through `persistDocument`, so the stored
+ * document is identical to the non-streaming batch's.
+ *
+ * On client disconnect the partial text IS persisted as a version (so the work
+ * is not thrown away) and the document's status is left `failed` — the enum's
+ * error state; there is no 'draft' for documents. The type is reported in
+ * `failed` on the finish event.
+ */
+export async function* generateAllDocumentsStream(
+  opts: BatchStreamOptions,
+): AsyncGenerator<BatchStreamEvent> {
+  const ctx = await prepareBatch(opts);
+  const result: BatchResult = { generated: [], failed: [], skipped: [] };
+  const order = resolveGenerationOrder(opts);
+
+  yield { event: 'start', data: { order } };
+
+  for (const type of order) {
+    if (opts.signal?.aborted) break;
+
+    const doc = await getDocumentByType(opts.projectId, type);
+    if (!doc || doc.isLocked) { result.skipped.push(type); continue; }
+
+    await setDocumentStatus(doc.id, 'generating');
+    yield { event: 'doc', data: { type, status: 'writing' } };
+
+    const started = Date.now();
+    let text = '';
+    let aborted = false;
+    let usage: { inputTokens?: number | null; outputTokens?: number | null } | null = null;
+
+    try {
+      const prompt = await promptFor(ctx, opts.projectId, type, result.generated);
+      const stream = streamText({
+        model: ctx.model, system: prompt.system, prompt: prompt.prompt,
+        temperature: ctx.resolved.temperature, maxOutputTokens: ctx.resolved.maxTokens,
+        abortSignal: opts.signal,
+      });
+
+      for await (const chunk of stream.textStream) {
+        if (!chunk) continue;
+        text += chunk;
+        yield { event: 'delta', data: { type, text: chunk } };
+      }
+
+      if (opts.signal?.aborted) aborted = true;
+      else usage = await Promise.resolve(stream.usage).catch(() => null);
+    } catch (e) {
+      if (opts.signal?.aborted) {
+        aborted = true;
+      } else {
+        await recordFailure(opts.projectId, doc.id, type, ctx.resolved, e);
+        const message = e instanceof Error ? e.message : String(e);
+        result.failed.push({ type, error: message });
+        yield { event: 'error', data: { type, message } };
+        continue;
+      }
+    }
+
+    if (aborted) {
+      // Keep what was written; mark it failed so nothing treats it as finished.
+      if (text.trim().length > 0) {
+        try {
+          await createVersionSnapshot({
+            documentId: doc.id, contentMd: text, source: 'initial',
+            modelUsed: ctx.resolved.modelId, provider: ctx.resolved.provider,
+            presetId: ctx.resolved.presetId, generationMs: Date.now() - started,
+            createdByUserId: opts.userId,
+          });
+        } catch { /* a disconnect must not throw out of the stream */ }
+      }
+      await setDocumentStatus(doc.id, 'failed');
+      const message = 'Dihentikan: klien terputus';
+      result.failed.push({ type, error: message });
+      yield { event: 'error', data: { type, message } };
+      break;
+    }
+
+    if (text.trim().length === 0) {
+      await setDocumentStatus(doc.id, 'failed');
+      const message = 'Model mengembalikan teks kosong';
+      result.failed.push({ type, error: message });
+      yield { event: 'error', data: { type, message } };
+      continue;
+    }
+
+    try {
+      await persistDocument({
+        projectId: opts.projectId, documentId: doc.id, type, text,
+        userId: opts.userId, startedAt: started, resolved: ctx.resolved, usage,
+      });
+      result.generated.push(type);
+      yield { event: 'done', data: { type, status: 'ready', bytes: Buffer.byteLength(text, 'utf8') } };
+    } catch (e) {
+      await recordFailure(opts.projectId, doc.id, type, ctx.resolved, e);
+      const message = e instanceof Error ? e.message : String(e);
+      result.failed.push({ type, error: message });
+      yield { event: 'error', data: { type, message } };
+    }
+  }
+
+  yield { event: 'finish', data: result };
+}
+
 async function loadTranscriptForProject(projectId: string) {
   const { getActiveSessionForProject } = await import('@/lib/db/repositories/interviews');
   const session = await getActiveSessionForProject(projectId);
   return session ? loadTranscript(session.id) : [];
 }
-
-
