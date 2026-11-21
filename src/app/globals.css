@@ -585,3 +585,19 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-share .body pre code { background: none; border: none; color: inherit; }
 .pg-share .body table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; }
 .pg-share .body td { border: 1px solid var(--line); padding: 7px 10px; }
+
+/* Motion is decoration here: the pulse on a live dot, the ink line that
+   says "writing", the cursor, the tick that grows. None of it carries
+   information the text does not, so it stops when the reader asks it to.
+   The ticks keep their widths (state is in the colour), the ink line keeps
+   a visible dash instead of collapsing to nothing. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .pill.live .dot, .cursor { animation: none; opacity: 1; }
+  .pg-interview .inkline { animation: none; width: 22px; opacity: 1; }
+}
