@@ -220,7 +220,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .back:hover { color: var(--ink); }
 
 /* /models */
-.pg-models { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.pg-models { max-width: 720px; margin: 0 auto; padding: 32px 24px 56px; display: flex; flex-direction: column; gap: 28px; }
 .pg-models .head { display: flex; flex-direction: column; gap: 8px; }
 .pg-models .head h1 { font-size: 30px; letter-spacing: -0.02em; }
 .pg-models .head p { margin-top: 4px; }
