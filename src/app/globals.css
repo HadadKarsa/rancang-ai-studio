@@ -885,3 +885,17 @@ input, textarea, select { font: inherit; color: inherit; }
   .auth-card { padding: 24px 20px; }
   .auth-head h1 { font-size: 26px; }
 }
+
+/* /models v0.1.2 additions — key reveal, preset edit row, compact buttons */
+.pg-models .key-wrap { position: relative; display: flex; }
+.pg-models .key-wrap input { padding-right: 96px; }
+.pg-models .key-eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  font: 600 10px var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-2); padding: 6px 8px; border-radius: 6px; min-height: 0;
+}
+.pg-models .key-eye:hover { color: var(--ink); background: var(--paper); }
+.pg-models .cred-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.pg-models .edit-row { display: flex; align-items: flex-end; gap: 12px; width: 100%; flex-wrap: wrap; }
+.pg-models .edit-row .field { flex: 1; min-width: 180px; }
+.pg-models .btn.sm { min-height: 36px; padding: 6px 12px; font-size: 12px; }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { api, ApiError } from '@/lib/client/api';
 
 /* ── Types (mirror forge's /api/v1) ───────────────────────────────── */
@@ -16,19 +15,23 @@ interface Credential {
   baseUrl: string | null; isActive: boolean; isValid: boolean | null;
   lastValidatedAt: string | null; createdAt: string;
 }
+interface Preset {
+  id: string; name: string; provider: ProviderId; modelId: string;
+  baseUrl: string | null; isDefault: boolean;
+}
 interface TestResult {
   ok: boolean; reason?: string; models?: string[]; latencyMs?: number;
 }
 
 const STATUS_ID = {
   connected: { label: 'TERHUBUNG', cls: 'ok' },
-  expired: { label: 'SESI KEDALUWARSA', cls: 'err' },
   none: { label: 'BELUM', cls: '' },
 } as const;
 
 export default function ModelsPage() {
   const [providers, setProviders] = useState<CatalogEntry[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
+  const [presets, setPresets] = useState<Preset[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +39,7 @@ export default function ModelsPage() {
   const [provider, setProvider] = useState<ProviderId | ''>('');
   const [mode, setMode] = useState<'subscription' | 'byok'>('subscription');
   const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
   const [label, setLabel] = useState('');
   const [testing, setTesting] = useState(false);
@@ -44,15 +48,21 @@ export default function ModelsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  /* edit a saved preset inline */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editModel, setEditModel] = useState('');
+
   const load = useCallback(async () => {
     setState('loading');
     try {
-      const [cat, creds] = await Promise.all([
+      const [cat, creds, pre] = await Promise.all([
         api.get<{ providers: CatalogEntry[] }>('/providers/test'),
         api.get<{ credentials: Credential[] }>('/settings/credentials'),
+        api.get<{ presets: Preset[] }>('/settings/presets'),
       ]);
       setProviders(cat.providers);
       setCredentials(creds.credentials);
+      setPresets(pre.presets);
       setState('ready');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Gagal memuat pengaturan');
@@ -76,7 +86,7 @@ export default function ModelsPage() {
     try {
       const body: Record<string, unknown> = { provider };
       if (mode === 'byok') {
-        body.apiKey = apiKey.trim();
+        if (apiKey.trim()) body.apiKey = apiKey.trim();
         if (baseUrl.trim()) body.baseUrl = baseUrl.trim();
       }
       const r = await api.post<TestResult>('/providers/test', body);
@@ -118,6 +128,7 @@ export default function ModelsPage() {
       setSaved(true);
       setApiKey('');
       setLabel('');
+      setBaseUrl('');
       setTest(null);
       setSelectedModel('');
       await load();
@@ -128,7 +139,7 @@ export default function ModelsPage() {
     setSaving(false);
   }
 
-  async function remove(id: string) {
+  async function removeCredential(id: string) {
     setError(null);
     try {
       await api.delete(`/settings/credentials?id=${id}&mode=soft`);
@@ -138,16 +149,43 @@ export default function ModelsPage() {
     }
   }
 
+  async function savePresetModel(id: string) {
+    if (!editModel.trim()) return;
+    try {
+      await api.patch(`/settings/presets?id=${id}`, { modelId: editModel.trim() });
+      setEditing(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Gagal memperbarui preset');
+    }
+  }
+
+  async function removePreset(id: string) {
+    setError(null);
+    try {
+      await api.delete(`/settings/presets?id=${id}`);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Gagal menghapus preset');
+    }
+  }
+
+  async function makeDefault(id: string) {
+    try {
+      await api.patch(`/settings/presets?id=${id}`, { isDefault: true });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Gagal menjadikan default');
+    }
+  }
+
   if (state === 'loading') return <div className="mono muted" style={{ padding: 40 }}>memuat…</div>;
 
   return (
     <div className="pg-models">
       <header className="head">
-        <Link href="/studio" className="mono muted back"><svg className="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M8 2 4 6l4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>Studio</Link>
-        <div>
-          <h1>Models</h1>
-          <p className="muted">Satu sumber kecerdasan untuk seluruh studio: langganan yang sudah ada, atau kunci sendiri.</p>
-        </div>
+        <h1>Models</h1>
+        <p className="muted">Satu sumber kecerdasan untuk seluruh studio: langganan yang sudah ada, atau kunci sendiri.</p>
       </header>
 
       {error && <div className="alert" role="alert">{error}</div>}
@@ -203,16 +241,36 @@ export default function ModelsPage() {
               <div className="byok">
                 <div className="field">
                   <label htmlFor="k">API key</label>
-                  <input id="k" type="password" autoComplete="off" placeholder={`${entry.keyPrefix}…`}
-                    value={apiKey} onChange={(e) => { setApiKey(e.target.value); setTest(null); }} />
-                </div>
-                {entry.needsBaseUrl && (
-                  <div className="field">
-                    <label htmlFor="u">Base URL</label>
-                    <input id="u" placeholder="http://localhost:11434/v1" value={baseUrl}
-                      onChange={(e) => { setBaseUrl(e.target.value); setTest(null); }} />
+                  <div className="key-wrap">
+                    <input
+                      id="k"
+                      type={showKey ? 'text' : 'password'}
+                      autoComplete="off"
+                      placeholder={`${entry.keyPrefix}…`}
+                      value={apiKey}
+                      onChange={(e) => { setApiKey(e.target.value); setTest(null); }}
+                    />
+                    <button
+                      type="button"
+                      className="key-eye"
+                      aria-label={showKey ? 'Sembunyikan kunci' : 'Tampilkan kunci'}
+                      aria-pressed={showKey}
+                      onClick={() => setShowKey((v) => !v)}
+                    >
+                      {showKey ? 'Sembunyikan' : 'Tampilkan'}
+                    </button>
                   </div>
-                )}
+                </div>
+                <div className="field">
+                  <label htmlFor="u">Base URL <span className="muted">(opsional)</span></label>
+                  <input
+                    id="u"
+                    placeholder={entry.defaultBaseUrl ?? 'http://localhost:11434/v1'}
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                  />
+                  <span className="help">{entry.needsBaseUrl ? 'Wajib untuk penyedia ini.' : 'Kosongkan untuk memakai alamat bawaan penyedia.'}</span>
+                </div>
                 <div className="field">
                   <label htmlFor="l">Label <span className="muted">(opsional)</span></label>
                   <input id="l" placeholder={entry.label} value={label} onChange={(e) => setLabel(e.target.value)} />
@@ -279,13 +337,59 @@ export default function ModelsPage() {
         )}
       </form>
 
+      {/* saved presets — readable rows with edit / default / delete */}
+      <section className="list">
+        <h2 className="mono h">PRESET TERSIMPAN</h2>
+        {presets.length === 0 ? (
+          <p className="muted small">Belum ada preset. Simpan satu di atas untuk mulai membuat dokumen.</p>
+        ) : (
+          <ul>
+            {presets.map((p) => (
+              <li key={p.id} className="card cred">
+                {editing === p.id ? (
+                  <div className="edit-row">
+                    <div className="field">
+                      <label htmlFor={`m-${p.id}`}>Model</label>
+                      <input
+                        id={`m-${p.id}`}
+                        className="mono"
+                        value={editModel}
+                        onChange={(e) => setEditModel(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="right">
+                      <button type="button" className="btn ghost" onClick={() => void savePresetModel(p.id)}>Simpan</button>
+                      <button type="button" className="btn ghost" onClick={() => setEditing(null)}>Batal</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="cred-main">
+                      <strong>{p.name}</strong>
+                      {p.isDefault && <span className="pill ok"><span className="dot" />default</span>}
+                      <span className="mono muted small"> · {p.provider} · {p.modelId}</span>
+                    </div>
+                    <div className="right">
+                      {!p.isDefault && <button type="button" className="btn ghost sm" onClick={() => void makeDefault(p.id)}>Jadikan default</button>}
+                      <button type="button" className="btn ghost sm" onClick={() => { setEditing(p.id); setEditModel(p.modelId); }}>Edit</button>
+                      <button type="button" className="btn ghost sm" onClick={() => void removePreset(p.id)}>Hapus</button>
+                    </div>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="list">
         <h2 className="mono h">KREDENSIAL TERSIMPAN</h2>
         {credentials.length === 0 && <p className="muted small">Belum ada. Simpan satu di atas untuk mulai membuat dokumen.</p>}
         <ul>
           {credentials.map((c) => (
             <li key={c.id} className="card cred">
-              <div>
+              <div className="cred-main">
                 <strong>{c.label}</strong>
                 <span className="mono muted small"> · {c.provider} · ····{c.keyLast4}</span>
               </div>
@@ -293,13 +397,12 @@ export default function ModelsPage() {
                 <span className={`pill ${c.isValid === true ? 'ok' : c.isValid === false ? 'err' : ''}`}>
                   <span className="dot" />{c.isValid === true ? 'valid' : c.isValid === false ? 'invalid' : 'belum diuji'}
                 </span>
-                <button type="button" className="btn ghost" onClick={() => void remove(c.id)}>Hapus</button>
+                <button type="button" className="btn ghost sm" onClick={() => void removeCredential(c.id)}>Hapus</button>
               </div>
             </li>
           ))}
         </ul>
       </section>
-
     </div>
   );
 }
