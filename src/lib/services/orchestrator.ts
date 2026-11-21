@@ -59,29 +59,9 @@ export function resolveGenerationOrder(opts: Pick<BatchOptions, 'types' | 'limit
   return order;
 }
 
-// ── in-flight guard ─────────────────────────────────────────────────────────
-//
-// One batch per project per process. A second request (a second click, a second
-// browser tab, a stream racing the async POST) gets 409 instead of starting a
-// duplicate batch, which would double the provider spend and race on document
-// versions. Released in `finally` so a throw cannot wedge the project forever.
-
-const inFlight = new Set<string>();
-
-/** Claim the project for a batch. False when one is already running. */
-export function beginBatch(projectId: string): boolean {
-  if (inFlight.has(projectId)) return false;
-  inFlight.add(projectId);
-  return true;
-}
-
-export function endBatch(projectId: string): void {
-  inFlight.delete(projectId);
-}
-
-export function isBatchRunning(projectId: string): boolean {
-  return inFlight.has(projectId);
-}
+// The one-batch-per-project guard lives in lib/services/batchRunner.ts, which
+// owns the running batch. Nothing here tracks in-flight state any more: a
+// generator instance is only ever driven by the runner.
 
 // ── shared batch setup ──────────────────────────────────────────────────────
 
@@ -243,12 +223,19 @@ export type BatchStreamEvent =
   | { event: 'doc'; data: { type: DocumentType; status: 'writing' } }
   | { event: 'delta'; data: { type: DocumentType; text: string } }
   | { event: 'done'; data: { type: DocumentType; status: 'ready'; bytes: number } }
-  | { event: 'error'; data: { type: DocumentType; message: string } }
+  /** `type` is null when the failure is the batch itself, not one document. */
+  | { event: 'error'; data: { type: DocumentType | null; message: string } }
   | { event: 'finish'; data: BatchResult };
 
 export interface BatchStreamOptions extends BatchOptions {
-  /** Aborted when the client goes away (req.signal). */
+  /**
+   * The runner's own signal — aborted only by an explicit cancel or by the
+   * process going away. Never a client connection: a page that navigates away
+   * must not stop the work.
+   */
   signal?: AbortSignal;
+  /** Why the runner was stopped, for the `failed` entry and the error event. */
+  stopMessage?: string;
 }
 
 /**
@@ -256,10 +243,11 @@ export interface BatchStreamOptions extends BatchOptions {
  * document as it is written. Persists through `persistDocument`, so the stored
  * document is identical to the non-streaming batch's.
  *
- * On client disconnect the partial text IS persisted as a version (so the work
- * is not thrown away) and the document's status is left `failed` — the enum's
- * error state; there is no 'draft' for documents. The type is reported in
- * `failed` on the finish event.
+ * On abort (an explicit cancel) the partial text IS persisted as a version (so
+ * the work is not thrown away) and the document's status is left `failed` — the
+ * enum's error state; there is no 'draft' for documents. The type is reported
+ * in `failed` on the finish event. Aborting is the runner's decision; a client
+ * disconnecting never reaches this signal.
  */
 export async function* generateAllDocumentsStream(
   opts: BatchStreamOptions,
@@ -325,7 +313,7 @@ export async function* generateAllDocumentsStream(
         } catch { /* a disconnect must not throw out of the stream */ }
       }
       await setDocumentStatus(doc.id, 'failed');
-      const message = 'Dihentikan: klien terputus';
+      const message = opts.stopMessage ?? 'Dihentikan sebelum selesai';
       result.failed.push({ type, error: message });
       yield { event: 'error', data: { type, message } };
       break;

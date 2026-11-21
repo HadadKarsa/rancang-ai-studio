@@ -1,99 +1,112 @@
 import { withRoute } from '@/lib/api/middleware';
-import { ConflictError, ValidationError } from '@/lib/errors';
+import { ConflictError } from '@/lib/errors';
 import { assertProjectOwnership } from '@/lib/services/interview';
-import {
-  beginBatch, endBatch, generateAllDocumentsStream,
-  CORE_GENERATION_ORDER, type BatchStreamEvent,
-} from '@/lib/services/orchestrator';
-import { isDocumentType } from '@/lib/documents/types';
-import type { DocumentType } from '@/lib/db/enums';
+import { snapshot, subscribe, type BatchSnapshot } from '@/lib/services/batchRunner';
+import type { BatchStreamEvent } from '@/lib/services/orchestrator';
 
 /**
  * GET /api/v1/projects/:projectId/documents/generate-stream
  *
- * Server-sent events: runs the batch and streams each document as it is
- * written, so the client can render the text live instead of waiting for a
- * 26-second blank.
+ * A pure TAIL of the server-owned batch (src/lib/services/batchRunner.ts).
+ * This request never drives generation and never aborts it: the batch runs in
+ * the process, this connection only watches. Navigating away from /write,
+ * switching tabs, or losing the tunnel therefore costs one listener and
+ * nothing else — the documents keep being written.
  *
- * Events (names are a contract with the UI):
- *   start   {"order":["prd","architecture",...]}
+ * Events on connect:
+ *   snapshot  {projectId, order, docs:[{type,status,text,bytes,error}],
+ *              startedAt, elapsedMs, finished, result}
+ *             — the whole state so far, including the partial text of the
+ *               document being written. Always the first event.
+ * then, live, in the existing shapes:
+ *   start   {"order":[...]}
  *   doc     {"type":"prd","status":"writing"}
  *   delta   {"type":"prd","text":"<token chunk>"}
  *   done    {"type":"prd","status":"ready","bytes":15230}
  *   error   {"type":"prd","message":"..."}
  *   finish  {"generated":[...],"failed":[...],"skipped":[...]}
  *
- * Wireframe is opt-in: `?types=wireframe` (or a comma list) selects documents
- * explicitly; with no `types` the six core documents are written and the batch
- * stops before wireframe.
+ * A `: ping` comment line is sent every 15s so a proxy or tunnel does not drop
+ * an idle connection. Comments are ignored by EventSource and by the client's
+ * parser.
  *
- * A second concurrent stream for the same project gets 409. On client
- * disconnect the loop stops, whatever was written is persisted, and the
- * document is left `failed` (the enum's error state — documents have no 'draft').
+ * No batch for this project → 409 with the plain JSON error envelope (not SSE).
+ * A batch that already finished is still replayed (snapshot + finish) while it
+ * is in the registry, so a client that was away for the last document can catch
+ * up; after that it is 409 too.
+ *
+ * Starting a batch is POST .../documents/generate-all.
  */
 
-function parseTypes(raw: string | null): DocumentType[] | undefined {
-  if (!raw) return undefined;
-  const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
-  if (parts.length === 0) return undefined;
-  const out: DocumentType[] = [];
-  for (const p of parts) {
-    if (p === 'all') return [...CORE_GENERATION_ORDER, 'wireframe'];
-    if (!isDocumentType(p)) throw new ValidationError(`Unknown document type: ${p}`, { type: p });
-    out.push(p);
-  }
-  return out;
-}
+const encoder = new TextEncoder();
 
 function sseChunk(event: string, data: unknown): Uint8Array {
-  return new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
+
+const PING_MS = 15_000;
 
 export const GET = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
   await assertProjectOwnership(ctx.session.user.id, projectId);
 
-  const url = new URL(ctx.req.url);
-  const types = parseTypes(url.searchParams.get('types'));
-  const presetId = url.searchParams.get('presetId') ?? undefined;
-
-  if (!beginBatch(projectId)) {
-    throw new ConflictError('Pembuatan dokumen sedang berjalan untuk proyek ini', { projectId });
+  const initial: BatchSnapshot | null = snapshot(projectId);
+  if (!initial) {
+    throw new ConflictError('Tidak ada pembuatan dokumen yang berjalan untuk proyek ini', { projectId });
   }
 
-  const userId = ctx.session.user.id;
   const requestId = ctx.requestId;
-  const signal = ctx.req.signal;
+  let unsubscribe: (() => void) | null = null;
+  let ping: ReturnType<typeof setInterval> | null = null;
+  let closed = false;
 
   const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let closed = false;
-      const close = () => { if (!closed) { closed = true; try { controller.close(); } catch { /* already closed */ } } };
+    start(controller) {
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        if (ping) clearInterval(ping);
+        unsubscribe?.();
+        try { controller.close(); } catch { /* already closed */ }
+      };
       const push = (event: string, data: unknown) => {
         if (closed) return;
         try { controller.enqueue(sseChunk(event, data)); } catch { closed = true; }
       };
 
-      try {
-        const gen = generateAllDocumentsStream({ userId, projectId, types, presetId, signal });
-        for await (const ev of gen) {
-          push(ev.event, ev.data);
-        }
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        console.error(`[${requestId}] generate-stream failed project=${projectId}`, e);
-        push('error', { type: null, message });
-        push('finish', { generated: [], failed: [], skipped: [], error: message });
-      } finally {
-        endBatch(projectId);
+      // Replay everything written so far, partial text included.
+      push('snapshot', initial);
+
+      if (initial.finished) {
         close();
+        return;
       }
+
+      unsubscribe = subscribe(projectId, (ev: BatchStreamEvent) => {
+        push(ev.event, ev.data);
+        if (ev.event === 'finish') close();
+      });
+
+      // A silent stream through a quick tunnel gets dropped. Keep it warm.
+      ping = setInterval(() => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(': ping\n\n'));
+        } catch {
+          closed = true;
+          if (ping) clearInterval(ping);
+          unsubscribe?.();
+        }
+      }, PING_MS);
+
+      console.log(`[${requestId}] generate-stream attach project=${projectId} docs=${initial.docs.length}`);
     },
     cancel() {
-      // The client went away; `req.signal` aborts and the generator persists
-      // what it has, then exits. Release the guard here too in case the
-      // generator never gets scheduled again.
-      endBatch(projectId);
+      // The client went away. Detach only — the runner is not ours to stop.
+      closed = true;
+      if (ping) clearInterval(ping);
+      unsubscribe?.();
+      console.log(`[${requestId}] generate-stream detach project=${projectId}`);
     },
   });
 
@@ -107,6 +120,6 @@ export const GET = withRoute(async (ctx) => {
       'X-Accel-Buffering': 'no',
     },
   });
-}, { bucket: 'generate' });
+}, { bucket: 'read' });
 
 export const dynamic = 'force-dynamic';

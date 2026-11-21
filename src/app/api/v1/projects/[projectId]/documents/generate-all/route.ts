@@ -1,10 +1,8 @@
 import { z } from 'zod';
 import { withRoute } from '@/lib/api/middleware';
 import { assertProjectOwnership } from '@/lib/services/interview';
-import {
-  generateAllDocuments, beginBatch, endBatch, resolveGenerationOrder,
-  type BatchResult,
-} from '@/lib/services/orchestrator';
+import { startBatch } from '@/lib/services/batchRunner';
+import { resolveGenerationOrder } from '@/lib/services/orchestrator';
 import { ConflictError, ValidationError } from '@/lib/errors';
 import { isDocumentType } from '@/lib/documents/types';
 import type { DocumentType } from '@/lib/db/enums';
@@ -21,16 +19,22 @@ const bodySchema = z.object({
 /**
  * POST /api/v1/projects/:projectId/documents/generate-all
  *
- * Starts the batch and returns 202 immediately — the work runs detached, since
- * the batch takes tens of seconds and a proxy in front of the app will drop a
- * long-held request. Progress is read from GET .../documents.
+ * Starts the batch and returns 202 immediately. The work is owned by the
+ * server (lib/services/batchRunner.ts), not by this request: it keeps running
+ * whatever the caller does next. Progress is watched on
+ * GET .../documents/generate-stream (which replays a snapshot) or read from
+ * GET .../documents.
+ *
+ * One batch per project: a second start while one is running gets 409, whether
+ * it comes from this endpoint or from a stream attach.
  *
  * Defaults to the six core documents and stops before wireframe; pass
  * `types: ["wireframe"]` to write the wireframe.
  */
 export const POST = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
-  await assertProjectOwnership(ctx.session.user.id, projectId);
+  const userId = ctx.session.user.id;
+  await assertProjectOwnership(userId, projectId);
 
   let input: z.infer<typeof bodySchema> = {};
   const text = await ctx.req.text();
@@ -51,37 +55,15 @@ export const POST = withRoute(async (ctx) => {
     types = out;
   }
 
-  if (!beginBatch(projectId)) {
+  const started = startBatch({
+    userId, projectId, types, presetId: input.presetId, ephemeralKey: input.apiKey,
+  });
+  if (started === 'already-running') {
     throw new ConflictError('Pembuatan dokumen sedang berjalan untuk proyek ini', { projectId });
   }
 
-  const { requestId } = ctx;
-  const userId = ctx.session.user.id;
   const order = resolveGenerationOrder({ types });
-  console.log(`[${requestId}] generate-all start project=${projectId} user=${userId} order=${order.join(',')}`);
-
-  void generateAllDocuments({
-    userId,
-    projectId,
-    presetId: input.presetId,
-    ephemeralKey: input.apiKey,
-    types,
-  })
-    .then((result: BatchResult) => {
-      console.log(
-        `[${requestId}] generate-all done project=${projectId} generated=${result.generated.join(',') || '-'}` +
-        ` failed=${result.failed.length} skipped=${result.skipped.join(',') || '-'}`,
-      );
-      for (const f of result.failed) {
-        console.error(`[${requestId}] generate-all document failed project=${projectId} type=${f.type} error=${f.error}`);
-      }
-    })
-    .catch((e: unknown) => {
-      console.error(`[${requestId}] generate-all failed project=${projectId}`, e);
-    })
-    .finally(() => {
-      endBatch(projectId);
-    });
+  console.log(`[${ctx.requestId}] generate-all start project=${projectId} user=${userId} order=${order.join(',')}`);
 
   return Response.json({ started: true, order }, { status: 202 });
 }, { bucket: 'generate' });
