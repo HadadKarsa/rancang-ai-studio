@@ -476,6 +476,17 @@ input, textarea, select { font: inherit; color: inherit; }
   .pg-interview .t.now { width: 26px; }
   .pg-interview .count { font-size: 15px; margin: 0 0 0 auto; }
   .pg-interview .mood { font-size: 9px; }
+  /* Phone: the rail has no room for ticks + count + mood on one line, and
+     the mood word ran into the 4/8 number. Two columns instead — the tally
+     on the left, the number with its mood tucked underneath it. */
+  .pg-interview .ritual {
+    display: grid; grid-template-columns: 1fr auto;
+    grid-template-areas: 'ticks count' 'ticks mood';
+    align-items: end; column-gap: 12px; row-gap: 2px;
+  }
+  .pg-interview .ticks { grid-area: ticks; align-self: center; }
+  .pg-interview .count { grid-area: count; margin: 0; justify-self: end; }
+  .pg-interview .mood { grid-area: mood; justify-self: end; }
   .pg-interview .talk { gap: 26px; }
   .pg-interview .q { font-size: 20px; max-width: none; }
   .pg-interview .turn.say .a { max-width: 100%; }
