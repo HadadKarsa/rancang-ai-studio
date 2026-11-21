@@ -26,7 +26,7 @@ export function toErrorResponse(e: unknown, requestId: string): Response {
 
 // ── Rate limiting (in-memory sliding window, 04_API §2.6) ────────────────────
 
-type Bucket = 'read' | 'write' | 'generate' | 'export' | 'share_public' | 'provider_test';
+type Bucket = 'read' | 'write' | 'generate' | 'export' | 'share_public' | 'provider_test' | 'auth';
 
 const BUCKET_LIMITS: Record<Bucket, { limit: number; windowMs: number }> = {
   read: { limit: 300, windowMs: 60_000 },
@@ -38,6 +38,8 @@ const BUCKET_LIMITS: Record<Bucket, { limit: number; windowMs: number }> = {
   export: { limit: 30, windowMs: 60_000 },
   share_public: { limit: 120, windowMs: 60_000 },
   provider_test: { limit: 10, windowMs: 60_000 },
+  // register + login, per IP (contract §1).
+  auth: { limit: 10, windowMs: 60_000 },
 };
 
 const hits = new Map<string, number[]>();

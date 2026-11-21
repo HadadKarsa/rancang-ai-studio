@@ -65,3 +65,13 @@ export async function getOrCreateLocalUser(email?: string, name?: string): Promi
 export async function touchLastSeen(userId: string): Promise<void> {
   await execute('UPDATE users SET last_seen_at = ?, updated_at = ? WHERE id = ?', [nowIso(), nowIso(), userId]);
 }
+
+/** v0.1.2: the scrypt hash for a first-party account (null for seeded/cloud users). */
+export async function getPasswordHash(userId: string): Promise<string | null> {
+  const row = await queryOne<{ password_hash: string | null }>('SELECT password_hash FROM users WHERE id = ?', [userId]);
+  return row?.password_hash ?? null;
+}
+
+export async function setPasswordHash(userId: string, hash: string): Promise<void> {
+  await execute('UPDATE users SET password_hash = ?, auth_provider = ?, updated_at = ? WHERE id = ?', [hash, 'email', nowIso(), userId]);
+}
