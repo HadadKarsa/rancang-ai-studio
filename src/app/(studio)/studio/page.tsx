@@ -90,6 +90,15 @@ export default function StudioPage() {
   }
 
   const cards = useMemo(() => data?.projects ?? [], [data]);
+
+  // Where a card leads depends on how far the project got. It used to always
+  // open the interview, so coming back from the documents felt like starting
+  // over (Ndan's report).
+  function cardHref(p: Project): string {
+    if (p.status === 'ready') return `/projects/${p.id}/documents/prd`;
+    if (p.status === 'generating') return `/projects/${p.id}/write`;
+    return `/projects/${p.id}/interview`;
+  }
   const live = cards.filter((p) => p.status === 'interviewing' || p.status === 'generating').length;
 
   return (
@@ -148,7 +157,7 @@ export default function StudioPage() {
       <ul className="grid">
         {cards.map((p, i) => (
           <li key={p.id}>
-            <Link href={`/projects/${p.id}/interview`} className="job card">
+            <Link href={cardHref(p)} className="job card">
               <div className="job-top">
                 <span className="icon" style={{ background: p.accentColor + '22', color: p.accentColor }}>
                   <Mark color={p.accentColor} />

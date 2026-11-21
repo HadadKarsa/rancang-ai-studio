@@ -5,6 +5,7 @@ import {
   type BatchStreamEvent,
 } from './orchestrator';
 import type { DocumentType } from '@/lib/db/enums';
+import { updateProject } from '@/lib/db/repositories/projects';
 
 /**
  * Batch runner: the server owns document generation, the page only watches.
@@ -210,6 +211,14 @@ async function runBatch(state: BatchState): Promise<void> {
   } finally {
     state.finished = true;
     finishedAt.set(projectId, Date.now());
+    // Documents that exist mean the project is no longer "interviewing"; the
+    // studio card and the interview CTA both key off this.
+    const produced = state.result?.generated.length ?? 0;
+    if (produced > 0) {
+      void updateProject(projectId, userId, { status: 'ready' }).catch((e) =>
+        console.error(`[batchRunner] status->ready failed project=${projectId}`, e),
+      );
+    }
   }
 }
 
@@ -242,6 +251,11 @@ export function startBatch(opts: StartBatchOptions): 'started' | 'already-runnin
   registry.set(opts.projectId, state);
   console.log(`[batchRunner] start project=${opts.projectId} order=${order.join(',')}`);
   finishedAt.delete(opts.projectId);
+  // The studio card reads projects.status — without this the card still says
+  // "wawancara" after the documents are written (Ndan's report).
+  void updateProject(opts.projectId, opts.userId, { status: 'generating' }).catch((e) =>
+    console.error(`[batchRunner] status->generating failed project=${opts.projectId}`, e),
+  );
 
   void runBatch(state);
   return 'started';
