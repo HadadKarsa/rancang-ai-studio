@@ -602,74 +602,231 @@ input, textarea, select { font: inherit; color: inherit; }
   .pg-interview .inkline { animation: none; width: 22px; opacity: 1; }
 }
 
-/* /projects/[id]/write — the writing page.
-   The point of this screen is that the document is legible while it is still
-   being written: no spinner, no blank wait. The rail lists the batch, the
-   sheet shows the active document as live text, and vermilion marks only the
-   ink that is still wet (the cursor, the live pill, the progress line). */
-.pg-write { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-.pg-write .crumbs { display: flex; gap: 8px; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; align-items: center; }
-.pg-write .pname { color: var(--ink-2); }
-.pg-write .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-top: 10px; }
-.pg-write h1 { font-size: 30px; letter-spacing: -0.02em; }
-.pg-write .tally { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
-.pg-write .tally b { font-size: 20px; color: var(--ink); font-weight: 600; }
-.pg-write .tally .wet { display: inline-flex; }
-.pg-write .inkline { width: 26px; height: 2px; background: var(--vermilion); flex: none; animation: inkdraw 1.3s ease-in-out infinite; }
-
-.pg-write .cols { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 20px; align-items: start; }
-
-/* the rail: one line per document, its state, click to read it */
-.pg-write .rail { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 20px; }
-.pg-write .step {
-  display: grid; grid-template-columns: 26px 1fr; grid-template-areas: 'idx nm' 'idx pill';
-  gap: 2px 0; align-items: center; text-align: left;
-  padding: 10px 12px; border-radius: 10px; border: 1.5px solid transparent;
-  min-height: 44px; transition: background 120ms, border-color 120ms;
+/* /projects/[id]/write — watching a document being written.
+   Not a dashboard: a manuscript on a page, and an index beside it. The body
+   is set in the mono face on a 68ch measure because you are watching
+   keystrokes land; headings stay in the grotesk so the structure of the
+   document is still legible over the typewriter. Vermilion is the wet ink
+   and nothing else — the caret, the live pill, the rule under the sheet. */
+.pg-write {
+  /* This route sits outside the (studio) shell, so it owns its own gutter. */
+  max-width: 1200px; margin: 0 auto; padding: 34px 40px 56px;
+  display: flex; flex-direction: column; gap: var(--s5);
 }
-.pg-write .step:hover { background: var(--card); border-color: var(--line); }
-.pg-write .step.on { background: var(--card); border-color: var(--line-2); box-shadow: 0 1px 0 var(--line); }
-.pg-write .step .idx { grid-area: idx; font-size: 10px; color: var(--ink-3); letter-spacing: 0.06em; align-self: start; padding-top: 3px; }
+.pg-write .sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+.pg-write .top { display: flex; flex-direction: column; gap: 10px; }
+.pg-write .crumbs { display: flex; gap: 8px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; align-items: center; }
+.pg-write .crumbs .back { min-height: 44px; align-items: center; display: inline-flex; margin: -12px 0; }
+.pg-write .pname { color: var(--ink-2); text-transform: none; letter-spacing: 0.02em; font-size: 11px; }
+
+.pg-write .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
+.pg-write .eyebrow { margin-bottom: 8px; }
+.pg-write .eyebrow.quiet { color: var(--ink-3); }
+.pg-write h1 { font-size: 32px; letter-spacing: -0.03em; line-height: 1.02; }
+
+/* the tally: a number, not a progress bar */
+.pg-write .tally { display: flex; align-items: baseline; gap: 5px; font-size: 11px; color: var(--ink-2); flex: none; }
+.pg-write .tally b { font-size: 24px; color: var(--ink); font-weight: 600; letter-spacing: -0.04em; }
+.pg-write .tally .of { font-size: 11px; color: var(--ink-3); }
+.pg-write .tally .tl { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); margin-left: 4px; }
+.pg-write .tally .clock {
+  margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--line-2);
+  color: var(--vermilion-ink); font-variant-numeric: tabular-nums;
+}
+
+.pg-write .cols {
+  display: grid; grid-template-columns: 214px minmax(0, 1fr);
+  gap: var(--s6); align-items: start;
+  padding-top: var(--s4); border-top: 1.5px solid var(--line);
+}
+
+/* ── the index: six documents, their state, click to read ── */
+.pg-write .rail { display: flex; flex-direction: column; gap: 1px; position: sticky; top: 24px; }
+.pg-write .rail-cap {
+  font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-3); padding: 0 10px 8px;
+}
+.pg-write .step {
+  position: relative; display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-areas: 'idx nm' 'idx st';
+  gap: 1px 0; align-items: baseline; text-align: left;
+  padding: 9px 10px 9px 0; min-height: 44px;
+  border-bottom: 1px solid transparent;
+  transition: background 120ms, color 120ms;
+}
+.pg-write .step:hover { background: var(--card); }
+.pg-write .step .idx { grid-area: idx; font-size: 9.5px; color: var(--ink-3); letter-spacing: 0.04em; padding-top: 2px; }
 .pg-write .step .nm { grid-area: nm; font-size: 14px; font-weight: 600; color: var(--ink); }
+.pg-write .step .st {
+  grid-area: st; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-3); margin-top: 2px;
+}
+.pg-write .step .mark {
+  position: absolute; left: -12px; top: 9px; bottom: 9px; width: 2px;
+  background: transparent; border-radius: 2px;
+}
+
 .pg-write .step.queued .nm { color: var(--ink-3); font-weight: 500; }
-.pg-write .step .pill { grid-area: pill; justify-self: start; padding: 2px 8px; font-size: 9px; margin-top: 2px; }
+.pg-write .step.writing .nm { color: var(--vermilion-ink); }
+.pg-write .step.writing .st { color: var(--vermilion); }
+.pg-write .step.writing .mark { background: var(--vermilion); animation: pulse 1.4s infinite; }
+.pg-write .step.failed .nm { color: var(--vermilion-ink); }
+.pg-write .step.failed .st { color: var(--vermilion-ink); }
+.pg-write .step.ready .st { color: var(--ink-2); }
+.pg-write .step.on { background: var(--card); }
+.pg-write .step.on .nm { color: var(--ink); }
+.pg-write .step.on .mark { background: var(--ink); }
+.pg-write .step.writing.on .mark { background: var(--vermilion); }
 
+/* ── the sheet ── */
 .pg-write .sheet { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
-.pg-write .running { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 18px 26px; border-bottom: 1.5px solid var(--line); }
-.pg-write .running h2 { font-size: 19px; letter-spacing: -0.01em; }
-.pg-write .meta { font-size: 10.5px; color: var(--ink-3); margin-top: 4px; letter-spacing: 0.05em; text-transform: uppercase; }
+.pg-write .running {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+  padding: 16px 28px 15px; border-bottom: 1.5px solid var(--line);
+}
+.pg-write .running h2 { font-size: 17px; letter-spacing: -0.015em; }
+.pg-write .meta { font-size: 9.5px; color: var(--ink-3); margin-top: 3px; letter-spacing: 0.12em; text-transform: uppercase; }
+.pg-write .meta.wet { color: var(--vermilion); }
+.pg-write .btn.sm { min-height: 36px; padding: 6px 14px; font-size: 12.5px; }
 
-/* the paper: scrolls on its own, auto-followed while the ink is wet */
-.pg-write .body { padding: 24px 30px 30px; max-height: calc(100vh - 320px); min-height: 320px; overflow-y: auto; scroll-behavior: smooth; }
-.pg-write .body h2 { font-size: 18px; margin: 24px 0 10px; letter-spacing: -0.01em; }
-.pg-write .body h3 { font-size: 15px; margin: 20px 0 8px; }
-.pg-write .body h4 { font-size: 13.5px; margin: 16px 0 6px; color: var(--ink-2); }
-.pg-write .body :first-child { margin-top: 0; }
-.pg-write .body p { margin: 8px 0; font-size: 14.5px; }
-.pg-write .body ul, .pg-write .body ol { margin: 8px 0 8px 22px; font-size: 14.5px; }
-.pg-write .body code { font: 12.5px var(--mono); background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
-.pg-write .body pre { background: var(--ink); color: var(--paper); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
-.pg-write .body pre code { background: none; border: none; color: inherit; font-size: 12.5px; }
-.pg-write .body table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; }
-.pg-write .body td { border: 1px solid var(--line); padding: 7px 10px; }
-.pg-write .waiting { color: var(--ink-3); font-size: 12.5px; display: flex; align-items: center; gap: 8px; }
-.pg-write .wet { display: flex; align-items: center; padding-top: 6px; }
+/* the manuscript: scrolls on its own, followed while the ink is wet */
+.pg-write .body {
+  padding: 30px 28px 34px;
+  max-height: calc(100vh - 300px); min-height: 380px; overflow-y: auto;
+  scrollbar-width: thin;
+}
+.pg-write .ms { max-width: 68ch; font: 13.5px/1.85 var(--mono); color: var(--ink); }
+.pg-write .ms > :first-child { margin-top: 0; }
+.pg-write .ms h2, .pg-write .ms h3, .pg-write .ms h4, .pg-write .ms h5 {
+  font-family: var(--sans); font-weight: 800; letter-spacing: -0.02em; line-height: 1.2;
+}
+.pg-write .ms h2 { font-size: 19px; margin: 30px 0 8px; }
+.pg-write .ms h3 { font-size: 15.5px; margin: 24px 0 6px; }
+.pg-write .ms h4 { font-size: 13.5px; margin: 20px 0 4px; }
+.pg-write .ms h5 { font-size: 12px; margin: 16px 0 4px; color: var(--ink-2); }
+.pg-write .ms p { margin: 0 0 12px; text-wrap: pretty; }
+.pg-write .ms ul, .pg-write .ms ol { margin: 0 0 12px 18px; }
+.pg-write .ms li { margin: 3px 0; }
+.pg-write .ms strong { font-weight: 600; }
+.pg-write .ms code {
+  font: 12.5px var(--mono); background: var(--paper);
+  border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px;
+}
+.pg-write .ms pre {
+  background: var(--ink); color: var(--paper); border-radius: 8px;
+  padding: 12px 14px; overflow-x: auto; margin: 0 0 14px; font-size: 12px; line-height: 1.6;
+}
+.pg-write .ms pre code { background: none; border: none; color: inherit; padding: 0; }
+.pg-write .ms table { border-collapse: collapse; width: 100%; margin: 0 0 14px; font-size: 12px; }
+.pg-write .ms td { border: 1px solid var(--line); padding: 5px 8px; }
 
-.pg-write .foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 4px; border-top: 1.5px solid var(--line); }
-.pg-write .foot .note { font-size: 13px; color: var(--ink-2); max-width: 60ch; }
-.pg-write .foot .row { display: flex; gap: 8px; }
-.pg-write .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 12px 16px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+/* the caret: it sits where the next character will land, inside the text */
+.pg-write .caret {
+  display: inline-block; width: 7px; height: 15px; margin-left: 1px;
+  background: var(--vermilion); vertical-align: -2px;
+  animation: pulse 1s steps(2, start) infinite;
+}
+.pg-write .waiting { color: var(--ink-3); font-size: 11.5px; display: flex; align-items: center; gap: 8px; letter-spacing: 0.04em; }
+.pg-write .waiting .caret { height: 12px; width: 6px; }
+
+/* the rule under the sheet while it is being written */
+.pg-write .inkline { height: 2px; background: var(--line); overflow: hidden; }
+.pg-write .inkline .bar {
+  display: block; height: 100%; width: 34%; background: var(--vermilion);
+  animation: sweep 1.8s ease-in-out infinite;
+}
+@keyframes sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
+
+/* ── the foot: press, then the optional wireframe ── */
+.pg-write .foot {
+  display: flex; flex-direction: column; gap: var(--s4);
+  padding-top: var(--s4); border-top: 1.5px solid var(--line);
+}
+.pg-write .foot .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pg-write .foot .note { font-size: 13px; color: var(--ink-2); max-width: 54ch; }
+.pg-write .foot .note strong { color: var(--ink); font-weight: 600; }
+
+.pg-write .press { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+
+/* export: one group, three formats — same control as the document page */
+.pg-write .dl { display: flex; align-items: center; border: 1.5px solid var(--line-2); border-radius: 8px; overflow: hidden; background: var(--card); }
+.pg-write .dl-label {
+  font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3);
+  padding: 0 9px 0 11px; border-right: 1.5px solid var(--line);
+  align-self: stretch; display: flex; align-items: center;
+}
+.pg-write .dl-fmt {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em;
+  padding: 13px 12px; color: var(--ink-2);
+  border-right: 1.5px solid var(--line); transition: background 120ms, color 120ms;
+}
+.pg-write .dl-fmt:last-child { border-right: none; }
+.pg-write .dl-fmt:hover { background: var(--ink); color: var(--paper); }
+
+/* the optional step is visibly separate from the press above it */
+.pg-write .optional {
+  display: flex; justify-content: space-between; align-items: center; gap: 20px;
+  border-top: 1px dashed var(--line-2); padding-top: var(--s4);
+  flex-wrap: wrap;
+}
+.pg-write .opt-txt { max-width: 56ch; }
+.pg-write .opt-txt h3 { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); font-weight: 600; margin-bottom: 4px; }
+.pg-write .opt-txt p { font-size: 13px; color: var(--ink-2); }
+
+.pg-write .alert {
+  border: 1.5px solid var(--vermilion); background: var(--vermilion-wash);
+  color: var(--vermilion-ink); border-radius: 10px; padding: 12px 16px;
+  font-size: 13.5px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
 .pg-write .alert p { flex: 1; }
+.pg-write .alert .btn { flex: none; }
 
 @media (max-width: 900px) {
-  .pg-write { padding-bottom: 24px; }
-  .pg-write .cols { grid-template-columns: 1fr; }
-  /* the rail folds to a horizontal strip of tabs above the paper */
-  .pg-write .rail { position: static; flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
-  .pg-write .step { grid-template-columns: 1fr; grid-template-areas: 'nm' 'pill'; flex: none; min-width: 108px; }
+  .pg-write { gap: var(--s4); padding: 22px 18px 40px; }
+  .pg-write .head { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .pg-write h1 { font-size: 26px; }
+  .pg-write .tally b { font-size: 20px; }
+  .pg-write .cols { grid-template-columns: 1fr; gap: var(--s4); }
+
+  /* the index folds into a strip that scrolls to the document being written */
+  .pg-write .rail {
+    position: static; flex-direction: row; gap: 6px;
+    overflow-x: auto; padding: 0 0 6px; scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .pg-write .rail::-webkit-scrollbar { display: none; }
+  .pg-write .rail-cap { display: none; }
+  .pg-write .step {
+    flex: none; min-width: 104px; scroll-snap-align: start;
+    grid-template-columns: 1fr; grid-template-areas: 'nm' 'st';
+    padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 10px;
+    background: var(--card);
+  }
   .pg-write .step .idx { display: none; }
-  .pg-write .body { max-height: none; min-height: 240px; }
-  .pg-write h1 { font-size: 23px; }
-  .pg-write .head { flex-direction: column; align-items: flex-start; gap: 8px; }
-  .pg-write .running { flex-direction: column; }
+  .pg-write .step .mark { display: none; }
+  .pg-write .step.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: var(--paper); }
+  .pg-write .step.writing { border-color: var(--vermilion); }
+  .pg-write .step.writing.on { border-color: var(--vermilion); box-shadow: inset 0 0 0 1px var(--vermilion); }
+
+  .pg-write .running { padding: 14px 18px; }
+  .pg-write .body { padding: 20px 18px 26px; max-height: none; min-height: 300px; }
+  .pg-write .ms { font-size: 13px; line-height: 1.8; }
+  .pg-write .ms h2 { font-size: 17px; }
+  .pg-write .press { flex-direction: column; align-items: flex-start; }
+  .pg-write .press .row { width: 100%; }
+  .pg-write .press .row .btn { flex: 1; justify-content: center; }
+  .pg-write .optional { flex-direction: column; align-items: flex-start; }
+  .pg-write .optional .btn { width: 100%; justify-content: center; }
+  .pg-write .alert { flex-direction: column; align-items: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-write .caret { animation: none; opacity: 1; }
+  .pg-write .inkline .bar { animation: none; width: 100%; opacity: 0.5; }
+  .pg-write .step.writing .mark { animation: none; }
 }
