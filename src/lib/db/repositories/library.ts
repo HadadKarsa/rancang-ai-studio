@@ -71,7 +71,7 @@ export async function getLibraryItem(id: string, userId: string): Promise<Librar
     `SELECT l.*, p.name AS project_name, d.type AS document_type
        FROM library_items l
        LEFT JOIN projects p ON p.id = l.project_id
-       LEFT JOIN documents d ON d.id = l.document_id
+       LEFT JOIN spec_documents d ON d.id = l.document_id
       WHERE l.id = ? AND l.user_id = ?`,
     [id, userId],
   );
@@ -98,7 +98,7 @@ export async function listLibraryItems(userId: string, opts: ListLibraryOpts = {
     `SELECT l.*, p.name AS project_name, d.type AS document_type
        FROM library_items l
        LEFT JOIN projects p ON p.id = l.project_id
-       LEFT JOIN documents d ON d.id = l.document_id
+       LEFT JOIN spec_documents d ON d.id = l.document_id
       WHERE ${where.join(' AND ')}
       ORDER BY l.created_at DESC, l.id DESC
       LIMIT ?`,
