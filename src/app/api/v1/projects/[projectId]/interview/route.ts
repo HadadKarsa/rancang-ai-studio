@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { withRoute, parseJson } from '@/lib/api/middleware';
 import { assertProjectOwnership, appendUserAnswer, startInterviewTurn } from '@/lib/services/interview';
-import { createSession, abandonActiveSessions, getActiveSessionForProject, listSessionsForProject } from '@/lib/db/repositories/interviews';
+import { createSession, abandonActiveSessions, getActiveSessionForProject, listSessionsForProject, listMessages } from '@/lib/db/repositories/interviews';
 import { getProjectById, updateProject } from '@/lib/db/repositories/projects';
 import { ValidationError, NotFoundError, ConflictError } from '@/lib/errors';
 
@@ -47,14 +47,19 @@ export const POST = withRoute(async (ctx) => {
   return Response.json({ session }, { status: 201 });
 }, { bucket: 'write', idempotent: true });
 
-/** GET — session list + active session + transcript. */
+/** GET — session list + active session + its transcript.
+ *  `latest` is the most recent session whether active or completed, and
+ *  `messages` is that session's transcript, so a reload restores the
+ *  conversation instead of an empty page. */
 export const GET = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
   await assertProjectOwnership(ctx.session.user.id, projectId);
 
   const sessions = await listSessionsForProject(projectId);
   const active = await getActiveSessionForProject(projectId);
-  return Response.json({ sessions, active });
+  const latest = active ?? sessions[0] ?? null;
+  const messages = latest ? await listMessages(latest.id) : [];
+  return Response.json({ sessions, active, latest, messages });
 }, { bucket: 'read' });
 
 const answerSchema = z.object({
