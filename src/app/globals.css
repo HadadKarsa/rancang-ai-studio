@@ -83,7 +83,10 @@ input, textarea, select { font: inherit; color: inherit; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn:disabled:hover { background: var(--ink); color: var(--paper); }
 .btn.primary:disabled:hover { background: var(--ink); color: var(--paper); }
-.btn.ghost { border-color: var(--line-2); color: var(--ink-2); }
+/* .btn is ink-filled by default; a ghost must clear that fill or its ink-2
+   label sits on ink and disappears. Fixed at the base rule so every page
+   (documents, studio, models, interview) inherits it. */
+.btn.ghost { background: transparent; border-color: var(--line-2); color: var(--ink-2); }
 .btn.ghost:hover { border-color: var(--ink); background: transparent; color: var(--ink); }
 
 .pill {
