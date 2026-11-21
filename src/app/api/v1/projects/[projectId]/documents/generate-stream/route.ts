@@ -45,6 +45,21 @@ function sseChunk(event: string, data: unknown): Uint8Array {
 
 const PING_MS = 15_000;
 
+/* An SSE body is only useful if each chunk leaves the process as it is
+   written. Two layers in front of this route will happily hold it:
+   Next's dev server response compression, and the Cloudflare quick tunnel
+   used for review. Both decide "is this worth a packet yet?" by size, so a
+   first chunk of a few hundred bytes sits in a buffer until the next one
+   arrives — which is how a snapshot at 0.1s and a delta at 4s both landed
+   at 19.5s through the tunnel.
+
+   The fix is a 2KB comment line before anything else. It is not an event:
+   EventSource and our own parser skip a line starting with `:`, so the
+   client sees nothing. It only exists to push the buffer over the flush
+   threshold on the very first write, so the connection is genuinely live
+   from the first byte. */
+const PAD = `: ${' '.repeat(2048)}\n\n`;
+
 export const GET = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
   await assertProjectOwnership(ctx.session.user.id, projectId);
@@ -72,6 +87,11 @@ export const GET = withRoute(async (ctx) => {
         if (closed) return;
         try { controller.enqueue(sseChunk(event, data)); } catch { closed = true; }
       };
+
+      // Flush the first byte out of any buffering layer before the payload.
+      if (!closed) {
+        try { controller.enqueue(encoder.encode(PAD)); } catch { closed = true; }
+      }
 
       // Replay everything written so far, partial text included.
       push('snapshot', initial);
@@ -108,6 +128,9 @@ export const GET = withRoute(async (ctx) => {
     status: 200,
     headers: {
       'Content-Type': 'text/event-stream; charset=utf-8',
+      // `no-transform` is the instruction; `identity` is the belt to it, so a
+      // compressor in front cannot decide to gzip a stream that must trickle.
+      'Content-Encoding': 'identity',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       // Stop nginx and friends from buffering the stream into one blob.

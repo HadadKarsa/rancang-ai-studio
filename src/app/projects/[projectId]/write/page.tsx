@@ -288,7 +288,13 @@ export default function WritePage() {
       // A batch that ended while the page was away is not a live view: the
       // press (export / optional wireframe) is the whole screen.
       setPhase(stoppedRef.current ? 'stopped' : 'done');
+      return;
     }
+
+    // Still live. The snapshot is proof the connection is up, so the page is
+    // writing now — without this it sits on "menyambung" for the whole batch,
+    // which is exactly the state the reader is left staring at.
+    setPhase(stoppedRef.current ? 'stopped' : 'writing');
   }, []);
 
   /* ── One attach ─────────────────────────────────────────────────────
