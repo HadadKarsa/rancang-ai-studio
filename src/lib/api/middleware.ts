@@ -32,7 +32,10 @@ const BUCKET_LIMITS: Record<Bucket, { limit: number; windowMs: number }> = {
   read: { limit: 300, windowMs: 60_000 },
   write: { limit: 60, windowMs: 60_000 },
   generate: { limit: 10, windowMs: 60_000 },
-  export: { limit: 5, windowMs: 60_000 },
+  // The documents page offers MD/ZIP/JSON side by side, so one review pass is
+  // easily 3-6 downloads. At 5/60s a reviewer hit 429 and read it as "unduh
+  // gabisa" (Ndan's report).
+  export: { limit: 30, windowMs: 60_000 },
   share_public: { limit: 120, windowMs: 60_000 },
   provider_test: { limit: 10, windowMs: 60_000 },
 };
