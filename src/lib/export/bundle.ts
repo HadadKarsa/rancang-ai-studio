@@ -6,13 +6,18 @@ import { NotFoundError, ConflictError } from '@/lib/errors';
 import { createZip, type ZipEntry } from './zip';
 
 /**
- * Export bundle (T-410): the seven generated documents of a project as one
- * markdown file, a zip of one file per document, or JSON.
+ * Export bundle (T-410): the generated documents of a project as one markdown
+ * file, a zip of one file per document, or JSON.
  *
- * Only documents that have a current version are exported. A project whose
- * documents are all still `pending` is a 409 — there is nothing to download yet,
- * and an empty archive would look like a bug rather than an unfinished project.
+ * Wireframe is optional by design (generation stops before it), so its absence
+ * never blocks an export: the six core documents are what must exist. The 409
+ * fires only when a core document is missing, and names which ones. A missing
+ * wireframe is recorded as `wireframe: 'absent'` in the JSON and as a line in
+ * the zip's README.md.
  */
+
+/** The documents an export requires. Wireframe is not one of them. */
+export const CORE_DOCUMENT_TYPES: DocumentType[] = ['prd', 'architecture', 'database', 'api', 'tasks', 'memory'];
 
 export type ExportFormat = 'md' | 'zip' | 'json';
 
@@ -32,6 +37,10 @@ export interface ExportBundle {
   wireframes: { name: string; slug: string; viewport: string; html: string }[];
   /** Documents scaffolded but never generated, in order — used for the 409 message. */
   missing: DocumentType[];
+  /** Core documents that are missing and block the export. Empty when it succeeds. */
+  missingCore: DocumentType[];
+  /** Whether the optional wireframe document was generated. */
+  wireframe: 'present' | 'absent';
   generatedAt: string;
 }
 
@@ -77,10 +86,14 @@ export async function buildExportBundle(userId: string, projectId: string): Prom
     });
   }
 
-  if (documents.length === 0) {
+  // Only the core documents gate the export. A missing wireframe is reported,
+  // not fatal: a project with its six documents is a complete spec.
+  const missingCore = CORE_DOCUMENT_TYPES.filter((t) => missing.includes(t));
+  if (missingCore.length > 0) {
     throw new ConflictError(
-      'Dokumen belum dibuat. Jalankan wawancara lalu buat dokumen sebelum mengekspor.',
-      { missing },
+      `Dokumen inti belum lengkap: ${missingCore.map((t) => DOCUMENT_META[t].label).join(', ')}. ` +
+      'Buat dokumen yang kurang sebelum mengekspor.',
+      { missing: missingCore, missingCore, allMissing: missing },
     );
   }
 
@@ -95,6 +108,8 @@ export async function buildExportBundle(userId: string, projectId: string): Prom
     documents,
     wireframes: screens.map((s) => ({ name: s.name, slug: s.slug, viewport: s.viewport, html: s.htmlContent })),
     missing,
+    missingCore,
+    wireframe: missing.includes('wireframe') ? 'absent' : 'present',
     generatedAt: new Date().toISOString(),
   };
 }
@@ -115,8 +130,16 @@ export function renderCombinedMarkdown(bundle: ExportBundle): string {
     `- **Status:** ${project.status}`,
     `- **Diekspor:** ${bundle.generatedAt}`,
     `- **Dokumen:** ${documents.length} dari ${DOCUMENT_TYPES.length}`,
+    `- **Wireframe:** ${bundle.wireframe === 'absent' ? 'belum dibuat (opsional)' : `${wireframes.length} layar`}`,
     '',
   );
+  if (bundle.wireframe === 'absent') {
+    lines.push(
+      '> Wireframe belum dibuat untuk proyek ini. Dokumen inti lengkap; wireframe',
+      '> bersifat opsional dan bisa dibuat menyusul dari halaman proyek.',
+      '',
+    );
+  }
 
   lines.push('## Isi', '');
   for (const doc of documents) {
@@ -160,7 +183,9 @@ export function renderZip(bundle: ExportBundle): Buffer {
     '## Dokumen',
     '',
     ...documents.map((d) => `- \`${FILE_PREFIX[d.type]}\` — ${d.title} (rev ${d.versionNumber})`),
-    ...(wireframes.length > 0 ? ['', `## Wireframes`, '', ...wireframes.map((w) => `- \`wireframes/${w.slug}.html\` — ${w.name} (${w.viewport})`)] : []),
+    ...(wireframes.length > 0
+      ? ['', '## Wireframes', '', ...wireframes.map((w) => `- \`wireframes/${w.slug}.html\` — ${w.name} (${w.viewport})`)]
+      : ['', '## Wireframes', '', 'Belum dibuat. Wireframe bersifat opsional dan tidak termasuk dalam paket ini.']),
     '',
   ].join('\n');
   entries.push({ name: 'README.md', content: readme });
@@ -191,6 +216,7 @@ export function renderJson(bundle: ExportBundle): unknown {
       contentMd: d.contentMd,
     })),
     wireframes: bundle.wireframes.map((w) => ({ name: w.name, slug: w.slug, viewport: w.viewport, html: w.html })),
+    wireframe: bundle.wireframe,
     missing: bundle.missing,
   };
 }
