@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { api } from '@/lib/client/api';
 
 const NAV = [
   { href: '/studio', label: 'Studio' },
@@ -12,10 +14,24 @@ const NAV = [
 /** App rail — friendly workbench nav. Studio is the home of the app. */
 export function Rail() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function signOut() {
+    setSigningOut(true);
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      /* the cookie is cleared server-side either way; go home regardless */
+    }
+    router.push('/');
+    router.refresh();
+  }
+
   return (
     <aside className="pg-rail rail">
       <Link href="/studio" className="brand">
-        rancang-ai
+        rancang.ai
         <small>spec studio</small>
       </Link>
       <nav>
@@ -29,8 +45,11 @@ export function Rail() {
           </Link>
         ))}
       </nav>
-      <footer className="mono muted">
-        local · v0.1.2
+      <footer className="mono muted rail-foot">
+        <span>local · v0.1.2</span>
+        <button type="button" className="signout" onClick={() => void signOut()} disabled={signingOut}>
+          {signingOut ? 'keluar…' : 'Keluar'}
+        </button>
       </footer>
     </aside>
   );

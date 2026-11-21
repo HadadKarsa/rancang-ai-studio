@@ -24,7 +24,12 @@ export const POST = withRoute(async (ctx) => {
   if (existing) throw new AppError('EMAIL_TAKEN', 'Email sudah terdaftar', 409);
 
   const passwordHash = await hashPassword(password);
-  const user = await createUser({ email: normalized, name: name ?? normalized.split('@')[0], authProvider: 'email' });
+  const user = await createUser({
+    email: normalized,
+    name: name ?? normalized.split('@')[0],
+    authProvider: 'email',
+    role: 'member',
+  });
   await setPasswordHash(user.id, passwordHash);
 
   const { token } = await createSession(user.id);

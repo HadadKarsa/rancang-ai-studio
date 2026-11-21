@@ -12,13 +12,13 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   return row ? mapUser(row) : null;
 }
 
-export async function createUser(input: { email: string; name?: string; authProvider?: 'local' | 'github' | 'google' | 'email' }): Promise<User> {
+export async function createUser(input: { email: string; name?: string; authProvider?: 'local' | 'github' | 'google' | 'email'; role?: 'owner' | 'member' }): Promise<User> {
   const id = newId('usr');
   const now = nowIso();
   await execute(
     `INSERT INTO users (id, email, name, role, auth_provider, created_at, updated_at)
-     VALUES (?, ?, ?, 'owner', ?, ?, ?)`,
-    [id, input.email, input.name ?? null, input.authProvider ?? 'local', now, now],
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, input.email, input.name ?? null, input.role ?? 'member', input.authProvider ?? 'local', now, now],
   );
   const user = await getUserById(id);
   if (!user) throw new Error('user insert vanished');

@@ -73,7 +73,9 @@ export default function ModelsPage() {
   useEffect(() => { void load(); }, [load]);
 
   const entry = providers.find((p) => p.id === provider);
-  const canTest = provider !== '' && (mode === 'subscription' || apiKey.trim().length > 0);
+  const savedCred = provider ? credentials.find((c) => c.provider === provider && c.isActive && c.isValid !== false) : undefined;
+  // BYOK needs a key in the field; subscription mode needs a credential already saved to test.
+  const canTest = provider !== '' && (mode === 'byok' ? apiKey.trim().length > 0 : Boolean(savedCred));
   const testPassed = test?.ok === true;
   const models = testPassed && test?.models ? test.models : [];
 
@@ -280,7 +282,9 @@ export default function ModelsPage() {
 
             {mode === 'subscription' && (
               <p className="muted small note">
-                Kunci disimpan terenkripsi (AES-256-GCM). Uji dulu — tombol simpan terbuka setelah lolos.
+                {savedCred
+                  ? 'Memakai kredensial yang sudah tersimpan untuk penyedia ini. Uji dulu — tombol simpan terbuka setelah lolos.'
+                  : 'Belum ada kredensial tersimpan untuk penyedia ini. Pilih BYOK untuk menguji dengan kunci API milikmu.'}
               </p>
             )}
           </section>
