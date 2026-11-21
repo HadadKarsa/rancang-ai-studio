@@ -48,6 +48,7 @@ export async function resolveProvider(input: {
 
   if (preset) {
     let apiKey: string;
+    let credentialBaseUrl: string | null = null;
     if (input.ephemeralKey) {
       apiKey = input.ephemeralKey;
     } else if (preset.credentialId) {
@@ -58,14 +59,17 @@ export async function resolveProvider(input: {
       }) ?? (await getActiveCredentialForProvider(input.userId, preset.provider));
       if (!row) throw new ProviderNotConfiguredError(preset.provider);
       apiKey = decryptKey({ encryptedKeyB64: row.encrypted_key_b64, keyIvB64: row.key_iv_b64, keyTagB64: row.key_tag_b64 });
+      credentialBaseUrl = row.base_url ?? null;
     } else {
       apiKey = await resolveApiKey(input.userId, preset.provider, input.ephemeralKey);
+      const activeRow = await getActiveCredentialForProvider(input.userId, preset.provider);
+      credentialBaseUrl = activeRow?.base_url ?? null;
     }
     return {
       provider: preset.provider,
       modelId: preset.modelId,
       apiKey,
-      baseUrl: null,
+      baseUrl: credentialBaseUrl,
       presetBaseUrl: preset.baseUrl,
       temperature: preset.temperature,
       maxTokens: preset.maxTokens,
