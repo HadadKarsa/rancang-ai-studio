@@ -274,48 +274,213 @@ input, textarea, select { font: inherit; color: inherit; }
   .pg-models .prov-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }
 
-/* /projects/[id]/interview */
-.pg-interview { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--s5); }
-.pg-interview .head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: var(--s4); border-bottom: 1.5px solid var(--line); }
-.pg-interview .back { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 6px; }
-.pg-interview .back .chev { flex: none; }
-.pg-interview .meter { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; min-width: 220px; }
-.pg-interview .label { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
-.pg-interview .bar { width: 220px; height: 5px; background: var(--line); border-radius: 99px; overflow: hidden; }
-.pg-interview .bar span { display: block; height: 100%; background: var(--vermilion); transition: width 300ms; }
-.pg-interview .start { padding: var(--s7) var(--s6); display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
-.pg-interview .start h1 { font-size: 34px; }
-.pg-interview .start p { max-width: 46ch; }
-.pg-interview .transcript { list-style: none; display: flex; flex-direction: column; gap: var(--s4); padding: var(--s2) 0; }
-.pg-interview .msg { display: flex; flex-direction: column; gap: 5px; max-width: 82%; }
-.pg-interview .msg.user { align-self: flex-end; align-items: flex-end; }
-.pg-interview .msg.assistant { align-self: flex-start; }
-.pg-interview .who { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
-.pg-interview .bubble { background: var(--card); border: 1.5px solid var(--line); border-radius: 3px 14px 14px 14px; padding: 14px 18px; font-size: 15.5px; line-height: 1.55; white-space: pre-wrap; }
-.pg-interview .msg.assistant .bubble { font-size: 16.5px; }
-.pg-interview .msg.user .bubble { background: var(--ink); color: var(--paper); border-color: var(--ink); border-radius: 14px 3px 14px 14px; }
-.pg-interview .at { font-size: 9.5px; }
-.pg-interview .pending .bubble { border-style: dashed; }
-.pg-interview .slips { display: flex; gap: 8px; flex-wrap: wrap; }
-.pg-interview .slip { border: 1.5px dashed var(--line-2); border-radius: 10px; padding: 8px 14px; font-size: 13px; color: var(--ink-2); background: transparent; }
-.pg-interview .slip:hover { border-color: var(--vermilion); color: var(--vermilion-ink); border-style: solid; }
-.pg-interview .composer { display: flex; gap: 10px; align-items: flex-end; position: sticky; bottom: 16px; background: linear-gradient(to top, var(--paper) 70%, transparent); padding-top: 12px; }
-.pg-interview .composer textarea { flex: 1; border: 1.5px solid var(--line-2); border-radius: 12px; padding: 14px 16px; background: var(--card); resize: vertical; outline: none; font-size: 15px; line-height: 1.5; }
-.pg-interview .composer textarea:focus { border-color: var(--vermilion); box-shadow: 0 0 0 3px var(--vermilion-wash); }
-.pg-interview .composer .btn { height: 48px; padding: 0 22px; flex: none; }
-.pg-interview .done { padding: var(--s6); display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-.pg-interview .done h2 { font-size: 24px; }
-.pg-interview .row { display: flex; gap: 10px; }
-.pg-interview .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; }
-@media (max-width: 720px) {
-  .pg-interview .msg { max-width: 100%; }
-  .pg-interview .meter { min-width: 0; }
-  .pg-interview .bar { width: 130px; }
-  .pg-interview .head { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .pg-interview .meter { align-items: flex-start; }
-  .pg-interview .start { padding: var(--s6) var(--s5); }
-  .pg-interview .start h1 { font-size: 28px; }
-  .pg-interview .composer { position: static; background: none; }
+/* /projects/[id]/interview
+   The core moment of the product: a person talking to a drafter. So it is
+   set as a page of conversation, not a chat widget — the assistant's
+   question is display type on paper, the answer is a card the person
+   "wrote" (card stock, mono stamp of who and when). Vermilion appears only
+   where ink is still wet: the waiting line, the current tick, the send
+   button once there is something to send. */
+.pg-interview {
+  max-width: 1060px; margin: 0 auto;
+  padding: 34px 32px 260px;
+  display: flex; flex-direction: column; gap: var(--s5);
+}
+.pg-interview .top { display: flex; flex-direction: column; gap: 6px; }
+.pg-interview .back { min-height: 44px; display: inline-flex; align-items: center; align-self: flex-start; margin-bottom: -10px; }
+.pg-interview .top h1 {
+  font-size: 30px; letter-spacing: -0.03em; line-height: 1.05;
+  margin-top: 4px; max-width: 26ch;
+}
+.pg-interview .sub { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.pg-interview .load { padding: 40px 0; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.pg-interview .cols {
+  display: grid; grid-template-columns: minmax(0, 1fr) 168px;
+  gap: 56px; align-items: start;
+  padding-top: var(--s5); border-top: 1.5px solid var(--line);
+}
+
+/* ── the conversation ── */
+.pg-interview .talk { display: flex; flex-direction: column; gap: 34px; min-width: 0; }
+.pg-interview .turn { display: flex; flex-direction: column; gap: 8px; }
+.pg-interview .who {
+  font: 600 9.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-2); display: flex; align-items: center; gap: 8px;
+}
+.pg-interview .turn.ask .who::before {
+  content: ''; width: 14px; height: 2px; background: var(--ink); flex: none;
+}
+.pg-interview .q {
+  font-size: 23px; line-height: 1.32; font-weight: 700; letter-spacing: -0.02em;
+  max-width: 30ch; text-wrap: pretty;
+}
+.pg-interview .note { font-size: 15px; line-height: 1.65; color: var(--ink-2); max-width: 52ch; }
+.pg-interview .turn.say { align-items: flex-end; }
+.pg-interview .turn.say .who { color: var(--ink-2); }
+.pg-interview .turn.say .a {
+  background: var(--card); border: 1.5px solid var(--line-2);
+  border-radius: 2px 12px 12px 12px;
+  padding: 13px 18px; font-size: 15.5px; line-height: 1.6;
+  max-width: 46ch; white-space: pre-wrap; text-wrap: pretty;
+  box-shadow: 0 1px 0 var(--line);
+}
+
+/* waiting: the next question is being written — a wet line, not a spinner */
+.pg-interview .wet {
+  font: 600 10.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--vermilion-ink); display: flex; align-items: center; gap: 10px;
+}
+.pg-interview .inkline {
+  width: 26px; height: 2px; background: var(--vermilion); flex: none;
+  animation: inkdraw 1.3s ease-in-out infinite;
+}
+@keyframes inkdraw { 0%, 100% { width: 8px; opacity: 0.45; } 50% { width: 30px; opacity: 1; } }
+
+/* ── suggestion chips ── */
+.pg-interview .suggest { display: flex; flex-direction: column; gap: 10px; }
+.pg-interview .cap {
+  font: 600 9.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-2);
+}
+.pg-interview .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pg-interview .chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 44px; padding: 10px 15px;
+  border: 1.5px solid var(--line-2); border-radius: 10px;
+  background: var(--card); color: var(--ink);
+  font-size: 13.5px; line-height: 1.35; text-align: left;
+  transition: border-color 120ms, transform 120ms, box-shadow 120ms;
+}
+.pg-interview .chip .plus { color: var(--ink-3); flex: none; transition: color 120ms; }
+.pg-interview .chip:hover { border-color: var(--ink); transform: translateY(-1px); box-shadow: 0 2px 0 var(--line); }
+.pg-interview .chip:hover .plus { color: var(--vermilion); }
+.pg-interview .chip:active { transform: translateY(0); box-shadow: none; }
+
+/* ── completion ── */
+.pg-interview .finish {
+  border-top: 1.5px solid var(--ink); padding-top: var(--s5);
+  display: flex; flex-direction: column; gap: 12px; align-items: flex-start;
+}
+.pg-interview .finish h2 { font-size: 30px; letter-spacing: -0.03em; max-width: 18ch; }
+.pg-interview .docs {
+  list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px;
+  margin: 6px 0 4px; font: 600 10px var(--mono); letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-2);
+}
+.pg-interview .docs li { display: flex; align-items: center; gap: 7px; }
+.pg-interview .docs .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--line-2); }
+.pg-interview .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.pg-interview .row .btn { min-height: 44px; }
+/* .btn carries a solid ink background; a ghost button must clear it or the
+   label lands dark-on-dark. Scoped here so the documents page is untouched. */
+.pg-interview .btn.ghost { background: transparent; color: var(--ink-2); }
+.pg-interview .btn.ghost:hover { background: transparent; color: var(--ink); border-color: var(--ink); }
+.pg-interview .ico { flex: none; }
+
+/* ── the ritual rail: a tally, not a debug meter ── */
+.pg-interview .ritual {
+  display: flex; flex-direction: column; gap: 12px;
+  position: sticky; top: 28px;
+}
+.pg-interview .ticks { display: flex; flex-direction: column; gap: 7px; }
+.pg-interview .t { height: 3px; width: 34px; background: var(--line-2); border-radius: 2px; transition: width 260ms, background 260ms; }
+.pg-interview .t.done { background: var(--ink); width: 34px; }
+.pg-interview .t.now { background: var(--vermilion); width: 52px; }
+.pg-interview .count {
+  font: 600 26px var(--mono); letter-spacing: -0.04em; color: var(--ink);
+  display: flex; align-items: baseline; gap: 5px; margin-top: 2px;
+}
+.pg-interview .count span { font-size: 11px; letter-spacing: 0.06em; color: var(--ink-2); font-weight: 400; }
+.pg-interview .mood { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--vermilion-ink); }
+.pg-interview .ritual hr { border: none; border-top: 1px solid var(--line); width: 100%; margin: 2px 0; }
+.pg-interview .hint { font-size: 12px; line-height: 1.55; color: var(--ink-2); max-width: 24ch; }
+.pg-interview .restart {
+  align-self: flex-start; font: 600 10px var(--mono); letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-2);
+  border-bottom: 1.5px solid var(--line-2); padding: 6px 0; min-height: 44px;
+}
+.pg-interview .restart:hover { color: var(--ink); border-color: var(--ink); }
+
+/* First screen: the composer is the page, not a footer pinned far below.
+   It sits in the flow under the opening question, on card stock, tall
+   enough to write a paragraph in. */
+.pg-interview .composer.first {
+  position: static; border-top: none; background: none;
+  padding: 0; margin-top: 4px; max-width: 640px;
+  border: 1.5px solid var(--line-2); border-radius: 12px;
+  background: var(--card); padding: 14px 20px 12px;
+  box-shadow: 0 1px 0 var(--line);
+}
+.pg-interview .composer.first textarea { min-height: 104px; }
+.pg-interview .composer.first .foot { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 10px; }
+.pg-interview .turn.opening .q { font-size: 30px; max-width: 22ch; }
+
+/* ── composer: writing on paper ── */
+.pg-interview .composer {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  background: var(--paper);
+  border-top: 1.5px solid var(--line);
+  padding: 12px max(32px, calc((100vw - 1060px) / 2 + 32px)) 18px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.pg-interview .composer .cap { color: var(--ink-2); }
+.pg-interview .composer textarea {
+  width: 100%; border: none; outline: none; resize: none;
+  background: transparent; color: var(--ink);
+  font-size: 16.5px; line-height: 30px; padding: 4px 0 0;
+  background-image: repeating-linear-gradient(to bottom, transparent 0 29px, var(--line) 29px 30px);
+  background-position: 0 4px;
+  min-height: 64px; max-height: 40vh;
+}
+.pg-interview .composer textarea::placeholder { color: var(--ink-3); }
+.pg-interview .composer .foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 8px; }
+.pg-interview .composer .hint { font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+.pg-interview .send {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 44px; padding: 0 20px; border-radius: 8px;
+  font-size: 13.5px; font-weight: 600;
+  background: var(--vermilion); color: #fff8f3; border: 1.5px solid var(--vermilion);
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.pg-interview .send:hover { background: var(--vermilion-ink); border-color: var(--vermilion-ink); }
+.pg-interview .send:disabled {
+  background: transparent; border-color: var(--line-2); color: var(--ink-3); cursor: not-allowed;
+}
+.pg-interview .alert {
+  border: 1.5px solid var(--vermilion); background: var(--vermilion-wash);
+  color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13.5px;
+}
+
+/* Completed: there is no composer, so the page must not keep the space
+   reserved for one — otherwise a dead band sits under the closing block. */
+.pg-interview.is-done { padding-bottom: var(--s8); }
+
+@media (max-width: 860px) {
+  .pg-interview { padding: 22px 20px 168px; gap: var(--s4); }
+  .pg-interview.is-done { padding-bottom: var(--s7); }
+  .pg-interview .top h1 { font-size: 24px; }
+  .pg-interview .cols { grid-template-columns: 1fr; gap: var(--s4); padding-top: var(--s4); }
+  /* the rail folds into one line above the conversation */
+  .pg-interview .ritual {
+    position: static; flex-direction: row; align-items: center; gap: 12px;
+    flex-wrap: wrap; padding-bottom: var(--s3); border-bottom: 1px solid var(--line);
+  }
+  .pg-interview .ritual .cap, .pg-interview .ritual hr, .pg-interview .hint, .pg-interview .restart { display: none; }
+  .pg-interview .ticks { flex-direction: row; gap: 4px; }
+  .pg-interview .t { width: 16px; height: 3px; }
+  .pg-interview .t.now { width: 26px; }
+  .pg-interview .count { font-size: 15px; margin: 0 0 0 auto; }
+  .pg-interview .mood { font-size: 9px; }
+  .pg-interview .talk { gap: 26px; }
+  .pg-interview .q { font-size: 20px; max-width: none; }
+  .pg-interview .turn.say .a { max-width: 100%; }
+  .pg-interview .finish h2 { font-size: 24px; }
+  .pg-interview .composer { padding: 10px 20px 16px; }
+  .pg-interview .composer.first { padding: 12px 16px 10px; max-width: none; }
+  .pg-interview .turn.opening .q { font-size: 24px; }
+  .pg-interview .composer .hint { display: none; }
+  .pg-interview .composer .foot { justify-content: flex-end; }
 }
 
 /* /projects/[id]/documents/[type] */
