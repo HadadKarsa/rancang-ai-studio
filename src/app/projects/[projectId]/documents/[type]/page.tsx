@@ -167,15 +167,6 @@ export default function DocPage() {
     setTimeout(() => setCopied(false), 1600);
   }
 
-  function downloadMd() {
-    const blob = new Blob([content], { type: 'text/markdown' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${project?.slug ?? 'proyek'}-${type}.md`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
   if (state === 'loading') return <div className="mono muted" style={{ padding: 40 }}>memuat…</div>;
   if (state === 'error') return <div className="alert" role="alert" style={{ margin: 40 }}>{error}</div>;
 
@@ -224,7 +215,20 @@ export default function DocPage() {
               </div>
               <div className="acts">
                 <button className="btn ghost" onClick={() => void copyMd()}>{copied ? 'Tersalin ✓' : 'Salin'}</button>
-                <button className="btn ghost" onClick={downloadMd}>.md</button>
+                <div className="dl" role="group" aria-label="Unduh proyek">
+                  <span className="dl-label mono">Unduh</span>
+                  {(['md', 'zip', 'json'] as const).map((f) => (
+                    <a
+                      key={f}
+                      className="dl-fmt mono"
+                      href={`/api/v1/projects/${projectId}/export?format=${f}`}
+                      download
+                      title={`Unduh seluruh proyek sebagai ${f.toUpperCase()}`}
+                    >
+                      {f === 'md' ? 'MD' : f === 'zip' ? 'ZIP' : 'JSON'}
+                    </a>
+                  ))}
+                </div>
                 <button className="btn primary" onClick={() => void regenerate()} disabled={streaming}>
                   {streaming ? 'Menulis…' : 'Tulis ulang'}
                 </button>

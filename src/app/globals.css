@@ -525,6 +525,13 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-documents .empty { padding: 44px 32px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; max-width: 560px; margin: 0 auto; }
 .pg-documents .empty h2 { font-size: 20px; }
 .pg-documents .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; }
+/* export download group — whole-project download (md / zip / json) */
+.pg-documents .dl { display: flex; align-items: center; gap: 0; border: 1.5px solid var(--line-2); border-radius: 8px; overflow: hidden; background: var(--card); }
+.pg-documents .dl-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); padding: 0 9px 0 11px; border-right: 1.5px solid var(--line); align-self: stretch; display: flex; align-items: center; }
+.pg-documents .dl-fmt { font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; padding: 8px 10px; color: var(--ink-2); border-right: 1.5px solid var(--line); transition: background 120ms, color 120ms; }
+.pg-documents .dl-fmt:last-child { border-right: none; }
+.pg-documents .dl-fmt:hover { background: var(--ink); color: var(--paper); }
+.pg-documents .dl-fmt:focus-visible { outline: 2px solid var(--vermilion); outline-offset: -2px; }
 @media (max-width: 900px) {
   .pg-documents .proof { grid-template-columns: 1fr; }
   .pg-documents .body { max-height: none; }
