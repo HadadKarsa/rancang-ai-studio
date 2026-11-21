@@ -206,10 +206,9 @@ input, textarea, select { font: inherit; color: inherit; }
    hovered or the button is focused. */
 .pg-studio .job-wrap { position: relative; display: flex; }
 .pg-studio .job-wrap > .job { flex: 1; }
-.pg-studio .job-del { position: absolute; top: 10px; right: 10px; z-index: 1; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-height: 0; opacity: 0; transition: opacity 120ms, color 120ms, border-color 120ms; }
-.pg-studio .job-wrap:hover .job-del, .pg-studio .job-del:focus-visible { opacity: 1; }
+.pg-studio .job-del { position: absolute; top: 10px; right: 10px; z-index: 1; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-height: 0; transition: color 120ms, border-color 120ms; }
+.pg-studio .job-wrap:hover .job-del { color: var(--ink-2); border-color: var(--line-2); }
 .pg-studio .job-del:hover { color: var(--vermilion); border-color: var(--vermilion); }
-@media (hover: none) { .pg-studio .job-del { opacity: 1; } }
 .pg-studio .when { font-size: 10.5px; }
 .pg-studio .empty { padding: var(--s8) var(--s6); border: 1.5px dashed var(--line-2); border-radius: 14px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; max-width: 620px; }
 .pg-studio .empty h2 { font-size: 26px; }
