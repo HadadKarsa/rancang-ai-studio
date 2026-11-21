@@ -317,7 +317,7 @@ input, textarea, select { font: inherit; color: inherit; }
 }
 .pg-interview .q {
   font-size: 23px; line-height: 1.32; font-weight: 700; letter-spacing: -0.02em;
-  max-width: 30ch; text-wrap: pretty;
+  max-width: 34ch; text-wrap: pretty;
 }
 .pg-interview .note { font-size: 15px; line-height: 1.65; color: var(--ink-2); max-width: 52ch; }
 .pg-interview .turn.say { align-items: flex-end; }
