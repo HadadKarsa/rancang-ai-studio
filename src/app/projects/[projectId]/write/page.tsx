@@ -26,7 +26,11 @@ import Link from 'next/link';
 
 type DocumentType = 'prd' | 'architecture' | 'database' | 'api' | 'tasks' | 'memory' | 'wireframe';
 
-type Phase = 'connecting' | 'writing' | 'done' | 'stopped' | 'interrupted' | 'error';
+/* `reconnecting` is its own state, not a flavour of `interrupted`: the
+   connection is being rebuilt and the page says so. Only when the retries
+   are spent does it become `interrupted` (terputus). `stopped` is the
+   reader's own decision and must never read as a failure. */
+type Phase = 'connecting' | 'reconnecting' | 'writing' | 'done' | 'stopped' | 'interrupted' | 'error';
 
 interface DocState {
   type: DocumentType;
@@ -34,6 +38,17 @@ interface DocState {
   text: string;
   bytes: number | null;
   error: string | null;
+}
+
+/** What the server sends first on every attach (lib/services/batchRunner.ts). */
+interface SnapshotPayload {
+  projectId: string;
+  order: DocumentType[];
+  docs: { type: DocumentType; status: DocState['status']; text: string; bytes: number | null; error: string | null }[];
+  startedAt: number;
+  elapsedMs: number;
+  finished: boolean;
+  result: { generated: string[]; failed: unknown[]; skipped: string[] } | null;
 }
 
 const LABEL: Record<DocumentType, string> = {
@@ -46,6 +61,8 @@ const ORDER: DocumentType[] = ['prd', 'architecture', 'database', 'api', 'tasks'
 
 const initDocs = (list: DocumentType[]): DocState[] =>
   list.map((t) => ({ type: t, status: 'queued', text: '', bytes: null, error: null }));
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /* ── Markdown → HTML ─────────────────────────────────────────────────
    Deliberately tiny and synchronous: this runs while tokens arrive, so it
@@ -135,13 +152,17 @@ function mmss(ms: number): string {
 /* ── SSE over fetch ───────────────────────────────────────────────────
    EventSource cannot read an error body (a 409 arrives as a bare error
    event), so the stream is read by hand: same wire format, and a failed
-   request still gives us the JSON envelope to show. */
+   request still gives us the JSON envelope to show.
+
+   The server sends `: ping` every 15s to keep a tunnel from dropping an
+   idle connection. A comment line is not an event: it is skipped, never
+   parsed as data, and a block with no `data:` line produces nothing.*/
 interface SseEvent { event: string; data: string }
 
 function makeParser(onEvent: (e: SseEvent) => void) {
   let buffer = '';
   return (chunk: string) => {
-    buffer += chunk;
+    buffer += chunk.replace(/\r\n/g, '\n');
     let idx: number;
     while ((idx = buffer.indexOf('\n\n')) !== -1) {
       const raw = buffer.slice(0, idx);
@@ -149,6 +170,9 @@ function makeParser(onEvent: (e: SseEvent) => void) {
       let event = 'message';
       const dataLines: string[] = [];
       for (const line of raw.split('\n')) {
+        // `: ping` is a comment, not an event. A keep-alive must never reach
+        // JSON.parse, and a block with no data line must produce nothing at all.
+        if (line.startsWith(':')) continue;
         if (line.startsWith('event:')) event = line.slice(6).trim();
         else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
       }
@@ -156,6 +180,11 @@ function makeParser(onEvent: (e: SseEvent) => void) {
     }
   };
 }
+
+/* How many times a dropped stream is rebuilt before the page calls it
+   terputus. Three attempts at 1s, 2s, 4s: long enough to ride out a tunnel
+   hiccup, short enough that a dead server is reported in seven seconds. */
+const REATTACH_DELAYS = [1000, 2000, 4000];
 
 export default function WritePage() {
   const params = useParams<{ projectId: string }>();
@@ -170,12 +199,19 @@ export default function WritePage() {
   const [follow, setFollow] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [wireframing, setWireframing] = useState(false);
+  const [stopping, setStopping] = useState(false);
 
   const boxRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const startedAt = useRef<number>(0);
   const finishedRef = useRef(false);
+  /** The reader pressed stop: a `finish` after that is theirs, not a success. */
+  const stoppedRef = useRef(false);
+  /** Set once a snapshot has been applied, so a later 409 means "it ended". */
+  const hydratedRef = useRef(false);
+  /** False after unmount: no retry may fire into a dead component. */
+  const aliveRef = useRef(true);
 
   /* Deltas arrive at token speed. Re-rendering the whole document on each
      one is wasted work and makes the text jitter; buffer them and paint at
@@ -210,150 +246,299 @@ export default function WritePage() {
   /* A stream that ends early leaves its last document flagged `writing` with
      no writer. Say so in the index rather than leaving a live dot spinning
      for the rest of the session. */
-  const closeOpenDoc = useCallback(() => {
+  const closeOpenDoc = useCallback((reason = 'Sambungan terputus sebelum dokumen ini selesai.') => {
     setDocs((prev) => prev.map((d) => (d.status === 'writing'
-      ? { ...d, status: 'failed', error: 'Sambungan terputus sebelum dokumen ini selesai.' }
+      ? { ...d, status: 'failed', error: reason }
       : d)));
   }, []);
 
+  /* ── Snapshot → page ────────────────────────────────────────────────
+     The first event of every attach is the whole truth: the order, every
+     document's status, and the partial text of the one being written. It
+     replaces what is on the page rather than merging into it, so a
+     re-attach cannot leave a half-flushed delta behind as a duplicate. */
+  const hydrate = useCallback((snap: SnapshotPayload) => {
+    if (flushTimer.current) { window.clearTimeout(flushTimer.current); flushTimer.current = null; }
+    pending.current.clear();
 
-  const runBatch = useCallback(async (list: DocumentType[], mode: 'replace' | 'append') => {
-    if (list.length === 0) return;
+    const list: DocState[] = snap.docs.map((d) => ({
+      type: d.type,
+      status: d.status,
+      text: d.text ?? '',
+      bytes: d.bytes ?? null,
+      error: d.error ?? null,
+    }));
+    setDocs(list);
+    hydratedRef.current = true;
+    startedAt.current = snap.startedAt || Date.now() - (snap.elapsedMs ?? 0);
+    setElapsed(snap.elapsedMs ?? 0);
+
+    const writing = list.find((d) => d.status === 'writing');
+    const lastReady = [...list].reverse().find((d) => d.status === 'ready');
+    setActive(writing?.type ?? lastReady?.type ?? list[0]?.type ?? 'prd');
+
+    if (snap.finished) {
+      finishedRef.current = true;
+      setSummary({
+        generated: snap.result?.generated ?? [],
+        failed: ((snap.result?.failed ?? []) as unknown[]).map((f) =>
+          typeof f === 'string' ? f : ((f as { type?: string })?.type ?? 'dokumen')),
+        skipped: snap.result?.skipped ?? [],
+      });
+      // A batch that ended while the page was away is not a live view: the
+      // press (export / optional wireframe) is the whole screen.
+      setPhase(stoppedRef.current ? 'stopped' : 'done');
+    }
+  }, []);
+
+  /* ── One attach ─────────────────────────────────────────────────────
+     Reads the stream to its end and reports why it ended. It never starts
+     a batch and never cancels one: this request is a tail. */
+  type AttachResult = 'finished' | 'dropped' | 'conflict' | 'failed';
+
+  const attachOnce = useCallback(async (): Promise<AttachResult> => {
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    let res: Response;
+    try {
+      res = await fetch(`/api/v1/projects/${projectId}/documents/generate-stream`, {
+        credentials: 'same-origin',
+        signal: ctrl.signal,
+        headers: { Accept: 'text/event-stream' },
+      });
+    } catch {
+      return ctrl.signal.aborted ? 'dropped' : 'failed';
+    }
+
+    // 409 is plain JSON, not SSE: no batch is running for this project.
+    if (res.status === 409) return 'conflict';
+    if (!res.ok || !res.body) {
+      let message = `Server menolak permintaan (${res.status}).`;
+      try {
+        const body = await res.json();
+        message = body?.error?.message ?? message;
+      } catch { /* the envelope was not JSON */ }
+      setFatal(message);
+      return 'failed';
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    const parse = makeParser(({ event, data }) => {
+      let payload: Record<string, unknown>;
+      try { payload = JSON.parse(data) as Record<string, unknown>; } catch { return; }
+
+      if (event === 'snapshot') {
+        hydrate(payload as unknown as SnapshotPayload);
+        return;
+      }
+      if (event === 'start') {
+        const order = (payload.order as DocumentType[] | undefined) ?? ORDER;
+        // Only a fresh batch needs a fresh index; a re-attach already has one.
+        if (!hydratedRef.current) setDocs(initDocs(order));
+        return;
+      }
+      if (event === 'doc') {
+        const type = payload.type as DocumentType;
+        patch(type, { status: 'writing', error: null });
+        setActive(type);
+        return;
+      }
+      if (event === 'delta') {
+        queueDelta(payload.type as string, (payload.text as string | undefined) ?? '');
+        return;
+      }
+      if (event === 'done') {
+        flushNow();
+        const type = payload.type as DocumentType;
+        patch(type, { status: 'ready', bytes: (payload.bytes as number | undefined) ?? null });
+        return;
+      }
+      if (event === 'error') {
+        flushNow();
+        const type = payload.type as DocumentType | null;
+        const message = (payload.message as string | undefined) ?? 'Gagal menulis dokumen';
+        if (type) patch(type, { status: 'failed', error: message });
+        else setFatal(message);
+        return;
+      }
+      if (event === 'finish') {
+        flushNow();
+        finishedRef.current = true;
+        setSummary({
+          generated: (payload.generated as string[] | undefined) ?? [],
+          failed: ((payload.failed as unknown[] | undefined) ?? []).map((f) =>
+            typeof f === 'string' ? f : ((f as { type?: string })?.type ?? 'dokumen')),
+          skipped: (payload.skipped as string[] | undefined) ?? [],
+        });
+        setPhase(stoppedRef.current ? 'stopped' : 'done');
+        return;
+      }
+    });
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parse(decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      // A torn connection lands here (the tunnel closing mid-chunk).
+      flushNow();
+      return 'dropped';
+    } finally {
+      try { reader.releaseLock(); } catch { /* already released */ }
+    }
+
+    flushNow();
+    return finishedRef.current ? 'finished' : 'dropped';
+  }, [projectId, hydrate, patch, queueDelta, flushNow]);
+
+  /* ── Attach, and rebuild the connection if it drops ─────────────────
+     The batch lives on the server, so a drop is a display problem: retry
+     the GET with backoff, and the snapshot that comes back carries every
+     byte written while we were away. Only when the retries are spent does
+     the page say terputus. */
+  const watch = useCallback(async (): Promise<'done' | 'conflict' | 'lost'> => {
+    for (let attempt = 0; ; attempt++) {
+      if (!aliveRef.current) return 'lost';
+      const result = await attachOnce();
+      if (!aliveRef.current) return 'lost';
+
+      if (result === 'finished') return 'done';
+      if (result === 'conflict') {
+        // A 409 after a snapshot means the batch ended while we were away.
+        // The page already holds every byte written: keep it, do not re-read
+        // the documents list, which carries no text.
+        if (hydratedRef.current) {
+          finishedRef.current = true;
+          setPhase(stoppedRef.current ? 'stopped' : 'done');
+          return 'done';
+        }
+        return 'conflict';
+      }
+      if (result === 'failed') return 'lost';
+
+      // dropped
+      if (attempt >= REATTACH_DELAYS.length) {
+        closeOpenDoc();
+        setPhase('interrupted');
+        return 'lost';
+      }
+      setPhase('reconnecting');
+      await sleep(REATTACH_DELAYS[attempt] ?? 4000);
+    }
+  }, [attachOnce, closeOpenDoc]);
+
+  /* ── Nothing running: read what is on disk ──────────────────────────
+     A 409 on attach means the batch is over (or was never started). The
+     documents endpoint is the truth then: finished documents mean the
+     completion state, and a document left `generating` with no batch
+     behind it means the process died mid-write. */
+  const hydrateFromDocuments = useCallback(async (): Promise<'done' | 'empty'> => {
+    try {
+      const res = await fetch(`/api/v1/projects/${projectId}/documents`, { credentials: 'same-origin' });
+      if (!res.ok) return 'empty';
+      const body = await res.json() as { documents?: { type: DocumentType; status: string; hasContent: boolean }[] };
+      const list = body.documents ?? [];
+      if (list.length === 0) return 'empty';
+
+      const mapped: DocState[] = list.map((d) => ({
+        type: d.type,
+        status: d.status === 'ready' || d.status === 'stale' ? 'ready'
+          : d.status === 'failed' ? 'failed'
+          // `generating` with no batch behind it is a process that died mid-write.
+          : d.status === 'generating' ? 'failed'
+          : 'queued',
+        text: '',
+        bytes: null,
+        error: d.status === 'generating' ? 'Penulisan berhenti sebelum dokumen ini selesai.' : null,
+      }));
+
+      const anyContent = mapped.some((d) => d.status === 'ready');
+      const anyStuck = mapped.some((d) => d.status === 'failed');
+      if (!anyContent && !anyStuck) return 'empty';
+
+      setDocs(mapped);
+      setActive(mapped.find((d) => d.status === 'ready')?.type ?? mapped[0]?.type ?? 'prd');
+      hydratedRef.current = true;
+      finishedRef.current = true;
+      setSummary(null);
+      setPhase(anyStuck ? 'interrupted' : 'done');
+      return 'done';
+    } catch {
+      return 'empty';
+    }
+  }, [projectId]);
+
+  /* POST generate-all, then tail it. Used only for a project with nothing
+     written yet, and for the reader's own "Lanjutkan". */
+  const startBatch = useCallback(async (list: DocumentType[]): Promise<boolean> => {
+    if (list.length === 0) return false;
     setFatal(null);
+    setStopping(false);
+    stoppedRef.current = false;
     finishedRef.current = false;
+    hydratedRef.current = false;
+    setSummary(null);
     setPhase('connecting');
     startedAt.current = Date.now();
     setElapsed(0);
-
-    if (mode === 'replace') {
-      setSummary(null);
-      setDocs(initDocs(list));
-    } else {
-      // Append: keep what is already on the page, reset only the new ones.
-      setDocs((prev) => {
-        const next = [...prev];
-        for (const t of list) {
-          const i = next.findIndex((d) => d.type === t);
-          const fresh: DocState = { type: t, status: 'queued', text: '', bytes: null, error: null };
-          if (i === -1) next.push(fresh); else next[i] = fresh;
-        }
-        return next;
-      });
-    }
+    setDocs(initDocs(list));
     setActive(list[0] ?? 'prd');
     setFollow(true);
-
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
 
     const qs = list.length === ORDER.length && list.every((t, i) => t === ORDER[i])
       ? ''
       : `?types=${list.join(',')}`;
 
     try {
-      // A 409 means another stream holds the project's batch. That happens
-      // legitimately in dev, where React StrictMode mounts twice and the first
-      // request is still releasing the guard. Wait for it and try again before
-      // telling the reader anything is wrong.
-      let res: Response | null = null;
-      for (let attempt = 0; attempt < 6; attempt++) {
-        res = await fetch(`/api/v1/projects/${projectId}/documents/generate-stream${qs}`, {
-          credentials: 'same-origin',
-          signal: ctrl.signal,
-          headers: { Accept: 'text/event-stream' },
-        });
-        if (res.status !== 409) break;
-        if (attempt === 5) break;
-        await new Promise((r) => setTimeout(r, 1200));
-        if (ctrl.signal.aborted) return;
-      }
-
-      if (!res || !res.ok || !res.body) {
-        let message = res?.status === 409
-          ? 'Proyek ini sedang ditulis di tab lain. Tutup tab itu, lalu coba lagi.'
-          : `Server menolak permintaan (${res?.status ?? 0}).`;
+      const res = await fetch(`/api/v1/projects/${projectId}/documents/generate-all${qs}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        // generate-all reads the selection from the body, not the query.
+        body: JSON.stringify(list.length === ORDER.length && list.every((t, i) => t === ORDER[i]) ? {} : { types: list }),
+      });
+      if (res.status === 409) return true; // someone else holds it: just tail
+      if (!res.ok) {
+        let message = `Server menolak permintaan (${res.status}).`;
         try {
-          const body = await res?.json();
+          const body = await res.json();
           message = body?.error?.message ?? message;
-        } catch { /* the envelope was not JSON */ }
+        } catch { /* not JSON */ }
         setFatal(message);
         setPhase('error');
-        return;
+        return false;
       }
-
-      setPhase('writing');
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      const parse = makeParser(({ event, data }) => {
-        let payload: Record<string, unknown>;
-        try { payload = JSON.parse(data) as Record<string, unknown>; } catch { return; }
-
-        if (event === 'start') {
-          if (mode === 'append') return; // keep the six already on the page
-          const order = (payload.order as DocumentType[] | undefined) ?? list;
-          setDocs(initDocs(order));
-          setActive(order[0] ?? 'prd');
-          return;
-        }
-        if (event === 'doc') {
-          const type = payload.type as DocumentType;
-          patch(type, { status: 'writing', error: null });
-          setActive(type);
-          return;
-        }
-        if (event === 'delta') {
-          queueDelta(payload.type as string, (payload.text as string | undefined) ?? '');
-          return;
-        }
-        if (event === 'done') {
-          flushNow();
-          const type = payload.type as DocumentType;
-          patch(type, { status: 'ready', bytes: (payload.bytes as number | undefined) ?? null });
-          return;
-        }
-        if (event === 'error') {
-          flushNow();
-          const type = payload.type as DocumentType | null;
-          const message = (payload.message as string | undefined) ?? 'Gagal menulis dokumen';
-          if (type) patch(type, { status: 'failed', error: message });
-          else setFatal(message);
-          return;
-        }
-        if (event === 'finish') {
-          flushNow();
-          finishedRef.current = true;
-          setSummary({
-            generated: (payload.generated as string[] | undefined) ?? [],
-            failed: ((payload.failed as unknown[] | undefined) ?? []).map((f) =>
-              typeof f === 'string' ? f : ((f as { type?: string })?.type ?? 'dokumen')),
-            skipped: (payload.skipped as string[] | undefined) ?? [],
-          });
-          setPhase('done');
-          return;
-        }
-      });
-
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        parse(decoder.decode(value, { stream: true }));
-      }
-      flushNow();
-      // The reader ending without a `finish` event is not success: the tunnel
-      // or the process dropped the stream. Say so, and offer to carry on.
-      if (!finishedRef.current) {
-        closeOpenDoc();
-        setPhase((p) => (p === 'writing' || p === 'connecting' ? 'interrupted' : p));
-      }
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') return; // we stopped it on purpose
-      flushNow();
-      closeOpenDoc();
-      setPhase('interrupted');
+      return true;
+    } catch {
+      setFatal('Tidak bisa menghubungi server.');
+      setPhase('error');
+      return false;
     }
-  }, [projectId, patch, queueDelta, flushNow, closeOpenDoc]);
+  }, [projectId]);
+
+  /* ── Boot ───────────────────────────────────────────────────────────
+     Attach first, always. A running batch is adopted (snapshot hydrates
+     the text already written); a finished one shows the press; only a
+     project with nothing at all on disk starts a batch of its own. */
+  const boot = useCallback(async () => {
+    const outcome = await watch();
+    if (outcome !== 'conflict') return;
+
+    const disk = await hydrateFromDocuments();
+    if (disk === 'done') return;
+
+    // Nothing written and nothing running: this is a fresh project.
+    const started = await startBatch(ORDER);
+    if (!started) return;
+    await watch();
+  }, [watch, hydrateFromDocuments, startBatch]);
 
   useEffect(() => {
+    aliveRef.current = true;
     void (async () => {
       try {
         const res = await fetch(`/api/v1/projects/${projectId}`, { credentials: 'same-origin' });
@@ -363,13 +548,17 @@ export default function WritePage() {
         }
       } catch { /* the name is decoration; the stream is the page */ }
     })();
-    void runBatch(ORDER, 'replace');
-    return () => abortRef.current?.abort();
-  }, [projectId, runBatch]);
+    void boot();
+    // Detaching costs the server one listener; the batch keeps writing.
+    return () => {
+      aliveRef.current = false;
+      abortRef.current?.abort();
+    };
+  }, [projectId, boot]);
 
   // A clock, so a long document has a sense of time passing.
   useEffect(() => {
-    if (phase !== 'writing' && phase !== 'connecting') return;
+    if (phase !== 'writing' && phase !== 'connecting' && phase !== 'reconnecting') return;
     const id = window.setInterval(() => setElapsed(Date.now() - startedAt.current), 500);
     return () => window.clearInterval(id);
   }, [phase]);
@@ -403,32 +592,69 @@ export default function WritePage() {
   const doneCount = docs.filter((d) => d.status === 'ready').length;
   const failedCount = docs.filter((d) => d.status === 'failed').length;
   const settled = phase === 'done';
-  const busy = phase === 'writing' || phase === 'connecting';
+  const busy = phase === 'writing' || phase === 'connecting' || phase === 'reconnecting';
 
-  const stop = useCallback(() => {
-    abortRef.current?.abort();
+  /* ── Stop ───────────────────────────────────────────────────────────
+     The batch belongs to the server, so stopping it is a request to the
+     server, not an abort of this fetch: aborting would only detach the
+     display and leave the writer running (and burning tokens) unseen.
+     The stream then delivers the runner's own `finish`, and the page
+     reports it as dihentikan because stoppedRef says the reader asked. */
+  const stop = useCallback(async () => {
+    if (stopping) return;
+    setStopping(true);
+    stoppedRef.current = true;
+    try {
+      const res = await fetch(`/api/v1/projects/${projectId}/documents/cancel`, {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      if (!res.ok && res.status !== 404) {
+        // 404 means it had already ended: either way nothing is writing now.
+        let message = `Tidak bisa menghentikan (${res.status}).`;
+        try {
+          const body = await res.json();
+          message = body?.error?.message ?? message;
+        } catch { /* not JSON */ }
+        setFatal(message);
+        stoppedRef.current = false;
+        setStopping(false);
+        return;
+      }
+    } catch {
+      setFatal('Tidak bisa menghubungi server untuk menghentikan penulisan.');
+      stoppedRef.current = false;
+      setStopping(false);
+      return;
+    }
     flushNow();
-    closeOpenDoc();
+    closeOpenDoc('Dihentikan sebelum dokumen ini selesai.');
     setPhase('stopped');
-  }, [flushNow, closeOpenDoc]);
+    setStopping(false);
+  }, [projectId, stopping, flushNow, closeOpenDoc]);
 
   const resume = useCallback(() => {
     // Carry on with whatever is not finished, in the batch's own order.
     const rest = docs.filter((d) => d.status !== 'ready').map((d) => d.type);
-    void runBatch(rest.length > 0 ? rest : ORDER, 'append');
-  }, [docs, runBatch]);
+    void (async () => {
+      const started = await startBatch(rest.length > 0 ? rest : ORDER);
+      if (started) await watch();
+    })();
+  }, [docs, startBatch, watch]);
 
   const startWireframe = useCallback(async () => {
     setWireframing(true);
     setFatal(null);
-    await runBatch(['wireframe'], 'append');
+    const started = await startBatch(['wireframe']);
+    if (started) await watch();
     setWireframing(false);
-  }, [runBatch]);
+  }, [startBatch, watch]);
 
   const eyebrow = phase === 'done' ? 'selesai'
     : phase === 'interrupted' ? 'terputus'
     : phase === 'stopped' ? 'dihentikan'
     : phase === 'error' ? 'gagal'
+    : phase === 'reconnecting' ? 'menyambung ulang'
     : 'menulis';
 
   // A batch can finish having written nothing (every document failed). That is
@@ -438,6 +664,7 @@ export default function WritePage() {
     : phase === 'interrupted' ? 'Sambungan terputus.'
     : phase === 'stopped' ? 'Penulisan dihentikan.'
     : phase === 'error' ? 'Tidak bisa mulai menulis.'
+    : phase === 'reconnecting' ? 'Menyambung ulang…'
     : 'Dokumen sedang ditulis.';
 
   return (
@@ -544,6 +771,13 @@ export default function WritePage() {
               <p className="waiting mono"><span className="caret" aria-hidden="true" /> menunggu kata pertama…</p>
             ) : current?.status === 'failed' ? (
               <p className="waiting">Dokumen ini gagal ditulis{current.error ? `: ${current.error}` : '.'}</p>
+            ) : current?.status === 'ready' ? (
+              /* Read from disk, not from a stream: the text is not in this
+                 page, the reading view has it. */
+              <p className="waiting">
+                Dokumen ini sudah tertulis.{' '}
+                <Link href={`/projects/${projectId}/documents/${current.type}`}>Buka untuk membacanya</Link>.
+              </p>
             ) : (
               <p className="waiting">Giliran dokumen ini belum tiba.</p>
             )}
@@ -567,7 +801,7 @@ export default function WritePage() {
             </p>
             <div className="row">
               <button className="btn primary" onClick={resume}>Coba lagi</button>
-              <Link className="btn ghost" href={`/projects/${projectId}/interview`}>
+              <Link className="btn ghost" href={`/projects/${projectId}/[REDACTED:TMP_SECRET_D40DC8D77949]`}>
                 Kembali ke wawancara
               </Link>
             </div>
@@ -622,26 +856,30 @@ export default function WritePage() {
         ) : (
           <>
             <p className="note">
-              {phase === 'interrupted'
-                ? 'Dokumen yang sudah selesai tetap tersimpan. Lanjutkan untuk menulis sisanya.'
-                : phase === 'stopped'
-                  ? 'Berhenti. Yang sudah selesai tetap tersimpan.'
-                  : phase === 'error'
-                    ? 'Belum ada yang ditulis. Perbaiki penyebabnya, lalu coba lagi.'
-                    : phase === 'connecting'
-                      ? 'Menyambung ke penulis…'
-                      : 'Biarkan tab ini terbuka. Tiap dokumen muncul di sini begitu mulai ditulis.'}
+              {phase === 'reconnecting'
+                ? 'Sambungan putus. Menyambung ulang — dokumen tetap ditulis di server, tidak ada yang hilang.'
+                : phase === 'interrupted'
+                  ? 'Dokumen yang sudah selesai tetap tersimpan. Lanjutkan untuk menulis sisanya.'
+                  : phase === 'stopped'
+                    ? 'Berhenti. Yang sudah selesai tetap tersimpan.'
+                    : phase === 'error'
+                      ? 'Belum ada yang ditulis. Perbaiki penyebabnya, lalu coba lagi.'
+                      : phase === 'connecting'
+                        ? 'Menyambung ke penulis…'
+                        : 'Biarkan tab ini terbuka. Tiap dokumen muncul di sini begitu mulai ditulis.'}
             </p>
             <div className="row">
               {busy ? (
-                <button className="btn ghost" onClick={stop}>Hentikan</button>
+                <button className="btn ghost" onClick={() => void stop()} disabled={stopping}>
+                  {stopping ? 'Menghentikan…' : 'Hentikan'}
+                </button>
               ) : (
                 <>
                   {/* the alert already carries the retry when the start failed */}
                   {phase !== 'error' && (
                     <button className="btn ghost" onClick={resume}>Lanjutkan</button>
                   )}
-                  <Link className="btn ghost" href={`/projects/${projectId}/interview`}>
+                  <Link className="btn ghost" href={`/projects/${projectId}/[REDACTED:TMP_SECRET_D40DC8D77949]`}>
                     Kembali ke wawancara
                   </Link>
                 </>
