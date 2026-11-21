@@ -142,8 +142,11 @@ export default function ModelsPage() {
   return (
     <div className="pg-models">
       <header className="head">
-        <h1>Models</h1>
-        <p className="muted">Satu sumber kecerdasan untuk seluruh studio: langganan yang sudah ada, atau kunci sendiri.</p>
+        <Link href="/studio" className="mono muted back"><svg className="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M8 2 4 6l4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>Studio</Link>
+        <div>
+          <h1>Models</h1>
+          <p className="muted">Satu sumber kecerdasan untuk seluruh studio: langganan yang sudah ada, atau kunci sendiri.</p>
+        </div>
       </header>
 
       {error && <div className="alert" role="alert">{error}</div>}

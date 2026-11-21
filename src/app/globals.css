@@ -205,6 +205,7 @@ input, textarea, select { font: inherit; color: inherit; }
   .pg-studio .head { flex-direction: column; align-items: flex-start; gap: var(--s4); }
   .pg-studio .head .btn { align-self: flex-start; white-space: nowrap; }
   .pg-studio h1 { font-size: 34px; }
+  .pg-studio .grid { grid-template-columns: 1fr; }
 }
 .pg-studio .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; margin-bottom: 20px; font-size: 13.5px; }
 .pg-studio .veil { position: fixed; inset: 0; background: rgb(36 32 26 / 0.35); display: grid; place-items: center; padding: 20px; z-index: 40; }
@@ -212,8 +213,15 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-studio .sheet h2 { font-size: 22px; }
 .pg-studio .sheet-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
+/* Back link — shared by /models and the interview page. The chevron is an
+   inline SVG: the self-hosted font subsets carry no arrow glyphs (tofu). */
+.back { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 6px; }
+.back .chev { flex: none; }
+.back:hover { color: var(--ink); }
+
 /* /models */
 .pg-models { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.pg-models .head { display: flex; flex-direction: column; gap: 8px; }
 .pg-models .head h1 { font-size: 30px; letter-spacing: -0.02em; }
 .pg-models .head p { margin-top: 4px; }
 .pg-models .form { padding: 28px; display: flex; flex-direction: column; gap: 30px; }
@@ -260,6 +268,12 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-models .small { font-size: 12px; }
 .pg-models .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; }
 
+@media (max-width: 720px) {
+  .pg-models .cred { flex-direction: column; align-items: flex-start; }
+  .pg-models .form { padding: 20px; }
+  .pg-models .prov-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
 /* /projects/[id]/interview */
 .pg-interview { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--s5); }
 .pg-interview .head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: var(--s4); border-bottom: 1.5px solid var(--line); }
@@ -297,6 +311,11 @@ input, textarea, select { font: inherit; color: inherit; }
   .pg-interview .msg { max-width: 100%; }
   .pg-interview .meter { min-width: 0; }
   .pg-interview .bar { width: 130px; }
+  .pg-interview .head { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .pg-interview .meter { align-items: flex-start; }
+  .pg-interview .start { padding: var(--s6) var(--s5); }
+  .pg-interview .start h1 { font-size: 28px; }
+  .pg-interview .composer { position: static; background: none; }
 }
 
 /* /projects/[id]/documents/[type] */
