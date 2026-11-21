@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const NAV = [
   { href: '/studio', label: 'Studio' },
+  { href: '/library', label: 'Library' },
   { href: '/models', label: 'Models' },
 ];
 
@@ -29,7 +30,7 @@ export function Rail() {
         ))}
       </nav>
       <footer className="mono muted">
-        local · v1.0.0
+        local · v0.1.2
       </footer>
     </aside>
   );
