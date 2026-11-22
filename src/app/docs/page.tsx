@@ -357,8 +357,10 @@ export default function DocsPage() {
               </li>
               <li>
                 <b>HTML</b> — panel kiri berisi HTML layar yang sedang aktif dan
-                bisa langsung disunting. Perubahan disimpan otomatis sesaat
-                setelah kamu berhenti mengetik.
+                bisa langsung disunting. Pratinjau mengikuti ketikanmu, tetapi
+                penyimpanan dilakukan dengan tombol <b>Simpan</b>; selama ada
+                perubahan yang belum disimpan, statusnya berbunyi{' '}
+                <span className="mono">belum disimpan</span>.
               </li>
               <li>
                 <b>Pratinjau</b> — panel kanan merender HTML itu, dengan pilihan
@@ -396,9 +398,10 @@ export default function DocsPage() {
               </li>
             </ul>
             <p>
-              Kalau belum ada satu pun dokumen yang jadi, unduhan ditolak dan
-              pesannya menyebut dokumen mana yang masih kosong. Ekspor PDF belum
-              ada.
+              Unduhan hanya jalan kalau dokumen inti (PRD, Arsitektur,
+              Database, API, Tugas, Memori) sudah jadi. Kalau ada yang kurang,
+              unduhan ditolak dan pesannya menyebut dokumen mana yang masih
+              kosong. Ekspor PDF belum ada.
             </p>
 
             <h3>Tautan bagikan</h3>
