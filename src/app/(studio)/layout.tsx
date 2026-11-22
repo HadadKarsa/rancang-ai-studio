@@ -1,10 +1,6 @@
-import { Rail } from '@/components/Rail';
+import { AppShell } from '@/components/AppShell';
 
-/** Authenticated shell: rail on the left, content on the right. */
+/** Authenticated shell for the studio route group. */
 export default function StudioLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="shell">
-      <Rail />
-      <main className="content">{children}</main>    </div>
-  );
+  return <AppShell>{children}</AppShell>;
 }
