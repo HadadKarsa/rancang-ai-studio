@@ -1046,30 +1046,67 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-models .edit-row .field { flex: 1; min-width: 180px; }
 .pg-models .btn.sm { min-height: 36px; padding: 6px 12px; font-size: 12px; }
 
-/* /library (v0.1.2) — saved artifacts as a quiet grid of cards. */
-.pg-library { display: flex; flex-direction: column; gap: var(--s5); max-width: 1100px; }
+/* /library (v0.1.3) — one card per project, not per artifact. The card is a
+   place to download from, never a door: nothing here navigates. */
+.pg-library { display: flex; flex-direction: column; gap: var(--s5); max-width: 1180px; }
 .pg-library .head h1 { font-size: 34px; letter-spacing: -0.03em; }
-.pg-library .head p { margin-top: 8px; max-width: 52ch; }
+.pg-library .head p { margin-top: 8px; max-width: 54ch; }
 .pg-library .filters { display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: var(--s4); border-bottom: 1.5px solid var(--line); }
 .pg-library .chip { font: 600 11px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 8px 14px; border-radius: 99px; border: 1.5px solid var(--line-2); color: var(--ink-2); min-height: 40px; }
 .pg-library .chip:hover { border-color: var(--ink); color: var(--ink); }
 .pg-library .chip.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-.pg-library .grid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--s4); }
-.pg-library .item { padding: var(--s5); display: flex; flex-direction: column; gap: 8px; min-height: 160px; }
-.pg-library .item-top { display: flex; justify-content: space-between; align-items: center; }
-.pg-library .kind { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--vermilion-ink); }
-.pg-library .item h3 { font-size: 18px; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.pg-library .item-foot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); gap: 8px; }
-.pg-library .confirm { display: flex; gap: 6px; }
+.pg-library .load { padding: 40px 0; }
+.pg-library .small { font-size: 12px; }
+.pg-library .note { max-width: 60ch; margin-top: -6px; }
+
+.pg-library .block { display: flex; flex-direction: column; gap: 12px; }
+.pg-library .cap { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+
+.pg-library .pgrid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--s4); }
+.pg-library .pcard { padding: var(--s5); display: flex; flex-direction: column; gap: 12px; }
+.pg-library .pcard-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.pg-library .kinds { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--vermilion-ink); }
+.pg-library .pcard h2 { font-size: 20px; letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.pg-library .stats { display: flex; gap: 26px; }
+.pg-library .stats div { display: flex; flex-direction: column; gap: 1px; }
+.pg-library .stats dt { font: 600 9.5px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.pg-library .stats dd { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+
+.pg-library .titles { list-style: none; display: flex; flex-direction: column; gap: 5px; padding-top: 10px; border-top: 1px solid var(--line); }
+.pg-library .titles li { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--ink-2); min-width: 0; }
+.pg-library .titles .k { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); flex: none; width: 62px; }
+.pg-library .titles .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-library .titles .more-li { font-size: 11px; }
+
+.pg-library .pcard-foot { display: flex; gap: 8px; align-items: center; margin-top: auto; padding-top: 12px; }
 .pg-library .btn.sm { min-height: 34px; padding: 5px 12px; font-size: 12px; }
+.pg-library .zip { margin-right: auto; }
+.pg-library .danger-text { color: var(--vermilion-ink); border-color: var(--line-2); }
+.pg-library .danger-text:hover { border-color: var(--vermilion); color: var(--vermilion); }
+
+/* loose saves: no project, so no ZIP and no bundle — a quiet list, not a card wall */
+.pg-library .lgrid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.pg-library .lcard { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; background: transparent; }
+.pg-library .lcard-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pg-library .lcard h3 { font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-library .lcard-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
 .pg-library .empty { padding: var(--s8) var(--s6); border: 1.5px dashed var(--line-2); border-radius: 14px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; max-width: 620px; }
 .pg-library .empty h2 { font-size: 24px; }
 .pg-library .empty p { max-width: 46ch; }
 .pg-library .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; }
 .pg-library .more { align-self: flex-start; }
+
+/* confirm sheet, shared shape with the studio delete dialog */
+.pg-library .veil { position: fixed; inset: 0; background: rgba(29, 26, 22, 0.34); display: grid; place-items: center; padding: 20px; z-index: 50; }
+.pg-library .sheet { width: min(480px, 100%); padding: var(--s6); display: flex; flex-direction: column; gap: 12px; }
+.pg-library .sheet h2 { font-size: 21px; letter-spacing: -0.02em; }
+.pg-library .sheet-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+
 @media (max-width: 720px) {
   .pg-library .head h1 { font-size: 28px; }
-  .pg-library .grid { grid-template-columns: 1fr; }
+  .pg-library .pgrid, .pg-library .lgrid { grid-template-columns: 1fr; }
+  .pg-library .pcard-foot { flex-wrap: wrap; }
 }
 
 /* ══ / — the public landing page (v0.1.2) ═════════════════════════════
