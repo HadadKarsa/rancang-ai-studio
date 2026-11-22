@@ -25,6 +25,11 @@ const DOC_LABEL: Partial<Record<DocumentType, string>> = {
 const labelOf = (t: string) => DOC_LABEL[t as DocumentType] ?? t.replace(/^\w/, (c) => c.toUpperCase());
 const DOC_ORDER: DocumentType[] = ['prd', 'architecture', 'database', 'api', 'tasks', 'memory', 'wireframe'];
 
+/* Local extensions on top of the shapes the API returns. */
+interface DocView extends Doc { isLocked?: boolean }
+interface VersionView extends Version { contentMd?: string }
+interface ShareLinkLite { id: string; slug: string; documentId: string | null; revokedAt: string | null }
+
 /* ── Tiny markdown renderer (headings, lists, tables, code, inline) ── */
 function renderMd(md: string): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -96,9 +101,9 @@ export default function DocPage() {
 
   const [project, setProject] = useState<Project | null>(null);
   const [docs, setDocs] = useState<Doc[]>([]);
-  const [doc, setDoc] = useState<Doc | null>(null);
+  const [doc, setDoc] = useState<DocView | null>(null);
   const [content, setContent] = useState('');
-  const [versions, setVersions] = useState<Version[]>([]);
+  const [versions, setVersions] = useState<VersionView[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error' | 'missing'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
@@ -106,6 +111,9 @@ export default function DocPage() {
   const [copied, setCopied] = useState(false);
   const [savingLib, setSavingLib] = useState(false);
   const [libSaved, setLibSaved] = useState(false);
+  const [viewingVersion, setViewingVersion] = useState<VersionView | null>(null);
+  const [shareLinks, setShareLinks] = useState<ShareLinkLite[]>([]);
+  const [lockBusy, setLockBusy] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
@@ -115,10 +123,11 @@ export default function DocPage() {
       setProject(pj.project);
       setDocs(pj.documents);
       const d = await api.get<DocResp>(`/projects/${projectId}/documents/${type}?content=1&versions=1`);
-      setDoc(d.document);
+      setDoc(d.document as DocView);
       setContent(d.content ?? '');
-      setVersions(d.versions ?? []);
+      setVersions((d.versions ?? []) as VersionView[]);
       setState(d.content ? 'ready' : 'missing');
+      void loadShares();
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) { setState('missing'); return; }
       setError(e instanceof ApiError ? e.message : 'Gagal memuat dokumen');
@@ -190,10 +199,44 @@ export default function DocPage() {
     setSavingLib(false);
   }
 
+  async function toggleLock() {
+    if (!doc) return;
+    setLockBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/projects/${projectId}/documents/${type}`, { isLocked: !doc.isLocked });
+      const d = await api.get<DocResp>(`/projects/${projectId}/documents/${type}?content=0&versions=0`);
+      setDoc(d.document as DocView);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Gagal mengubah kunci dokumen');
+    }
+    setLockBusy(false);
+  }
+
+  async function loadShares() {
+    try {
+      const r = await api.get<{ links: ShareLinkLite[] }>(`/projects/${projectId}/share`);
+      setShareLinks(r.links ?? []);
+    } catch {
+      /* the share panel simply stays empty */
+    }
+  }
+
+  async function revokeLink(id: string) {
+    setError(null);
+    try {
+      await api.delete(`/projects/${projectId}/share?id=${encodeURIComponent(id)}`);
+      await loadShares();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Gagal mencabut tautan');
+    }
+  }
+
   if (state === 'loading') return <div className="mono muted" style={{ padding: 40 }}>memuat…</div>;
   if (state === 'error') return <div className="alert" role="alert" style={{ margin: 40 }}>{error}</div>;
 
   const latest = versions[0];
+  const activeShares = shareLinks.filter((l) => !l.revokedAt && l.documentId === doc?.id);
   const ordered = DOC_ORDER.filter((t) => docs.some((d) => d.type === t));
 
   return (
@@ -238,6 +281,15 @@ export default function DocPage() {
               </div>
               <div className="acts">
                 <button className="btn ghost" onClick={() => void copyMd()}>{copied ? 'Tersalin ✓' : 'Salin'}</button>
+                <button
+                  className="btn ghost"
+                  onClick={() => void toggleLock()}
+                  disabled={lockBusy}
+                  aria-pressed={Boolean(doc?.isLocked)}
+                  title="Cegah penulisan ulang menimpa dokumen ini"
+                >
+                  {doc?.isLocked ? 'Buka kunci' : 'Kunci dokumen'}
+                </button>
                 <button className="btn ghost" onClick={() => void saveToLibrary()} disabled={savingLib || !content}>
                   {libSaved ? 'Tersimpan ✓' : savingLib ? 'Menyimpan…' : 'Simpan ke library'}
                 </button>
@@ -255,7 +307,12 @@ export default function DocPage() {
                     </a>
                   ))}
                 </div>
-                <button className="btn primary" onClick={() => void regenerate()} disabled={streaming}>
+                <button
+                  className="btn primary"
+                  onClick={() => void regenerate()}
+                  disabled={streaming || Boolean(doc?.isLocked)}
+                  title={doc?.isLocked ? 'Dokumen terkunci — buka kunci untuk menulis ulang' : undefined}
+                >
                   {streaming ? 'Menulis…' : 'Tulis ulang'}
                 </button>
               </div>
@@ -267,7 +324,19 @@ export default function DocPage() {
                 <WireframeEditor projectId={projectId} />
               </div>
             ) : (
-              <div className="body" ref={bodyRef} dangerouslySetInnerHTML={{ __html: renderMd(content) }} />
+              <>
+                {viewingVersion && (
+                  <div className="rev-note mono" role="status">
+                    Melihat v{viewingVersion.versionNumber} ·{' '}
+                    <button className="linkbtn" onClick={() => setViewingVersion(null)}>kembali ke versi terbaru</button>
+                  </div>
+                )}
+                <div
+                  className="body"
+                  ref={bodyRef}
+                  dangerouslySetInnerHTML={{ __html: renderMd(viewingVersion?.contentMd ?? content) }}
+                />
+              </>
             )}
             {streaming && <div className="wet mono"><span className="cursor" /> {streamTail.slice(-40)}</div>}
           </article>
@@ -292,9 +361,16 @@ export default function DocPage() {
               <ol className="revs">
                 {versions.map((v) => (
                   <li key={v.id}>
-                    <span className="mono v">v{v.versionNumber}</span>
-                    <span className="small">{v.changeSummary ?? v.source}</span>
-                    <time className="mono muted small">{new Date(v.createdAt).toLocaleDateString('id-ID')}</time>
+                    <button
+                      type="button"
+                      className={`rev ${viewingVersion?.id === v.id ? 'on' : ''}`}
+                      onClick={() => setViewingVersion(v)}
+                      title={`Baca versi v${v.versionNumber}`}
+                    >
+                      <span className="mono v">v{v.versionNumber}</span>
+                      <span className="small">{v.changeSummary ?? v.source}</span>
+                      <time className="mono muted small">{new Date(v.createdAt).toLocaleDateString('id-ID')}</time>
+                    </button>
                   </li>
                 ))}
               </ol>
@@ -307,9 +383,14 @@ export default function DocPage() {
                 className="btn"
                 onClick={async () => {
                   try {
-                    const r = await api.post<{ link: { url: string } }>(`/projects/${projectId}/share`, { scope: 'document', documentId: doc?.id, access: 'public' });
-                    await navigator.clipboard.writeText(r.link.url);
-                    alert(`Tautan disalin: ${r.link.url}`);
+                    const r = await api.post<{ link: { id: string; slug: string }; url: string }>(
+                      `/projects/${projectId}/share`,
+                      { scope: 'document', documentId: doc?.id, access: 'public' },
+                    );
+                    const full = `${window.location.origin}${r.url}`;
+                    await navigator.clipboard.writeText(full);
+                    await loadShares();
+                    alert(`Tautan disalin: ${full}`);
                   } catch (e) {
                     setError(e instanceof ApiError ? e.message : 'Gagal membuat tautan');
                   }
@@ -317,6 +398,20 @@ export default function DocPage() {
               >
                 Buat tautan bagikan
               </button>
+              {activeShares.length > 0 && (
+                <ul className="shares">
+                  {activeShares.map((l) => (
+                    <li key={l.id}>
+                      <a className="mono small" href={`/share/${l.slug}`} target="_blank" rel="noreferrer">
+                        /share/{l.slug}
+                      </a>
+                      <button className="linkbtn" onClick={() => void revokeLink(l.id)}>
+                        cabut
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           </aside>
         </div>

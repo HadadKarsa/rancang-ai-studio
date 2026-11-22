@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 /**
- * / — the public landing page (v0.1.2).
+ * / — the public landing page (v0.1.3).
  *
  * The promise, in one sentence: one conversation becomes a full app
  * specification. Set as an editorial page, not a SaaS template: a paper
@@ -145,7 +145,7 @@ export default function LandingPage() {
 
       <footer className="foot mono">
         <span>rancang-ai · spec studio</span>
-        <span>v0.1.2</span>
+        <span>v0.1.3</span>
       </footer>
     </main>
   );
