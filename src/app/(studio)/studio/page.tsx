@@ -110,13 +110,12 @@ export default function StudioPage() {
     }
   }
 
-  // Where a card leads depends on how far the project got. It used to always
-  // open the interview, so coming back from the documents felt like starting
-  // over (Ndan's report).
+  // A card opens the project page, which decides what to show: the document
+  // list when there is something written, the interview when there is not
+  // (v0.1.3). It used to jump straight to a document or the interview, so
+  // coming back always felt like starting over (Ndan's report).
   function cardHref(p: Project): string {
-    if (p.status === 'ready') return `/projects/${p.id}/documents/prd`;
-    if (p.status === 'generating') return `/projects/${p.id}/write`;
-    return `/projects/${p.id}/interview`;
+    return `/projects/${p.id}`;
   }
   const live = cards.filter((p) => p.status === 'interviewing' || p.status === 'generating').length;
 
