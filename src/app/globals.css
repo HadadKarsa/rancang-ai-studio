@@ -334,29 +334,126 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-studio .tools { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: var(--s5); padding-bottom: var(--s4); border-bottom: 1.5px solid var(--line); }
 .pg-studio .search { border: 1.5px solid var(--line-2); border-radius: 10px; padding: 9px 14px; background: var(--card); width: min(340px, 100%); outline: none; }
 .pg-studio .search:focus { border-color: var(--ink); }
-.pg-studio .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.pg-studio .chip { font: 600 11px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 7px 12px; border-radius: 99px; border: 1.5px solid var(--line-2); color: var(--ink-2); }
+.pg-studio .chips { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.pg-studio .chip { font: 600 11px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 7px 12px; border-radius: 99px; border: 1.5px solid var(--line-2); color: var(--ink-2); display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .pg-studio .chip:hover { border-color: var(--ink); color: var(--ink); }
 .pg-studio .chip.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+/* The count is a quiet superscript on the label, not a second badge: it
+   inherits the chip's colour and separates by size alone. Kept at full
+   opacity so a 10.5px number still clears 4.5:1 on paper. */
+.pg-studio .chip .n { font-weight: 600; font-size: 10.5px; letter-spacing: 0; }
+.pg-studio .chip.on .n { opacity: 0.8; }
+/* Sort: a native select so the platform's own picker does the work — no
+   custom listbox to get wrong on a phone. */
+.pg-studio .sort { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.pg-studio .sort > .mono { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
+.pg-studio .sort select {
+  appearance: none; -webkit-appearance: none;
+  font: 600 12px var(--sans);
+  color: var(--ink);
+  background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 8l3-3.5' fill='none' stroke='%23575046' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center / 12px 12px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 8px;
+  padding: 8px 30px 8px 12px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.pg-studio .sort select:hover { border-color: var(--ink); }
+.pg-studio .sort select:focus-visible { border-color: var(--ink); }
 .pg-studio .grid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--s4); }
 .pg-studio .job { display: flex; flex-direction: column; gap: 10px; padding: var(--s5); height: 100%; transition: border-color 120ms, transform 120ms; }
 .pg-studio .job:hover { border-color: var(--ink); transform: translateY(-2px); }
-/* right padding keeps the card's index clear of the delete control */
-.pg-studio .job-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding-right: 62px; }
+.pg-studio .job-top { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
 .pg-studio .icon { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; }
 .pg-studio .idx { font-size: 11px; }
 .pg-studio .job h3 { font-size: 20px; }
 .pg-studio .desc { font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pg-studio .job-foot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
-/* Delete sits outside the card link: a button inside an <a> is invalid HTML
-   and would navigate instead of asking. It stays quiet until the card is
-   hovered or the button is focused. */
+/* Document progress: seven dots, one per scaffolded document. Filled dots
+   are ink — progress is a fact about the work, not wet ink, so vermilion
+   never appears here. */
+.pg-studio .docbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pg-studio .docbar .dots { display: inline-flex; gap: 3px; }
+.pg-studio .docbar .dots i { width: 6px; height: 6px; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.2px var(--line-2); }
+.pg-studio .docbar .dots i.on { background: var(--ink); box-shadow: none; }
+.pg-studio .docbar .doccount { font-size: 10.5px; color: var(--ink-2); white-space: nowrap; }
+.pg-studio .docbar .doccount.full { color: var(--ink); }
+
+/* The overflow menu sits outside the card link: a button inside an <a> is
+   invalid HTML and would navigate instead of opening. It stays quiet until
+   the card is hovered or the button is focused, and is always 32px square
+   so the tap target survives a phone. */
 .pg-studio .job-wrap { position: relative; display: flex; }
 .pg-studio .job-wrap > .job { flex: 1; }
-.pg-studio .job-del { position: absolute; top: 10px; right: 10px; z-index: 1; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-height: 0; transition: color 120ms, border-color 120ms; }
-.pg-studio .job-wrap:hover .job-del { color: var(--ink-2); border-color: var(--line-2); }
-.pg-studio .job-del:hover { color: var(--vermilion); border-color: var(--vermilion); }
+.pg-studio .job-menu { position: absolute; top: 12px; right: 12px; z-index: 2; }
+.pg-studio .job-more {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  color: var(--ink-3);
+  background: var(--card);
+  border: 1px solid transparent;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.pg-studio .job-wrap:hover .job-more { border-color: var(--line); color: var(--ink-2); }
+.pg-studio .job-more:hover { border-color: var(--line-2); color: var(--ink); }
+.pg-studio .job-more[aria-expanded="true"] { border-color: var(--ink); color: var(--ink); background: var(--paper); }
+.pg-studio .menu {
+  position: absolute; top: 36px; right: 0;
+  min-width: 168px;
+  padding: 5px;
+  background: var(--card);
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgb(36 32 26 / 0.13);
+  display: flex; flex-direction: column; gap: 1px;
+  animation: menu-in 110ms ease-out;
+}
+.pg-studio .menu-item {
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  padding: 9px 11px;
+  border-radius: 6px;
+  min-height: 36px;
+  transition: background 100ms, color 100ms;
+}
+.pg-studio .menu-item:hover, .pg-studio .menu-item:focus-visible { background: var(--paper); color: var(--ink); }
+.pg-studio .menu-item.danger { color: var(--vermilion-ink); }
+.pg-studio .menu-item.danger:hover, .pg-studio .menu-item.danger:focus-visible { background: var(--vermilion-wash); color: var(--vermilion-ink); }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-3px); } }
 .pg-studio .when { font-size: 10.5px; }
+
+/* Motion here is decoration only: with reduced motion asked for, the menu
+   appears instantly and the card never lifts. */
+@media (prefers-reduced-motion: reduce) {
+  .pg-studio .menu { animation: none; }
+  .pg-studio .job, .pg-studio .job:hover { transition: none; transform: none; }
+  .pg-studio .swatch:hover { transform: none; }
+  .pg-studio .skeleton .sk { animation: none; }
+}
+
+/* Skeletons borrow .grid and .job, so the first paint has the same column
+   widths and card height as the real list — nothing jumps on load. */
+.pg-studio .skeleton { pointer-events: none; }
+.pg-studio .sk { display: block; border-radius: 5px; background: var(--line); opacity: 0.55; }
+.pg-studio .sk-icon { width: 36px; height: 36px; border-radius: 9px; }
+.pg-studio .sk-idx { width: 18px; height: 9px; }
+.pg-studio .sk-title { width: 62%; height: 19px; margin-bottom: 2px; }
+.pg-studio .sk-line { width: 100%; height: 10px; }
+.pg-studio .sk-line.short { width: 74%; }
+.pg-studio .sk-pill { width: 74px; height: 19px; border-radius: 99px; }
+.pg-studio .sk-when { width: 46px; height: 9px; }
+@media (prefers-reduced-motion: no-preference) {
+  .pg-studio .skeleton .sk { animation: sk-pulse 1.5s ease-in-out infinite; }
+  .pg-studio .skeleton .sk-title { animation-delay: 60ms; }
+}
+@keyframes sk-pulse { 50% { opacity: 0.28; } }
+
+/* Paging: one quiet button, plus where you are in the list. */
+.pg-studio .more { display: flex; align-items: center; gap: 14px; margin-top: var(--s5); }
+.pg-studio .more-n { font-size: 10.5px; }
 .pg-studio .empty { padding: var(--s8) var(--s6); border: 1.5px dashed var(--line-2); border-radius: 14px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; max-width: 620px; }
 .pg-studio .empty h2 { font-size: 26px; }
 .pg-studio .empty p { max-width: 44ch; }
@@ -367,12 +464,39 @@ input, textarea, select { font: inherit; color: inherit; }
   .pg-studio .head .btn { align-self: flex-start; white-space: nowrap; }
   .pg-studio h1 { font-size: 34px; }
   .pg-studio .grid { grid-template-columns: 1fr; }
+  /* The search field takes the full row so the chips start clean under it,
+     and sort stops floating right where it would collide with the last chip. */
+  .pg-studio .tools { gap: 10px; }
+  .pg-studio .search { width: 100%; }
+  .pg-studio .chips { width: 100%; }
+  .pg-studio .sort { margin-left: 0; width: 100%; }
+  .pg-studio .sort select { flex: 1; }
+  .pg-studio .job-more { width: 36px; height: 36px; }
+  .pg-studio .menu { top: 40px; }
 }
 .pg-studio .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; margin-bottom: 20px; font-size: 13.5px; }
 .pg-studio .veil { position: fixed; inset: 0; background: rgb(36 32 26 / 0.35); display: grid; place-items: center; padding: 20px; z-index: 40; }
 .pg-studio .sheet { width: min(460px, 100%); padding: var(--s6); display: flex; flex-direction: column; gap: var(--s4); }
 .pg-studio .sheet h2 { font-size: 22px; }
 .pg-studio .sheet-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+/* Accent picker in the new-project sheet. A radio group of glyph chips:
+   the swatch shows the exact colour the card mark will take. */
+.pg-studio .swatches { border: none; display: flex; flex-direction: column; gap: 8px; }
+.pg-studio .swatches legend { font: 600 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); padding: 0; }
+.pg-studio .swatches legend .muted { font: inherit; letter-spacing: 0; text-transform: none; }
+.pg-studio .swatch-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.pg-studio .swatch {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 9px;
+  background: var(--paper);
+  border: 1.5px solid var(--line);
+  transition: border-color 120ms, transform 120ms;
+}
+.pg-studio .swatch:hover { transform: translateY(-1px); border-color: var(--line-2); }
+.pg-studio .swatch.on { border-color: var(--ink); background: var(--card); }
+.pg-studio .swatch.on::after { content: none; }
 
 /* Back link — shared by /models and the interview page. The chevron is an
    inline SVG: the self-hosted font subsets carry no arrow glyphs (tofu). */
