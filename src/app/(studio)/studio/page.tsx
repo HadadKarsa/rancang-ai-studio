@@ -104,6 +104,7 @@ export default function StudioPage() {
   const [archiving, setArchiving] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const menuWrap = useRef<HTMLDivElement | null>(null);
+  const menuFirst = useRef<HTMLButtonElement | null>(null);
 
   const query = useCallback((cursor?: { createdAt: string; id: string }) => {
     const params = new URLSearchParams();
@@ -206,13 +207,20 @@ export default function StudioPage() {
 
   // The menu closes on a click anywhere else and on Escape. One document
   // listener, only while a menu is open, so nothing is listening at rest.
+  // Focus moves to the first item on open, so a keyboard user is inside the
+  // menu the moment it appears rather than tabbing into the next card.
   useEffect(() => {
     if (!menuFor) return;
+    menuFirst.current?.focus();
     function onDown(e: MouseEvent) {
       if (menuWrap.current && !menuWrap.current.contains(e.target as Node)) setMenuFor(null);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setMenuFor(null);
+      if (e.key !== 'Escape') return;
+      // Focus goes back to the button that opened it, never to the top of the
+      // document — otherwise Escape loses your place in the grid.
+      menuWrap.current?.querySelector<HTMLButtonElement>('.job-more')?.focus();
+      setMenuFor(null);
     }
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
@@ -376,6 +384,7 @@ export default function StudioPage() {
                   <button
                     type="button"
                     role="menuitem"
+                    ref={menuFirst}
                     className="menu-item"
                     onClick={() => void toggleArchive(p)}
                   >
