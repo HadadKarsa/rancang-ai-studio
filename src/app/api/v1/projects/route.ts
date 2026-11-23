@@ -68,6 +68,7 @@ export const GET = withRoute(async (ctx) => {
   const result = await listProjectsByUser(ctx.session.user.id, parsed.data);
   return Response.json({
     projects: result.items,
+    counts: result.counts,
     pagination: {
       total: result.total,
       limit: parsed.data.limit ?? 20,

@@ -88,25 +88,51 @@ export interface ListProjectsOpts {
   cursorId?: string;
 }
 
-export interface ProjectListResult {
-  items: Project[];
-  nextCursor: { createdAt: string; id: string } | null;
-  total: number;
+export interface ProjectWithProgress extends Project {
+  /** Documents that have a stored current version and status 'ready'. */
+  docsReady: number;
+  /** How many documents a project is scaffolded with (DOCUMENT_TYPES.length). */
+  docsTotal: number;
 }
 
-export async function listProjectsByUser(userId: string, opts: ListProjectsOpts = {}): Promise<ProjectListResult> {
-  const limit = Math.min(Math.max(opts.limit ?? 20, 1), 100);
-  const sortCol = opts.sort === 'created_at' || opts.sort === 'name' ? opts.sort : 'updated_at';
-  const dir = opts.order === 'asc' ? 'ASC' : 'DESC';
+export interface ProjectCounts {
+  all: number;
+  draft: number;
+  interviewing: number;
+  generating: number;
+  ready: number;
+  archived: number;
+}
+
+export interface ProjectListResult {
+  items: ProjectWithProgress[];
+  nextCursor: { createdAt: string; id: string } | null;
+  total: number;
+  counts: ProjectCounts;
+}
+
+interface FilterParts {
+  where: string;
+  params: unknown[];
+}
+
+/**
+ * Shared WHERE builder for the list and its chip counts. `includeStatus` is
+ * false for the counts query so every status is visible to the tabs while the
+ * search/template/tag filters still apply to them.
+ */
+function buildProjectFilters(userId: string, opts: ListProjectsOpts, includeStatus: boolean): FilterParts {
   const params: unknown[] = [userId];
   let where = 'p.user_id = ?';
 
-  // Archived excluded unless explicitly requested (04_API §3.3).
-  if (opts.status) {
-    where += ' AND p.status = ?';
-    params.push(opts.status);
-  } else {
-    where += " AND p.status != 'archived'";
+  if (includeStatus) {
+    // Archived excluded unless explicitly requested (04_API §3.3).
+    if (opts.status) {
+      where += ' AND p.status = ?';
+      params.push(opts.status);
+    } else {
+      where += " AND p.status != 'archived'";
+    }
   }
   if (opts.q) {
     where += " AND (LOWER(p.name) LIKE ? OR LOWER(COALESCE(p.description, '')) LIKE ?)";
@@ -123,6 +149,33 @@ export async function listProjectsByUser(userId: string, opts: ListProjectsOpts 
                 WHERE pt.project_id = p.id AND pt.tag_id IN (${opts.tagIds.map(() => '?').join(',')})) = ?`;
     params.push(...opts.tagIds, opts.tagIds.length);
   }
+  return { where, params };
+}
+
+/** Chip counts for the dashboard: one GROUP BY, over the same filters minus status. */
+export async function countProjectsForList(userId: string, opts: ListProjectsOpts = {}): Promise<ProjectCounts> {
+  const { where, params } = buildProjectFilters(userId, opts, false);
+  const rows = await query<{ status: ProjectStatus; n: number }>(
+    `SELECT p.status AS status, COUNT(*) AS n FROM projects p WHERE ${where} GROUP BY p.status`,
+    params as never[],
+  );
+  const counts: ProjectCounts = { all: 0, draft: 0, interviewing: 0, generating: 0, ready: 0, archived: 0 };
+  for (const r of rows) {
+    const n = Number(r.n);
+    if (r.status === 'archived') counts.archived = n;
+    else if (r.status === 'draft' || r.status === 'interviewing' || r.status === 'generating' || r.status === 'ready') counts[r.status] = n;
+  }
+  counts.all = counts.draft + counts.interviewing + counts.generating + counts.ready;
+  return counts;
+}
+
+export async function listProjectsByUser(userId: string, opts: ListProjectsOpts = {}): Promise<ProjectListResult> {
+  const limit = Math.min(Math.max(opts.limit ?? 20, 1), 100);
+  const sortCol = opts.sort === 'created_at' || opts.sort === 'name' ? opts.sort : 'updated_at';
+  const dir = opts.order === 'asc' ? 'ASC' : 'DESC';
+  const { where: baseWhere, params: baseParams } = buildProjectFilters(userId, opts, true);
+  let where = baseWhere;
+  const params = [...baseParams];
 
   const totalRow = await queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM projects p WHERE ${where}`, params as never[]);
   const total = totalRow?.n ?? 0;
@@ -133,17 +186,30 @@ export async function listProjectsByUser(userId: string, opts: ListProjectsOpts 
   }
 
   const nameCol = sortCol === 'name' ? 'LOWER(p.name)' : `p.${sortCol}`;
-  const rows = await query<ProjectRow>(
-    `SELECT p.* FROM projects p WHERE ${where}
+  // One aggregate join for document progress — no per-project query.
+  const rows = await query<ProjectRow & { docs_ready: number | null }>(
+    `SELECT p.*, COALESCE(d.docs_ready, 0) AS docs_ready FROM projects p
+     LEFT JOIN (
+       SELECT project_id, COUNT(*) AS docs_ready FROM spec_documents
+       WHERE current_version_id IS NOT NULL AND status = 'ready'
+       GROUP BY project_id
+     ) d ON d.project_id = p.id
+     WHERE ${where}
      ORDER BY ${nameCol} ${dir}, p.id ${dir} LIMIT ?`,
     [...params, limit + 1] as never[],
   );
 
   const hasMore = rows.length > limit;
-  const items = rows.slice(0, limit).map(mapProject);
+  const docsTotal = DOCUMENT_TYPES.length;
+  const items: ProjectWithProgress[] = rows.slice(0, limit).map((r) => ({
+    ...mapProject(r),
+    docsReady: Number(r.docs_ready ?? 0),
+    docsTotal,
+  }));
   const last = items[items.length - 1];
   const nextCursor = hasMore && last ? { createdAt: last.createdAt, id: last.id } : null;
-  return { items, nextCursor, total };
+  const counts = await countProjectsForList(userId, opts);
+  return { items, nextCursor, total, counts };
 }
 
 export interface UpdateProjectPatch {
@@ -154,6 +220,8 @@ export interface UpdateProjectPatch {
   icon?: string | null;
   accentColor?: string;
   lastOpenedAt?: string;
+  /** Set null on restore so the archive timestamp does not linger. */
+  archivedAt?: string | null;
 }
 
 export async function updateProject(id: string, userId: string, patch: UpdateProjectPatch): Promise<void> {
@@ -166,10 +234,31 @@ export async function updateProject(id: string, userId: string, patch: UpdatePro
   if (patch.icon !== undefined) { sets.push('icon = ?'); params.push(patch.icon); }
   if (patch.accentColor !== undefined) { sets.push('accent_color = ?'); params.push(patch.accentColor); }
   if (patch.lastOpenedAt !== undefined) { sets.push('last_opened_at = ?'); params.push(patch.lastOpenedAt); }
+  if (patch.archivedAt !== undefined) { sets.push('archived_at = ?'); params.push(patch.archivedAt); }
   if (sets.length === 0) return;
   sets.push('updated_at = ?');
   params.push(nowIso(), id, userId);
   await execute(`UPDATE projects SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`, params as never[]);
+}
+
+/** Count documents that carry a stored, ready version — used to derive a restore status. */
+export async function countReadyDocuments(projectId: string): Promise<number> {
+  const row = await queryOne<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM spec_documents WHERE project_id = ? AND current_version_id IS NOT NULL AND status = 'ready'",
+    [projectId],
+  );
+  return Number(row?.n ?? 0);
+}
+
+/** True when the project has an interview session that actually has messages. */
+export async function hasInterviewContent(projectId: string): Promise<boolean> {
+  const row = await queryOne<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM interview_messages m
+     JOIN interview_sessions s ON s.id = m.session_id
+     WHERE s.project_id = ?`,
+    [projectId],
+  );
+  return Number(row?.n ?? 0) > 0;
 }
 
 /** Soft delete: archived_at set, status='archived'. */
