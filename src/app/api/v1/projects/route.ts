@@ -55,7 +55,8 @@ const listQuerySchema = z.object({
   sort: z.enum(['created_at', 'updated_at', 'name']).optional(),
   order: z.enum(['asc', 'desc']).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
-  cursorCreated: z.string().optional(),
+  /** Keyset cursor: the sort-column value and id of the last row seen. */
+  cursorValue: z.string().optional(),
   cursorId: z.string().optional(),
 });
 

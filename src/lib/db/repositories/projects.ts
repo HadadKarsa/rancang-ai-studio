@@ -84,7 +84,8 @@ export interface ListProjectsOpts {
   sort?: 'created_at' | 'updated_at' | 'name';
   order?: 'asc' | 'desc';
   limit?: number;
-  cursorCreated?: string;
+  /** Value of the active sort column at the last row of the previous page. */
+  cursorValue?: string;
   cursorId?: string;
 }
 
@@ -106,7 +107,7 @@ export interface ProjectCounts {
 
 export interface ProjectListResult {
   items: ProjectWithProgress[];
-  nextCursor: { createdAt: string; id: string } | null;
+  nextCursor: { value: string; id: string } | null;
   total: number;
   counts: ProjectCounts;
 }
@@ -180,12 +181,15 @@ export async function listProjectsByUser(userId: string, opts: ListProjectsOpts 
   const totalRow = await queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM projects p WHERE ${where}`, params as never[]);
   const total = totalRow?.n ?? 0;
 
-  if (opts.cursorCreated && opts.cursorId && sortCol !== 'name') {
-    where += ` AND (p.${sortCol} < ? OR (p.${sortCol} = ? AND p.id < ?))`;
-    params.push(opts.cursorCreated, opts.cursorCreated, opts.cursorId);
-  }
-
   const nameCol = sortCol === 'name' ? 'LOWER(p.name)' : `p.${sortCol}`;
+  // Keyset pagination: compare the SAME column we sort by, in the same
+  // direction. Comparing created_at against an updated_at ordering made page 2
+  // come back empty (updated_at) or repeat page 1 (name).
+  if (opts.cursorValue && opts.cursorId) {
+    const cmp = dir === 'ASC' ? '>' : '<';
+    where += ` AND (${nameCol} ${cmp} ? OR (${nameCol} = ? AND p.id ${cmp} ?))`;
+    params.push(opts.cursorValue, opts.cursorValue, opts.cursorId);
+  }
   // One aggregate join for document progress — no per-project query.
   const rows = await query<ProjectRow & { docs_ready: number | null }>(
     `SELECT p.*, COALESCE(d.docs_ready, 0) AS docs_ready FROM projects p
@@ -206,8 +210,13 @@ export async function listProjectsByUser(userId: string, opts: ListProjectsOpts 
     docsReady: Number(r.docs_ready ?? 0),
     docsTotal,
   }));
-  const last = items[items.length - 1];
-  const nextCursor = hasMore && last ? { createdAt: last.createdAt, id: last.id } : null;
+  const lastRow = rows.length > 0 ? rows[Math.min(items.length, rows.length) - 1] : undefined;
+  const cursorValue = lastRow
+    ? String(sortCol === 'name' ? (lastRow.name ?? '').toLowerCase() : (lastRow as unknown as Record<string, unknown>)[sortCol] ?? '')
+    : '';
+  const nextCursor = hasMore && lastRow && cursorValue !== ''
+    ? { value: cursorValue, id: lastRow.id }
+    : null;
   const counts = await countProjectsForList(userId, opts);
   return { items, nextCursor, total, counts };
 }

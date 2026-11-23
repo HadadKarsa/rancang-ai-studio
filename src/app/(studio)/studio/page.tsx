@@ -17,7 +17,7 @@ type Counts = { all: number; draft: number; interviewing: number; generating: nu
 interface ListResp {
   projects: Project[];
   counts: Counts;
-  pagination: { total: number; limit: number; nextCursor: { createdAt: string; id: string } | null };
+  pagination: { total: number; limit: number; nextCursor: { value: string; id: string } | null };
 }
 
 const STATUS_ID: Record<ProjectStatus, string> = {
@@ -106,7 +106,7 @@ export default function StudioPage() {
   const menuWrap = useRef<HTMLDivElement | null>(null);
   const menuFirst = useRef<HTMLButtonElement | null>(null);
 
-  const query = useCallback((cursor?: { createdAt: string; id: string }) => {
+  const query = useCallback((cursor?: { value: string; id: string }) => {
     const params = new URLSearchParams();
     if (q.trim()) params.set('q', q.trim());
     if (status !== 'all') params.set('status', status);
@@ -114,7 +114,7 @@ export default function StudioPage() {
     params.set('sort', col);
     params.set('order', dir);
     if (cursor) {
-      params.set('cursorCreated', cursor.createdAt);
+      params.set('cursorValue', cursor.value);
       params.set('cursorId', cursor.id);
     }
     return `/projects?${params.toString()}`;
