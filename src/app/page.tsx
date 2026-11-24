@@ -47,6 +47,7 @@ export default function LandingPage() {
           <small>spec studio</small>
         </Link>
         <nav className="topnav">
+          <Link href="/docs" className="quiet">Dokumentasi</Link>
           <Link href="/login" className="quiet">Masuk</Link>
           <Link href="/register" className="btn primary">Mulai merancang</Link>
         </nav>
@@ -68,29 +69,41 @@ export default function LandingPage() {
             <Link href="/register" className="btn primary">Mulai merancang</Link>
             <Link href="/login" className="btn ghost">Sudah punya akun? Masuk</Link>
           </div>
-          <p className="fine mono">Tanpa kartu kredit · Bahasa Indonesia · Hasil bisa diunduh</p>
+          <p className="fine mono">
+            Tanpa kartu kredit · Bahasa Indonesia · Hasil bisa diunduh ·{' '}
+            <Link href="/docs" className="fine-link">Cara kerjanya</Link>
+          </p>
         </div>
 
-        <aside className="hero-sheet card" aria-hidden="true">
+        {/* Proof on first paint: a real PRD excerpt, not grey placeholder
+            bars. The text is short enough to read at a glance and specific
+            enough to show what the output actually looks like. */}
+        <figure className="hero-sheet card">
           <div className="sheet-head">
-            <span className="mono sheet-cap">spesifikasi</span>
+            <span className="mono sheet-cap">prd · catatan kebun</span>
             <span className="pill live"><span className="dot" />menulis</span>
           </div>
           <div className="sheet-body">
-            <div className="line w-90" />
-            <div className="line w-70" />
-            <div className="line w-80" />
-            <div className="line gap" />
-            <div className="line w-60" />
-            <div className="line w-85" />
-            <div className="line w-45" />
-            <span className="cursor" />
+            <h2>Ringkasan</h2>
+            <p>
+              Pencatat tanam untuk pekebun rumahan: satu halaman per bedeng, pengingat
+              siram, dan riwayat panen yang bisa dibandingkan antar musim.
+            </p>
+            <h2>Masalah</h2>
+            <p>
+              Catatan tanam tersebar di buku, obrolan, dan ingatan. Tidak ada satu tempat
+              untuk tahu bedeng mana yang terakhir dipupuk.
+            </p>
+            <h2>Yang tidak masuk lingkup</h2>
+            <p className="sheet-cut">
+              Jual-beli bibit, ramalan cuaca, dan akun bersama<span className="cursor" />
+            </p>
           </div>
-          <div className="sheet-foot mono">
+          <figcaption className="sheet-foot mono">
             <span>prd.md</span>
             <span>v1 · 1.482 kata</span>
-          </div>
-        </aside>
+          </figcaption>
+        </figure>
       </section>
 
       {/* ── how it works ── */}
@@ -145,7 +158,10 @@ export default function LandingPage() {
 
       <footer className="foot mono">
         <span>rancang-ai · spec studio</span>
-        <span>v0.1.3</span>
+        <nav className="foot-nav">
+          <Link href="/docs">Dokumentasi</Link>
+          <span>v0.1.3</span>
+        </nav>
       </footer>
     </main>
   );

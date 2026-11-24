@@ -1278,6 +1278,8 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-landing .topnav .quiet { font-size: 14px; font-weight: 600; color: var(--ink-2); }
 .pg-landing .topnav .quiet:hover { color: var(--ink); }
 .pg-landing .topnav .btn { min-height: 40px; padding: 8px 18px; font-size: 13px; }
+.pg-landing .fine-link { color: var(--ink); border-bottom: 1px solid var(--line-2); }
+.pg-landing .fine-link:hover { border-color: var(--ink); }
 
 /* ── hero ── */
 .pg-landing .hero {
@@ -1320,12 +1322,13 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-landing .cta .btn { min-height: 48px; padding: 12px 24px; font-size: 14px; }
 .pg-landing .fine { font-size: 10.5px; letter-spacing: 0.04em; color: var(--ink-2); }
 
-/* the specimen sheet beside the promise: a document being written */
+/* the specimen sheet beside the promise: a real PRD excerpt being written */
 .pg-landing .hero-sheet {
   align-self: stretch;
   display: flex; flex-direction: column;
   min-height: 320px;
   padding: 0;
+  margin: 0;
   overflow: hidden;
   transform: rotate(-1.4deg);
   box-shadow: 0 30px 60px -48px rgb(29 26 22 / 0.7), 0 2px 0 var(--line);
@@ -1335,13 +1338,18 @@ input, textarea, select { font: inherit; color: inherit; }
   padding: 16px 20px; border-bottom: 1px solid var(--line);
 }
 .pg-landing .sheet-cap { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
-.pg-landing .sheet-body { flex: 1; padding: 24px 22px; display: flex; flex-direction: column; gap: 12px; }
-.pg-landing .sheet-body .line { height: 9px; border-radius: 3px; background: var(--line); }
-.pg-landing .sheet-body .line.gap { height: 2px; background: transparent; margin: 6px 0; }
-.pg-landing .sheet-body .w-90 { width: 90%; } .pg-landing .sheet-body .w-85 { width: 85%; }
-.pg-landing .sheet-body .w-80 { width: 80%; } .pg-landing .sheet-body .w-70 { width: 70%; }
-.pg-landing .sheet-body .w-60 { width: 60%; } .pg-landing .sheet-body .w-45 { width: 45%; }
-.pg-landing .sheet-body .cursor { margin-top: 2px; }
+.pg-landing .sheet-body {
+  flex: 1; padding: 22px 24px; display: flex; flex-direction: column; gap: 8px;
+  font-size: 12.5px; line-height: 1.62; color: var(--ink-2);
+}
+.pg-landing .sheet-body h2 {
+  font: 600 9.5px var(--mono); letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--ink); margin-top: 10px;
+}
+.pg-landing .sheet-body h2:first-child { margin-top: 0; }
+.pg-landing .sheet-body p { max-width: 42ch; }
+.pg-landing .sheet-body .sheet-cut { color: var(--ink-2); }
+.pg-landing .sheet-body .cursor { margin-top: 0; }
 .pg-landing .sheet-foot {
   display: flex; justify-content: space-between;
   padding: 12px 20px; border-top: 1px solid var(--line);
@@ -1354,7 +1362,15 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-landing .sec-lede { max-width: 56ch; font-size: 15px; }
 
 /* ── three beats ── */
-.pg-landing .beats { padding: clamp(40px, 7vw, 80px) 0; border-top: 1px solid var(--line); }
+/* Sections separate by tonal ground and spacing, not by a rule across the
+   page: each band sits on --well with generous air, so the eye reads three
+   movements without a border doing the work. */
+.pg-landing .beats {
+  padding: clamp(48px, 8vw, 88px) clamp(20px, 4vw, 48px);
+  margin: 0 calc(-1 * clamp(20px, 4vw, 48px));
+  background: var(--well);
+  border-radius: 24px;
+}
 .pg-landing .beat-grid {
   list-style: none;
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1366,8 +1382,8 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-landing .beat p { font-size: 14.5px; line-height: 1.6; }
 
 /* ── the seven documents as a numbered index ── */
-.pg-landing .docs { padding: clamp(40px, 7vw, 80px) 0; border-top: 1px solid var(--line); }
-.pg-landing .doc-index { list-style: none; border-top: 1px solid var(--line); }
+.pg-landing .docs { padding: clamp(48px, 8vw, 88px) 0 clamp(40px, 6vw, 72px); }
+.pg-landing .doc-index { list-style: none; border-top: 1px solid var(--line-2); }
 .pg-landing .doc-row {
   display: grid;
   grid-template-columns: 52px minmax(120px, 200px) minmax(0, 1fr);
@@ -1376,7 +1392,7 @@ input, textarea, select { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--line);
   transition: background 120ms;
 }
-.pg-landing .doc-row:hover { background: var(--card); }
+.pg-landing .doc-row:hover { background: var(--well); }
 .pg-landing .doc-n { font-size: 11px; color: var(--ink-2); letter-spacing: 0.06em; }
 .pg-landing .doc-name { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
 .pg-landing .doc-note { font-size: 14px; }
@@ -1395,10 +1411,13 @@ input, textarea, select { font: inherit; color: inherit; }
 
 /* ── foot ── */
 .pg-landing .foot {
-  display: flex; justify-content: space-between;
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
   padding: 22px 0 40px; border-top: 1px solid var(--line);
   font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2);
 }
+.pg-landing .foot-nav { display: flex; align-items: center; gap: 18px; }
+.pg-landing .foot-nav a { color: var(--ink-2); }
+.pg-landing .foot-nav a:hover { color: var(--ink); }
 
 @media (max-width: 860px) {
   .pg-landing .hero { grid-template-columns: 1fr; gap: 36px; padding-top: 40px; }
@@ -1411,9 +1430,15 @@ input, textarea, select { font: inherit; color: inherit; }
 }
 @media (max-width: 480px) {
   .pg-landing .top { padding: 20px 0 22px; }
-  .pg-landing .topnav .quiet { display: none; }
+  /* Masuk stays reachable on the smallest phone: the docs link drops, not
+     the way in. */
+  .pg-landing .topnav { gap: 12px; }
+  .pg-landing .topnav .quiet:first-child { display: none; }
+  .pg-landing .topnav .quiet { font-size: 13px; }
+  .pg-landing .topnav .btn { padding: 8px 14px; }
   .pg-landing .cta { width: 100%; }
   .pg-landing .cta .btn { flex: 1; justify-content: center; }
+  .pg-landing .beats { border-radius: 18px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pg-landing .hero h1 .wet::after { animation: none; }
