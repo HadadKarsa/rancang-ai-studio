@@ -1694,6 +1694,18 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-docs .callout p { font-size: 14px; }
 .pg-docs .callout.warn { border-left-color: var(--vermilion); }
 
+/* The manual opens with a map. Six steps on one spine, drawn in SVG so the
+   nodes take the tokens; the single vermilion dot is step 04, where ink is
+   actually wet. Horizontal on a desk, vertical on a phone — the same six
+   steps, not a squeezed copy of the wide one. */
+.pg-docs .flow { display: flex; flex-direction: column; gap: 10px; padding: var(--s5) var(--s5) var(--s4); background: var(--well); border-radius: 18px; }
+.pg-docs .flow .cap { color: var(--ink-2); }
+.pg-docs .flow svg { display: block; width: 100%; height: auto; overflow: visible; }
+.pg-docs .flow .fl-n { font: 600 9.5px var(--mono); letter-spacing: 0.1em; fill: var(--ink-3); }
+.pg-docs .flow .fl-l { font: 700 12.5px var(--sans); fill: var(--ink); }
+.pg-docs .flow .fl-s { font: 500 10px var(--mono); letter-spacing: 0.04em; fill: var(--ink-2); }
+.pg-docs .flow-v { display: none; }
+
 @media (max-width: 900px) {
   .pg-docs .layout { grid-template-columns: 1fr; gap: var(--s5); }
   .pg-docs .toc { position: static; }
@@ -1702,4 +1714,7 @@ input, textarea, select { font: inherit; color: inherit; }
   .pg-docs .toc a .num { display: none; }
   .pg-docs .top h1 { font-size: 30px; }
   .pg-docs .prose h2 { font-size: 22px; }
+  .pg-docs .flow-h { display: none; }
+  .pg-docs .flow-v { display: block; }
+  .pg-docs .flow { padding: var(--s4); }
 }

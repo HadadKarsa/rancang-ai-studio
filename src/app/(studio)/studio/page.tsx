@@ -420,7 +420,7 @@ export default function StudioPage() {
         <div className="veil" role="dialog" aria-modal="true" aria-label="Hapus proyek"
           onClick={(e) => { if (e.target === e.currentTarget && !deleting) setConfirmDel(null); }}>
           <div className="sheet card">
-            <p className="eyebrow mono">tidak bisa dibatalkan</p>
+            <p className="eyebrow mono">tindakan permanen</p>
             <h2>Hapus “{confirmDel.name}”?</h2>
             <p className="muted">
               Seluruh wawancara, dokumen, versi, dan riwayat proyek ini ikut terhapus permanen.

@@ -699,7 +699,7 @@ export default function WritePage() {
   // A batch can finish having written nothing (every document failed). That is
   // not "tertulis", and the heading must not say it is.
   const title = phase === 'done'
-      ? (doneCount === 0 ? 'Tidak ada dokumen yang jadi.' : 'Dokumen sudah tertulis.')
+      ? (doneCount === 0 ? 'Tidak ada dokumen yang jadi.' : 'Semua dokumen siap.')
     : phase === 'interrupted' ? 'Sambungan terputus.'
     : phase === 'stopped' ? 'Penulisan dihentikan.'
     : phase === 'error' ? 'Tidak bisa mulai menulis.'
@@ -818,7 +818,7 @@ export default function WritePage() {
                 <Link href={`/projects/${projectId}/documents/${current.type}`}>Buka untuk membacanya</Link>.
               </p>
             ) : (
-              <p className="waiting">Giliran dokumen ini belum tiba.</p>
+              <p className="waiting">Menunggu dokumen sebelumnya.</p>
             )}
           </div>
 

@@ -47,7 +47,7 @@ export default function LoginPage() {
           <header className="auth-head">
             <span className="eyebrow">rancang-ai</span>
             <h1>Masuk</h1>
-            <p className="muted">Lanjutkan merancang dari tempat terakhir kamu berhenti.</p>
+            <p className="muted">Lanjutkan proyek yang sedang kamu susun.</p>
           </header>
 
           {errors.form && <div className="alert" role="alert">{errors.form}</div>}

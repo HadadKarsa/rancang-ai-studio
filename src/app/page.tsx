@@ -23,17 +23,17 @@ const DOCUMENTS = [
 const BEATS = [
   {
     n: 'I',
-    title: 'Bercerita',
+    title: 'Ceritakan ide',
     body: 'Kamu menjelaskan idemu seperti kepada rekan kerja. Tidak ada formulir panjang — hanya pertanyaan yang tepat, satu per satu.',
   },
   {
     n: 'II',
-    title: 'Dirancang',
+    title: 'Susun spesifikasi',
     body: 'Percakapan itu dirangkum menjadi tujuh dokumen yang saling merujuk, bukan tujuh berkas yang berdiri sendiri.',
   },
   {
     n: 'III',
-    title: 'Diserahkan',
+    title: 'Unduh & bagikan',
     body: 'Unduh sebagai Markdown, ZIP, atau JSON — siap dibaca tim, atau langsung dijadikan titik mulai pembangunan.',
   },
 ];

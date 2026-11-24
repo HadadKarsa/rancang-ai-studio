@@ -187,7 +187,7 @@ export default function ModelsPage() {
     <div className="pg-models">
       <header className="head">
         <h1>Models</h1>
-        <p className="muted">Satu sumber kecerdasan untuk seluruh studio: langganan yang sudah ada, atau kunci sendiri.</p>
+        <p className="muted">Pilih penyedia dan model AI untuk seluruh studio — langganan yang sudah ada, atau kunci sendiri.</p>
       </header>
 
       {error && <div className="alert" role="alert">{error}</div>}

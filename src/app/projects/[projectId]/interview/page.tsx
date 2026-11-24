@@ -174,7 +174,7 @@ export default function InterviewPage() {
               <p className="q">Ceritakan idemu dulu.</p>
               <p className="note">
                 Satu paragraf saja: aplikasi apa, untuk siapa, masalah apa yang
-                diselesaikan. Setelah itu saya yang bertanya — soal pemakai,
+                diselesaikan. Setelah itu rancang-ai yang bertanya — soal pemakai,
                 alur inti, dan batasannya.
               </p>
             </div>
@@ -247,7 +247,7 @@ export default function InterviewPage() {
         </main>
 
         <aside className="ritual">
-          <p className="cap mono">ritme</p>
+          <p className="cap mono">tahap</p>
           <div
             className="ticks"
             role="progressbar"
@@ -267,13 +267,13 @@ export default function InterviewPage() {
             <span>/ {total}</span>
           </p>
           <p className="mood mono">
-            {completed ? 'lengkap' : step <= 2 ? 'menggali' : step <= total - 2 ? 'menajam' : 'merapikan'}
+            {completed ? 'lengkap' : step <= 2 ? 'menggali' : step <= total - 2 ? 'mendalami' : 'merapikan'}
           </p>
           <hr />
           <p className="hint">
             {completed
               ? 'Jawabanmu tersimpan. Dokumen bisa ditulis kapan saja.'
-              : 'Jawab seadanya dulu — saya yang merapikan.'}
+              : 'Jawab seadanya dulu — rancang-ai yang merapikan.'}
           </p>
           {!completed && session && (
             <button className="restart" onClick={() => void restart()} disabled={starting || pending}>

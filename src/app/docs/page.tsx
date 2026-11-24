@@ -32,6 +32,63 @@ function DocLink({ href, children }: { href: string; children: React.ReactNode }
   return <Link href={href} className="inline-link">{children}</Link>;
 }
 
+/* The whole manual in one picture, because 520 lines of prose opened with no
+   map at all. Drawn as inline SVG so it inherits the tokens: nodes are --well
+   discs, the spine is --line-2, and the one vermilion dot is the step where
+   ink is actually wet (writing). Two orientations, swapped by CSS, because a
+   horizontal spine at 390px is a smear. */
+const FLOW = [
+  { n: '01', label: 'Siapkan model', sub: '/models' },
+  { n: '02', label: 'Buat proyek', sub: '/studio' },
+  { n: '03', label: 'Wawancara', sub: 'pertanyaan' },
+  { n: '04', label: 'Tulis dokumen', sub: 'tujuh berkas' },
+  { n: '05', label: 'Baca & sunting', sub: 'versi' },
+  { n: '06', label: 'Ekspor & bagikan', sub: 'MD · ZIP · JSON' },
+];
+
+function FlowDiagram() {
+  return (
+    <figure className="flow" aria-labelledby="flow-cap">
+      <figcaption id="flow-cap" className="cap mono">
+        alur — satu ide jadi satu set dokumen
+      </figcaption>
+
+      {/* horizontal: the spine runs left to right between the discs */}
+      <svg className="flow-h" viewBox="0 0 900 104" role="img" aria-label="Alur: siapkan model, buat proyek, wawancara, tulis dokumen, baca dan sunting, ekspor dan bagikan">
+        <line x1="24" y1="26" x2="876" y2="26" stroke="var(--line-2)" strokeWidth="1" />
+        {FLOW.map((s, i) => {
+          const x = 24 + i * 170.4;
+          const wet = s.n === '04';
+          return (
+            <g key={s.n}>
+              <circle cx={x} cy={26} r={wet ? 7 : 5} fill={wet ? 'var(--vermilion)' : 'var(--card)'} stroke={wet ? 'var(--vermilion)' : 'var(--line-2)'} strokeWidth="1" />
+              <text x={x} y={54} textAnchor="middle" className="fl-n">{s.n}</text>
+              <text x={x} y={72} textAnchor="middle" className="fl-l">{s.label}</text>
+              <text x={x} y={88} textAnchor="middle" className="fl-s">{s.sub}</text>
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* vertical: same six steps down a spine, for a phone */}
+      <svg className="flow-v" viewBox="0 0 300 400" role="img" aria-label="Alur: siapkan model, buat proyek, wawancara, tulis dokumen, baca dan sunting, ekspor dan bagikan">
+        <line x1="14" y1="14" x2="14" y2="386" stroke="var(--line-2)" strokeWidth="1" />
+        {FLOW.map((s, i) => {
+          const y = 14 + i * 74.4;
+          const wet = s.n === '04';
+          return (
+            <g key={s.n}>
+              <circle cx={14} cy={y} r={wet ? 7 : 5} fill={wet ? 'var(--vermilion)' : 'var(--card)'} stroke={wet ? 'var(--vermilion)' : 'var(--line-2)'} strokeWidth="1" />
+              <text x={34} y={y + 4} className="fl-l">{s.label}</text>
+              <text x={34} y={y + 20} className="fl-s">{s.n} · {s.sub}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </figure>
+  );
+}
+
 export default function DocsPage() {
   const [active, setActive] = useState<string>(SECTIONS[0]!.id);
   const refs = useRef(new Map<string, HTMLElement>());
@@ -72,6 +129,8 @@ export default function DocsPage() {
           </p>
         </div>
       </header>
+
+      <FlowDiagram />
 
       <div className="layout">
         <nav className="toc" aria-label="Daftar isi">
@@ -216,7 +275,8 @@ export default function DocsPage() {
               <span className="mono">wawancara</span>,{' '}
               <span className="mono">menulis</span>, <span className="mono">siap</span>,{' '}
               <span className="mono">arsip</span>. Kartu membuka halaman proyek;
-              tombol <b>Hapus</b> di sudut kartu menghapus proyek beserta seluruh
+              menu <b>⋯</b> di sudut kartu menyimpan pilihan <b>Arsipkan</b> dan
+              <b>Hapus permanen</b>. Hapus membuang proyek beserta seluruh
               wawancara, dokumen, dan versinya — permanen, dan dialognya
               menyebutkan itu.
             </p>
@@ -408,7 +468,7 @@ export default function DocsPage() {
             <p>
               Di halaman dokumen ada bagian <b>Bagikan</b>. Tombolnya membuat
               tautan baca-saja ke dokumen itu dan langsung menyalinnya ke
-              papan klip. Tautan itu bisa dibuka tanpa masuk — cocok untuk
+              clipboard. Tautan itu bisa dibuka tanpa masuk — cocok untuk
               menunjukkan hasil ke klien. Tautan bisa dicabut kembali; setelah
               dicabut, alamatnya tidak lagi menampilkan apa pun.
             </p>
@@ -463,7 +523,7 @@ export default function DocsPage() {
               Paling sering karena belum ada model. Buka{' '}
               <DocLink href="/models">Models</DocLink> dan pastikan satu penyedia
               berstatus <span className="mono">TERHUBUNG</span> dengan satu preset
-              bertanda bawaan. Pesan galat yang menyebut kunci tidak ada berarti
+              bertanda bawaan. Pesan error yang menyebut kunci tidak ada berarti
               kredensial untuk penyedia itu belum tersimpan atau tidak aktif.
             </p>
 
@@ -490,10 +550,10 @@ export default function DocsPage() {
               atau hentikan dulu, lalu mulai lagi.
             </p>
 
-            <h3>Galat penyedia (502) atau batas laju (429)</h3>
+            <h3>Error penyedia (502) atau rate limit (429)</h3>
             <p>
-              Keduanya datang dari penyedia model. Untuk batas laju, tunggu
-              sebentar lalu lanjutkan. Untuk galat penyedia, coba lagi sekali;
+              Keduanya datang dari penyedia model. Untuk rate limit, tunggu
+              sebentar lalu lanjutkan. Untuk error penyedia, coba lagi sekali;
               kalau tetap gagal, ganti model di preset — penyedia kadang
               menolak satu model tertentu sementara model lain jalan.
             </p>
@@ -508,9 +568,9 @@ export default function DocsPage() {
             <div className="callout">
               <p>
                 <b>Yang belum ada, dan tidak dijanjikan di sini:</b> ekspor PDF,
-                masuk lewat akun cloud, kolaborasi tim, dan pengarsipan proyek
-                dari antarmuka. Kalau kamu butuh salah satunya, itu permintaan
-                fitur, bukan pengaturan yang terlewat.
+                masuk lewat akun cloud, dan kolaborasi tim. Kalau kamu butuh
+                salah satunya, itu permintaan fitur, bukan pengaturan yang
+                terlewat.
               </p>
             </div>
           </section>
