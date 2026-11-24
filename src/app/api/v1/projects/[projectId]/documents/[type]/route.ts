@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { withRoute, parseJson } from '@/lib/api/middleware';
 import { streamDocumentGeneration } from '@/lib/services/generation';
 import { assertProjectOwnership } from '@/lib/services/interview';
-import { getDocumentByType, listDocuments, listVersions, getCurrentVersion, setDocumentLock, getVersionById, deleteVersion } from '@/lib/db/repositories/documents';
-import { ValidationError, NotFoundError, DocumentNotFoundError } from '@/lib/errors';
+import { getDocumentByType, listDocuments, listVersions, getCurrentVersion, setDocumentLock, createVersionSnapshot, setDocumentStatus } from '@/lib/db/repositories/documents';
+import { ValidationError, NotFoundError, DocumentNotFoundError, DocumentLockedError } from '@/lib/errors';
 import { isDocumentType } from '@/lib/documents/types';
 
 
@@ -88,6 +88,48 @@ export const PATCH = withRoute(async (ctx) => {
   if (parsed.data.isLocked !== undefined) await setDocumentLock(doc.id, parsed.data.isLocked);
 
   return Response.json({ document: await getDocumentByType(projectId, type) });
+}, { bucket: 'write' });
+
+const editSchema = z.object({
+  contentMd: z.string().min(1).max(500_000),
+  changeSummary: z.string().max(200).optional(),
+});
+
+/** PUT — save inline manual edit as a new document version. */
+export const PUT = withRoute(async (ctx) => {
+  const projectId = ctx.params.get('projectId');
+  const type = ctx.params.get('type');
+  if (!isDocumentType(type)) throw new DocumentNotFoundError(type);
+  await assertProjectOwnership(ctx.session.user.id, projectId);
+
+  const body = await parseJson<unknown>(ctx.req, 1024 * 1024);
+  const parsed = editSchema.safeParse(body);
+  if (!parsed.success) throw new ValidationError('Invalid document content', parsed.error.flatten());
+
+  const doc = await getDocumentByType(projectId, type);
+  if (!doc) throw new NotFoundError(`Document ${type} not found`);
+  if (doc.isLocked) throw new DocumentLockedError();
+
+  const version = await createVersionSnapshot({
+    documentId: doc.id,
+    contentMd: parsed.data.contentMd,
+    source: 'manual_edit',
+    changeSummary: parsed.data.changeSummary?.trim() || 'Suntingan manual',
+    createdByUserId: ctx.session.user.id,
+  });
+  await setDocumentStatus(doc.id, 'ready');
+
+  const [updatedDoc, versions] = await Promise.all([
+    getDocumentByType(projectId, type),
+    listVersions(doc.id),
+  ]);
+
+  return Response.json({
+    document: updatedDoc,
+    version,
+    content: version.contentMd,
+    versions,
+  });
 }, { bucket: 'write' });
 
 export const dynamic = 'force-dynamic';

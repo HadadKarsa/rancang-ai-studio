@@ -346,7 +346,11 @@ export async function* generateAllDocumentsStream(
 }
 
 async function loadTranscriptForProject(projectId: string) {
-  const { getActiveSessionForProject } = await import('@/lib/db/repositories/interviews');
-  const session = await getActiveSessionForProject(projectId);
+  const { getActiveSessionForProject, listSessionsForProject } = await import('@/lib/db/repositories/interviews');
+  const active = await getActiveSessionForProject(projectId);
+  const session =
+    active ??
+    (await listSessionsForProject(projectId, 5)).find((s) => s.status !== 'abandoned') ??
+    null;
   return session ? loadTranscript(session.id) : [];
 }

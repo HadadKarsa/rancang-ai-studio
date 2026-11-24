@@ -8,7 +8,7 @@ import { getDocumentByType, setDocumentStatus, createVersionSnapshot, getCurrent
 import { createRun, markRunFailed, markRunSucceeded, markRunAborted, findActiveRunForDocument } from '@/lib/db/repositories/generationRuns';
 import { getTemplateById } from '@/lib/db/repositories/templates';
 import { listInjectedAssets } from '@/lib/db/repositories/assets';
-import { getActiveSessionForProject } from '@/lib/db/repositories/interviews';
+import { getActiveSessionForProject, listSessionsForProject } from '@/lib/db/repositories/interviews';
 import { DocumentLockedError, GenerationInProgressError, NotFoundError } from '@/lib/errors';
 import type { DocumentType } from '@/lib/db/enums';
 
@@ -46,7 +46,11 @@ export async function streamDocumentGeneration(params: StreamDocumentParams): Pr
   if (!project) throw new NotFoundError('Project not found');
   const template = project.templateId ? await getTemplateById(project.templateId) : null;
 
-  const session = await getActiveSessionForProject(params.projectId);
+  const activeSession = await getActiveSessionForProject(params.projectId);
+  const session =
+    activeSession ??
+    (await listSessionsForProject(params.projectId, 5)).find((s) => s.status !== 'abandoned') ??
+    null;
   const transcript = session ? await loadTranscript(session.id) : [];
 
   const resolved = await resolveProvider({

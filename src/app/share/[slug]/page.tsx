@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Lock, FileText } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
 import { Badge, Button } from '@/components/ui';
 import { PublicThemeToggle } from '@/components/PublicThemeToggle';
+import { MarkdownRenderer } from '@/components/workspace/MarkdownRenderer';
 import { cn } from '@/lib/cn';
 
 interface Doc {
@@ -206,8 +205,8 @@ export default function SharePage() {
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
               {data.document.title}
             </h1>
-            <div className="prose-fresh mt-6">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.content}</ReactMarkdown>
+            <div className="mt-6">
+              <MarkdownRenderer content={data.content} />
             </div>
           </article>
         </main>
@@ -281,8 +280,8 @@ export default function SharePage() {
               <h2 className="text-xl font-semibold tracking-tight text-ink">
                 {data.documents.find((d) => d.id === active)?.title}
               </h2>
-              <div className="prose-fresh mt-5">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{contentOf(active)}</ReactMarkdown>
+              <div className="mt-5">
+                <MarkdownRenderer content={contentOf(active)} />
               </div>
             </article>
           )}
