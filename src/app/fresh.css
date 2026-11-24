@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "./globals.css" layer(legacy);
 
 @custom-variant dark (&:where(.dark, .dark *));
 
