@@ -2,86 +2,77 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  FolderKanban,
+  BookMarked,
+  SlidersHorizontal,
+  BookOpen,
+  PanelLeftClose,
+  PanelLeftOpen,
+  LogOut,
+  X,
+} from 'lucide-react';
 import { api } from '@/lib/client/api';
+import { cn } from '@/lib/cn';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
 
-/* Nav is four places, not a menu: the workbench, what you kept, the model
-   that writes, and the manual. Each glyph is drawn on the same 16px grid as
-   the project marks — a stroke, never a font character, because the
-   self-hosted subsets carry no pictographs. */
-const NAV = [
-  { href: '/studio', label: 'Studio', hint: 'Proyek dan wawancara', icon: 'studio' },
-  { href: '/library', label: 'Library', hint: 'Artefak yang disimpan', icon: 'library' },
-  { href: '/models', label: 'Models', hint: 'Model dan kredensial', icon: 'models' },
-  { href: '/docs', label: 'Dokumentasi', hint: 'Cara memakai rancang-ai', icon: 'docs' },
-] as const;
+interface NavGroup {
+  label: string;
+  items: {
+    href: string;
+    label: string;
+    hint: string;
+    icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
+  }[];
+}
 
-type IconName = (typeof NAV)[number]['icon'];
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Ruang kerja',
+    items: [
+      { href: '/studio', label: 'Studio', hint: 'Proyek dan wawancara', icon: FolderKanban },
+      { href: '/library', label: 'Library', hint: 'Artefak yang disimpan', icon: BookMarked },
+    ],
+  },
+  {
+    label: 'Konfigurasi',
+    items: [
+      { href: '/models', label: 'Models', hint: 'Model dan kredensial', icon: SlidersHorizontal },
+      { href: '/docs', label: 'Dokumentasi', hint: 'Panduan memakai rancang-ai', icon: BookOpen },
+    ],
+  },
+];
 
 const STORE_KEY = 'rancang.rail.collapsed';
 
-function Glyph({ name }: { name: IconName }) {
-  const common = {
-    width: 16,
-    height: 16,
-    viewBox: '0 0 16 16',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.6,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    'aria-hidden': true,
-  };
-  if (name === 'studio') {
-    return (
-      <svg {...common}>
-        <rect x="2" y="2.5" width="12" height="11" rx="2" />
-        <path d="M2 6h12M5.5 9.5h5" />
-      </svg>
-    );
-  }
-  if (name === 'library') {
-    return (
-      <svg {...common}>
-        <path d="M2.5 3.5h4l1.2 1.6h5.8v7.4a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" />
-      </svg>
-    );
-  }
-  if (name === 'models') {
-    return (
-      <svg {...common}>
-        <circle cx="8" cy="8" r="2.2" />
-        <path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6 11 5M5 11l-1.4 1.4" />
-      </svg>
-    );
-  }
-  return (
-    <svg {...common}>
-      <path d="M3 2.5h7.5L13 5v8.5H3z" />
-      <path d="M10.2 2.6V5H12.8M5.2 8h5.6M5.2 10.6h5.6" />
-    </svg>
-  );
+export interface RailProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-/** App rail — the one shell for every signed-in page. Collapses to glyphs. */
-export function Rail() {
+export function Rail({ mobileOpen = false, onMobileClose }: RailProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [ready, setReady] = useState(false);
-  const navRef = useRef<HTMLElement | null>(null);
 
-  /* Read once on mount: the server cannot know the preference, and rendering
-     the expanded rail first would make the page jump on every navigation. */
   useEffect(() => {
     try {
       setCollapsed(window.localStorage.getItem(STORE_KEY) === '1');
     } catch {
-      /* private mode: stay expanded, do not fail the page */
+      /* ignore private mode */
     }
-    setReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onMobileClose?.();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen, onMobileClose]);
 
   const toggle = useCallback(() => {
     setCollapsed((prev) => {
@@ -89,7 +80,7 @@ export function Rail() {
       try {
         window.localStorage.setItem(STORE_KEY, next ? '1' : '0');
       } catch {
-        /* nothing to remember without storage */
+        /* ignore */
       }
       return next;
     });
@@ -100,91 +91,212 @@ export function Rail() {
     try {
       await api.post('/auth/logout');
     } catch {
-      /* the cookie is cleared server-side either way; go home regardless */
+      /* cookie cleared server-side either way */
     }
     router.push('/');
     router.refresh();
   }
 
-  const isOn = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const isOn = (href: string) => {
+    if (href === '/studio' && pathname.startsWith('/projects/')) return true;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
-  return (
-    <aside
-      className={`rail pg-rail${collapsed ? ' is-collapsed' : ''}${ready ? '' : ' is-idle'}`}
-      data-collapsed={collapsed ? '1' : '0'}
-    >
-      <div className="rail-top">
-        <Link href="/studio" className="brand" aria-label="rancang-ai — studio">
-          <span className="brand-mark" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M3 14.5V3.5h6.2a3.4 3.4 0 0 1 0 6.8H3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M9.4 10.3 14.6 14.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
-            </svg>
+  const renderNav = (isCompact: boolean, closeOnNav?: () => void) => (
+    <div className="flex h-full flex-col">
+      <div
+        className={cn(
+          'flex h-13 shrink-0 items-center border-b border-line px-3',
+          isCompact ? 'justify-center' : 'justify-between',
+        )}
+      >
+        <Link
+          href="/studio"
+          onClick={closeOnNav}
+          aria-label="rancang-ai studio"
+          className={cn(
+            'flex items-center gap-2.5 rounded-lg px-1 py-1 text-ink transition-colors hover:text-accent-ink',
+            isCompact && 'justify-center',
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-xs font-semibold text-white"
+          >
+            R
           </span>
-          <span className="brand-word">
-            rancang-ai
-            <small>spec studio</small>
-          </span>
+          {!isCompact && (
+            <span className="flex flex-col leading-tight">
+              <span className="text-sm font-semibold tracking-tight text-ink">rancang-ai</span>
+              <span className="font-mono text-[10.5px] text-ink-3">spec studio</span>
+            </span>
+          )}
         </Link>
 
-        <button
-          type="button"
-          className="rail-toggle"
-          onClick={toggle}
-          aria-expanded={!collapsed}
-          aria-controls="rail-nav"
-          aria-label={collapsed ? 'Lebarkan menu' : 'Ciutkan menu'}
-          title={collapsed ? 'Lebarkan menu' : 'Ciutkan menu'}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path
-              d={collapsed ? 'M5.5 2.5 9.5 7l-4 4.5' : 'M8.5 2.5 4.5 7l4 4.5'}
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+        {!isCompact && !closeOnNav && (
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={!collapsed}
+            aria-controls="studio-rail-nav"
+            aria-label="Ciutkan bilah samping"
+            title="Ciutkan bilah samping"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-hover hover:text-ink"
+          >
+            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+
+        {closeOnNav && (
+          <button
+            type="button"
+            onClick={closeOnNav}
+            aria-label="Tutup menu navigasi"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-ink-2 hover:bg-hover hover:text-ink"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
-      <nav id="rail-nav" ref={navRef} aria-label="Navigasi utama">
-        {NAV.map((item) => {
-          const on = isOn(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`nav-item${on ? ' on' : ''}`}
-              aria-current={on ? 'page' : undefined}
-              aria-label={item.label}
-              title={collapsed ? `${item.label} — ${item.hint}` : item.hint}
-            >
-              <span className="glyph" aria-hidden="true">
-                <Glyph name={item.icon} />
-              </span>
-              <span className="nav-label">{item.label}</span>
-            </Link>
-          );
-        })}
+      {isCompact && !closeOnNav && (
+        <div className="flex justify-center border-b border-line py-2">
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={!collapsed}
+            aria-controls="studio-rail-nav"
+            aria-label="Lebarkan bilah samping"
+            title="Lebarkan bilah samping"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-hover hover:text-ink"
+          >
+            <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
+      <nav
+        id={closeOnNav ? 'studio-mobile-nav' : 'studio-rail-nav'}
+        aria-label="Navigasi utama"
+        className="flex-1 overflow-y-auto px-2.5 py-4 space-y-5"
+      >
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label}>
+            {!isCompact && (
+              <p className="mb-1.5 px-2.5 text-xs font-medium text-ink-3">{group.label}</p>
+            )}
+            <ul className="space-y-1">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = isOn(item.href);
+                const linkNode = (
+                  <Link
+                    href={item.href}
+                    onClick={closeOnNav}
+                    aria-current={active ? 'page' : undefined}
+                    aria-label={item.label}
+                    className={cn(
+                      'group relative flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors',
+                      isCompact && 'justify-center px-0',
+                      active
+                        ? 'bg-surface font-medium text-ink shadow-xs ring-1 ring-line'
+                        : 'text-ink-2 hover:bg-hover hover:text-ink',
+                    )}
+                  >
+                    {active && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-accent"
+                      />
+                    )}
+                    <Icon
+                      className={cn(
+                        'h-4 w-4 shrink-0',
+                        active ? 'text-accent-ink' : 'text-ink-3 group-hover:text-ink',
+                      )}
+                      aria-hidden={true}
+                    />
+                    {!isCompact && <span className="truncate">{item.label}</span>}
+                  </Link>
+                );
+
+                return (
+                  <li key={item.href}>
+                    {isCompact ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>{linkNode}</TooltipTrigger>
+                        <TooltipContent side="right">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="ml-1.5 opacity-75">{item.hint}</span>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      linkNode
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
-      <footer className="rail-foot">
-        <span className="mono ver">local · v0.1.4</span>
+      <footer className="shrink-0 border-t border-line p-2.5">
+        {!isCompact && (
+          <div className="mb-1.5 flex items-center justify-between px-2.5 text-[11px] font-mono text-ink-3">
+            <span>local</span>
+            <span>v0.2.0</span>
+          </div>
+        )}
         <button
           type="button"
-          className="signout"
           onClick={() => void signOut()}
           disabled={signingOut}
           aria-label="Keluar dari akun"
-          title={collapsed ? 'Keluar' : undefined}
+          title={isCompact ? 'Keluar' : undefined}
+          className={cn(
+            'flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-ink-2 transition-colors hover:bg-hover hover:text-ink',
+            isCompact && 'justify-center px-0',
+          )}
         >
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path d="M9 2.5H3.5v9H9M6.5 7h6M10 4.6 12.4 7 10 9.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span className="nav-label">{signingOut ? 'keluar…' : 'Keluar'}</span>
+          <LogOut className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
+          {!isCompact && <span>{signingOut ? 'Keluar...' : 'Keluar'}</span>}
         </button>
       </footer>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop collapsible sidebar */}
+      <aside
+        data-collapsed={collapsed ? '1' : '0'}
+        className={cn(
+          'hidden md:flex shrink-0 flex-col border-r border-line bg-sidebar transition-[width] duration-150 sticky top-0 h-screen',
+          collapsed ? 'w-16' : 'w-60',
+        )}
+      >
+        {renderNav(collapsed)}
+      </aside>
+
+      {/* Mobile slide-over drawer */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-50 flex md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigasi studio"
+        >
+          <div
+            className="fixed inset-0 bg-ink/40 backdrop-blur-[2px]"
+            onClick={onMobileClose}
+            aria-hidden="true"
+          />
+          <aside className="relative z-10 flex h-full w-72 max-w-[85vw] flex-col border-r border-line bg-sidebar shadow-popover">
+            {renderNav(false, onMobileClose)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

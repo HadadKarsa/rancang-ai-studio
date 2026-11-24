@@ -1,0 +1,365 @@
+@import "tailwindcss";
+@import "./globals.css" layer(legacy);
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Self-hosted studio fonts: Schibsted Grotesk (UI & prose) + JetBrains Mono (data & code). */
+@font-face {
+  font-family: 'Schibsted Grotesk';
+  src: url('/fonts/schibsted-var.woff2') format('woff2');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-206F, U+2018, U+2019, U+201C, U+201D;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jbmono.woff2') format('woff2');
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-206F;
+}
+
+/* Fresh Studio tokens: warm-white canvas, soft sidebar, crisp white panels,
+   terracotta primary CTA & wet-ink streaming, teal done/ready status. */
+:root {
+  --bg-canvas: #faf9f6;
+  --bg-sidebar: #f3f1ec;
+  --bg-surface: #ffffff;
+  --bg-subtle: #efece4;
+  --bg-hover: #eae6dc;
+
+  --ink-primary: #1c1917;
+  --ink-secondary: #57534e;
+  --ink-muted: #6b655e;
+
+  --border-subtle: #e7e3da;
+  --border-strong: #d2ccc0;
+
+  --accent: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-soft: #fff1eb;
+  --accent-ink: #9a3412;
+
+  --status-ready: #0f766e;
+  --status-ready-soft: #ecfdf5;
+  --status-ready-ink: #0f766e;
+
+  --status-danger: #b91c1c;
+  --status-danger-soft: #fef2f2;
+  --status-danger-ink: #991b1b;
+
+  --status-warn: #a16207;
+  --status-warn-soft: #fefce8;
+
+  --shadow-panel: 0 1px 2px rgba(28, 25, 23, 0.04), 0 4px 12px rgba(28, 25, 23, 0.03);
+  --shadow-popover: 0 4px 20px rgba(28, 25, 23, 0.08), 0 1px 3px rgba(28, 25, 23, 0.05);
+}
+
+.dark {
+  --bg-canvas: #141311;
+  --bg-sidebar: #1b1916;
+  --bg-surface: #201e1a;
+  --bg-subtle: #2a2722;
+  --bg-hover: #332f29;
+
+  --ink-primary: #f5f3ee;
+  --ink-secondary: #b8b2a7;
+  --ink-muted: #9c968b;
+
+  --border-subtle: #2e2b25;
+  --border-strong: #423e36;
+
+  --accent: #c2410c;
+  --accent-hover: #ea580c;
+  --accent-soft: rgba(194, 65, 12, 0.18);
+  --accent-ink: #fb923c;
+
+  --status-ready: #0f766e;
+  --status-ready-soft: rgba(15, 118, 110, 0.22);
+  --status-ready-ink: #2dd4bf;
+
+  --status-danger: #dc2626;
+  --status-danger-soft: rgba(220, 38, 38, 0.18);
+  --status-danger-ink: #f87171;
+
+  --status-warn: #ca8a04;
+  --status-warn-soft: rgba(202, 138, 4, 0.18);
+
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 14px rgba(0, 0, 0, 0.2);
+  --shadow-popover: 0 8px 28px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+@theme inline {
+  --color-canvas: var(--bg-canvas);
+  --color-sidebar: var(--bg-sidebar);
+  --color-surface: var(--bg-surface);
+  --color-subtle: var(--bg-subtle);
+  --color-hover: var(--bg-hover);
+
+  --color-ink: var(--ink-primary);
+  --color-ink-2: var(--ink-secondary);
+  --color-ink-3: var(--ink-muted);
+
+  --color-line: var(--border-subtle);
+  --color-line-strong: var(--border-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+
+  --color-ready: var(--status-ready);
+  --color-ready-soft: var(--status-ready-soft);
+  --color-ready-ink: var(--status-ready-ink);
+
+  --color-danger: var(--status-danger);
+  --color-danger-soft: var(--status-danger-soft);
+  --color-danger-ink: var(--status-danger-ink);
+
+  --color-warn: var(--status-warn);
+  --color-warn-soft: var(--status-warn-soft);
+
+  --font-sans: 'Schibsted Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --shadow-panel: var(--shadow-panel);
+  --shadow-popover: var(--shadow-popover);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    background-color: var(--bg-canvas);
+    color: var(--ink-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--ink-primary);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  a[href],
+  button:not(:disabled),
+  summary,
+  select:not(:disabled),
+  label[for],
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  textarea:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Streaming wet-ink caret: active only during live generation, stops under reduced motion. */
+@keyframes fresh-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.wet-caret {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  background-color: var(--accent);
+  vertical-align: -2px;
+  border-radius: 1px;
+  animation: fresh-blink 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wet-caret,
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Structured Markdown typography for spec documents and public share views. */
+.prose-fresh {
+  color: var(--ink-primary);
+  font-size: 15px;
+  line-height: 1.7;
+  max-width: 74ch;
+}
+
+.prose-fresh h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  color: var(--ink-primary);
+}
+
+.prose-fresh h1:first-child {
+  margin-top: 0;
+}
+
+.prose-fresh h2 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  margin-top: 1.75rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--ink-primary);
+}
+
+.prose-fresh h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1.35rem;
+  margin-bottom: 0.45rem;
+  color: var(--ink-primary);
+}
+
+.prose-fresh h4 {
+  font-size: 0.94rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.35rem;
+  color: var(--ink-secondary);
+}
+
+.prose-fresh p {
+  margin-bottom: 0.9rem;
+}
+
+.prose-fresh ul,
+.prose-fresh ol {
+  margin-bottom: 0.95rem;
+  padding-left: 1.4rem;
+}
+
+.prose-fresh ul {
+  list-style-type: disc;
+}
+
+.prose-fresh ol {
+  list-style-type: decimal;
+}
+
+.prose-fresh li {
+  margin-bottom: 0.35rem;
+}
+
+.prose-fresh li > ul,
+.prose-fresh li > ol {
+  margin-top: 0.3rem;
+  margin-bottom: 0.3rem;
+}
+
+.prose-fresh blockquote {
+  border-left: 2px solid var(--accent);
+  background: var(--bg-subtle);
+  padding: 0.65rem 1rem;
+  border-radius: 0 8px 8px 0;
+  color: var(--ink-secondary);
+  margin: 1rem 0;
+}
+
+.prose-fresh blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-fresh code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-subtle);
+  padding: 0.15rem 0.38rem;
+  border-radius: 5px;
+  color: var(--ink-primary);
+}
+
+.prose-fresh pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.prose-fresh pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+.prose-fresh table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  margin: 1rem 0;
+  display: block;
+  overflow-x: auto;
+}
+
+.prose-fresh th,
+.prose-fresh td {
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+
+.prose-fresh th {
+  font-weight: 600;
+  color: var(--ink-secondary);
+  background: var(--bg-sidebar);
+  border-bottom-color: var(--border-strong);
+}
+
+.prose-fresh hr {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 1.5rem 0;
+}
+
+.prose-fresh a {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.prose-fresh strong {
+  font-weight: 600;
+  color: var(--ink-primary);
+}

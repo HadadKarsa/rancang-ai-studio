@@ -1,43 +1,76 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import {
+  Check,
+  Eye,
+  EyeOff,
+  Pencil,
+  Plug,
+  Star,
+  Trash2,
+  AlertCircle,
+  CheckCircle2,
+  KeyRound,
+} from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
+import { Badge, Button, useToast } from '@/components/ui';
+import { useAppShell } from '@/components/AppShellContext';
+import { cn } from '@/lib/cn';
 
-/* ── Types (mirror forge's /api/v1) ───────────────────────────────── */
 type ProviderId = 'openai' | 'anthropic' | 'google' | 'groq' | 'openrouter' | 'ollama' | 'custom';
+
 interface CatalogEntry {
-  id: ProviderId; label: string; authStyle: 'api-key' | 'subscription' | 'none';
-  keyPrefix: string; defaultBaseUrl: string | null; needsBaseUrl: boolean;
-  suggestedModels: string[]; docsUrl: string;
-}
-interface Credential {
-  id: string; provider: ProviderId; label: string; keyLast4: string;
-  baseUrl: string | null; isActive: boolean; isValid: boolean | null;
-  lastValidatedAt: string | null; createdAt: string;
-}
-interface Preset {
-  id: string; name: string; provider: ProviderId; modelId: string;
-  baseUrl: string | null; isDefault: boolean;
-}
-interface TestResult {
-  ok: boolean; reason?: string; models?: string[]; latencyMs?: number;
+  id: ProviderId;
+  label: string;
+  authStyle: 'api-key' | 'subscription' | 'none';
+  keyPrefix: string;
+  defaultBaseUrl: string | null;
+  needsBaseUrl: boolean;
+  suggestedModels: string[];
+  docsUrl: string;
 }
 
-const STATUS_ID = {
-  connected: { label: 'TERHUBUNG', cls: 'ok' },
-  none: { label: 'BELUM', cls: '' },
-} as const;
+interface Credential {
+  id: string;
+  provider: ProviderId;
+  label: string;
+  keyLast4: string;
+  baseUrl: string | null;
+  isActive: boolean;
+  isValid: boolean | null;
+  lastValidatedAt: string | null;
+  createdAt: string;
+}
+
+interface Preset {
+  id: string;
+  name: string;
+  provider: ProviderId;
+  modelId: string;
+  baseUrl: string | null;
+  isDefault: boolean;
+}
+
+interface TestResult {
+  ok: boolean;
+  reason?: string;
+  models?: string[];
+  latencyMs?: number;
+}
 
 export default function ModelsPage() {
+  const { toast } = useToast();
+  const { refreshActiveModel } = useAppShell();
+
   const [providers, setProviders] = useState<CatalogEntry[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
-  /* form state */
   const [provider, setProvider] = useState<ProviderId | ''>('');
-  const [mode, setMode] = useState<'subscription' | 'byok'>('subscription');
+  const [mode, setMode] = useState<'subscription' | 'byok'>('byok');
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
@@ -46,9 +79,7 @@ export default function ModelsPage() {
   const [test, setTest] = useState<TestResult | null>(null);
   const [selectedModel, setSelectedModel] = useState('');
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
-  /* edit a saved preset inline */
   const [editing, setEditing] = useState<string | null>(null);
   const [editModel, setEditModel] = useState('');
 
@@ -65,17 +96,21 @@ export default function ModelsPage() {
       setPresets(pre.presets);
       setState('ready');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal memuat pengaturan');
+      setError(e instanceof ApiError ? e.message : 'Gagal memuat pengaturan model');
       setState('error');
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const entry = providers.find((p) => p.id === provider);
-  const savedCred = provider ? credentials.find((c) => c.provider === provider && c.isActive && c.isValid !== false) : undefined;
-  // BYOK needs a key in the field; subscription mode needs a credential already saved to test.
-  const canTest = provider !== '' && (mode === 'byok' ? apiKey.trim().length > 0 : Boolean(savedCred));
+  const savedCred = provider
+    ? credentials.find((c) => c.provider === provider && c.isActive && c.isValid !== false)
+    : undefined;
+  const canTest =
+    provider !== '' && (mode === 'byok' ? apiKey.trim().length > 0 : Boolean(savedCred));
   const testPassed = test?.ok === true;
   const models = testPassed && test?.models ? test.models : [];
 
@@ -93,9 +128,12 @@ export default function ModelsPage() {
       }
       const r = await api.post<TestResult>('/providers/test', body);
       setTest(r);
+      if (r.ok && r.models && r.models.length > 0) {
+        setSelectedModel(r.models[0] ?? '');
+      }
     } catch (e) {
       if (e instanceof ApiError) setTest({ ok: false, reason: e.message });
-      else setTest({ ok: false, reason: 'Gagal menguji koneksi' });
+      else setTest({ ok: false, reason: 'Gagal menguji koneksi penyedia.' });
     }
     setTesting(false);
   }
@@ -112,29 +150,25 @@ export default function ModelsPage() {
         baseUrl: baseUrl.trim() || undefined,
         test: true,
       });
-      try {
-        await api.post('/settings/presets', {
-          name: label.trim() || entry?.label || provider,
-          provider,
-          credentialId: cred.id,
-          modelId: selectedModel,
-          isDefault: true,
-        });
-      } catch (pe) {
-        throw new Error(
-          pe instanceof ApiError
-            ? `Kredensial tersimpan, tetapi preset gagal dibuat: ${pe.message}`
-            : 'Kredensial tersimpan, tetapi preset gagal dibuat.',
-        );
-      }
-      setSaved(true);
+      await api.post('/settings/presets', {
+        name: label.trim() || entry?.label || provider,
+        provider,
+        credentialId: cred.id,
+        modelId: selectedModel,
+        isDefault: true,
+      });
+      toast({
+        tone: 'success',
+        title: 'Kredensial dan preset tersimpan',
+        description: `Model default sekarang ${selectedModel}.`,
+      });
       setApiKey('');
       setLabel('');
       setBaseUrl('');
       setTest(null);
       setSelectedModel('');
       await load();
-      setTimeout(() => setSaved(false), 2000);
+      refreshActiveModel();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal menyimpan kredensial');
     }
@@ -145,7 +179,9 @@ export default function ModelsPage() {
     setError(null);
     try {
       await api.delete(`/settings/credentials?id=${id}&mode=soft`);
+      toast({ tone: 'info', title: 'Kredensial dihapus' });
       await load();
+      refreshActiveModel();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Gagal menghapus kredensial');
     }
@@ -156,7 +192,9 @@ export default function ModelsPage() {
     try {
       await api.patch(`/settings/presets?id=${id}`, { modelId: editModel.trim() });
       setEditing(null);
+      toast({ tone: 'success', title: 'Model preset diperbarui' });
       await load();
+      refreshActiveModel();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Gagal memperbarui preset');
     }
@@ -166,7 +204,9 @@ export default function ModelsPage() {
     setError(null);
     try {
       await api.delete(`/settings/presets?id=${id}`);
+      toast({ tone: 'info', title: 'Preset dihapus' });
       await load();
+      refreshActiveModel();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Gagal menghapus preset');
     }
@@ -175,159 +215,307 @@ export default function ModelsPage() {
   async function makeDefault(id: string) {
     try {
       await api.patch(`/settings/presets?id=${id}`, { isDefault: true });
+      toast({ tone: 'success', title: 'Preset default diperbarui' });
       await load();
+      refreshActiveModel();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Gagal menjadikan default');
     }
   }
 
-  if (state === 'loading') return <div className="mono muted" style={{ padding: 40 }}>memuat…</div>;
+  if (state === 'loading') {
+    return (
+      <div className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
+        <div className="h-7 w-40 rounded-lg bg-subtle animate-pulse" />
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-20 rounded-xl border border-line bg-surface animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="pg-models">
-      <header className="head">
-        <h1>Models</h1>
-        <p className="muted">Pilih penyedia dan model AI untuk seluruh studio — langganan yang sudah ada, atau kunci sendiri.</p>
+    <div className="mx-auto max-w-5xl space-y-8 px-5 py-7 sm:px-8">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Models dan kredensial</h1>
+        <p className="text-sm text-ink-2">
+          Pilih penyedia AI dan model default untuk wawancara serta penulisan spesifikasi di seluruh
+          studio.
+        </p>
       </header>
 
-      {error && <div className="alert" role="alert">{error}</div>}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 rounded-xl border border-danger/35 bg-danger-soft px-4 py-3 text-sm text-danger-ink"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
 
-      {/* Three lighter sections instead of one 3-step card: each step is its
-          own block, so a long form reads as a sequence rather than a wall. */}
-      <form className="form" onSubmit={(e) => { e.preventDefault(); if (testPassed) void save(); }}>
-        {/* 1 — provider */}
-        <section>
-          <h2 className="step mono"><span>1</span> Pilih penyedia</h2>
-          <div className="prov-grid">
+      <form
+        className="space-y-6"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (testPassed) void save();
+        }}
+      >
+        {/* Step 1 */}
+        <section className="rounded-xl border border-line bg-surface p-5 shadow-panel">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-subtle font-mono text-xs font-semibold text-ink">
+              1
+            </span>
+            <h2 className="text-base font-semibold text-ink">Pilih penyedia</h2>
+          </div>
+
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {providers.map((p) => {
-              const cred = credentials.find((c) => c.provider === p.id && c.isActive && c.isValid !== false);
-              const st = cred ? STATUS_ID.connected : STATUS_ID.none;
+              const cred = credentials.find(
+                (c) => c.provider === p.id && c.isActive && c.isValid !== false,
+              );
+              const selected = provider === p.id;
               return (
                 <button
                   key={p.id}
                   type="button"
-                  className={`prov ${provider === p.id ? 'on' : ''}`}
-                  aria-pressed={provider === p.id}
-                  onClick={() => { setProvider(p.id); setTest(null); setMode(p.authStyle === 'api-key' ? 'byok' : 'subscription'); }}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setProvider(p.id);
+                    setTest(null);
+                    setMode(p.authStyle === 'api-key' ? 'byok' : 'subscription');
+                  }}
+                  className={cn(
+                    'flex min-h-14 items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-left transition-colors',
+                    selected
+                      ? 'border-accent bg-accent-soft/60 text-ink'
+                      : 'border-line bg-canvas/50 text-ink hover:border-line-strong hover:bg-subtle/60',
+                  )}
                 >
-                  <span className="pname">{p.label}</span>
-                  <span className={`pill ${st.cls}`}><span className="dot" />{st.label}</span>
+                  <span className="text-sm font-medium text-ink">{p.label}</span>
+                  <Badge tone={cred ? 'ready' : 'neutral'} dot>
+                    {cred ? 'Terhubung' : 'Belum'}
+                  </Badge>
                 </button>
               );
             })}
           </div>
         </section>
 
-        {/* 2 — key */}
+        {/* Step 2 */}
         {entry && (
-          <section>
-            <h2 className="step mono"><span>2</span> Kunci akses</h2>
-            <div className="modes" role="radiogroup" aria-label="Cara mengakses">
+          <section className="rounded-xl border border-line bg-surface p-5 shadow-panel space-y-4">
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-subtle font-mono text-xs font-semibold text-ink">
+                2
+              </span>
+              <h2 className="text-base font-semibold text-ink">Kunci akses ({entry.label})</h2>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Cara mengakses">
               {entry.authStyle !== 'api-key' && (
-                <label className={`mode ${mode === 'subscription' ? 'on' : ''}`}>
-                  <input type="radio" name="mode" checked={mode === 'subscription'} onChange={() => setMode('subscription')} />
+                <label
+                  className={cn(
+                    'flex items-start gap-3 rounded-xl border p-3.5 transition-colors',
+                    mode === 'subscription'
+                      ? 'border-accent bg-accent-soft/50'
+                      : 'border-line bg-canvas/40 hover:border-line-strong',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="mode"
+                    checked={mode === 'subscription'}
+                    onChange={() => setMode('subscription')}
+                    className="mt-1 accent-[var(--accent)]"
+                  />
                   <div>
-                    <strong>Pakai langganan yang ada</strong>
-                    <p className="muted small">Masuk dengan akun {entry.label} yang sudah kamu bayar.</p>
+                    <span className="block text-sm font-medium text-ink">
+                      Pakai kredensial tersimpan
+                    </span>
+                    <span className="block text-xs text-ink-2 mt-0.5">
+                      Gunakan akun {entry.label} yang sudah terhubung sebelumnya.
+                    </span>
                   </div>
                 </label>
               )}
-              <label className={`mode ${mode === 'byok' ? 'on' : ''}`}>
-                <input type="radio" name="mode" checked={mode === 'byok'} onChange={() => setMode('byok')} />
+
+              <label
+                className={cn(
+                  'flex items-start gap-3 rounded-xl border p-3.5 transition-colors',
+                  mode === 'byok'
+                    ? 'border-accent bg-accent-soft/50'
+                    : 'border-line bg-canvas/40 hover:border-line-strong',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="mode"
+                  checked={mode === 'byok'}
+                  onChange={() => setMode('byok')}
+                  className="mt-1 accent-[var(--accent)]"
+                />
                 <div>
-                  <strong>BYOK — bawa kunci sendiri</strong>
-                  <p className="muted small">Tempel kunci API; bayar pemakaian langsung ke penyedia.</p>
+                  <span className="block text-sm font-medium text-ink">
+                    BYOK: bawa kunci API sendiri
+                  </span>
+                  <span className="block text-xs text-ink-2 mt-0.5">
+                    Kunci disimpan terenkripsi; pemakaian ditagih langsung oleh penyedia.
+                  </span>
                 </div>
               </label>
             </div>
 
-            {mode === 'byok' && (
-              <div className="byok">
-                <div className="field">
-                  <label htmlFor="k">API key</label>
-                  <div className="key-wrap">
+            {mode === 'byok' ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2 space-y-1.5">
+                  <label htmlFor="api-key-input" className="block text-sm font-medium text-ink">
+                    API key
+                  </label>
+                  <div className="flex gap-2">
                     <input
-                      id="k"
+                      id="api-key-input"
                       type={showKey ? 'text' : 'password'}
                       autoComplete="off"
-                      placeholder={`${entry.keyPrefix}…`}
+                      placeholder={`${entry.keyPrefix}...`}
                       value={apiKey}
-                      onChange={(e) => { setApiKey(e.target.value); setTest(null); }}
+                      onChange={(e) => {
+                        setApiKey(e.target.value);
+                        setTest(null);
+                      }}
+                      className="flex-1 min-h-11 rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
                     />
-                    <button
-                      type="button"
-                      className="key-eye"
+                    <Button
+                      variant="secondary"
                       aria-label={showKey ? 'Sembunyikan kunci' : 'Tampilkan kunci'}
                       aria-pressed={showKey}
                       onClick={() => setShowKey((v) => !v)}
                     >
-                      {showKey ? 'Sembunyikan' : 'Tampilkan'}
-                    </button>
+                      {showKey ? (
+                        <EyeOff className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Eye className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      <span className="hidden sm:inline">{showKey ? 'Sembunyikan' : 'Tampilkan'}</span>
+                    </Button>
                   </div>
                 </div>
-                <div className="field">
-                  <label htmlFor="u">Base URL <span className="muted">(opsional)</span></label>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="base-url-input" className="block text-sm font-medium text-ink">
+                    Base URL <span className="font-normal text-ink-3">(opsional)</span>
+                  </label>
                   <input
-                    id="u"
+                    id="base-url-input"
                     placeholder={entry.defaultBaseUrl ?? 'http://localhost:11434/v1'}
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
+                    className="w-full min-h-11 rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
                   />
-                  <span className="help">{entry.needsBaseUrl ? 'Wajib untuk penyedia ini.' : 'Kosongkan untuk memakai alamat bawaan penyedia.'}</span>
+                  <p className="text-xs text-ink-3">
+                    {entry.needsBaseUrl
+                      ? 'Wajib diisi untuk penyedia ini.'
+                      : 'Kosongkan untuk memakai endpoint bawaan penyedia.'}
+                  </p>
                 </div>
-                <div className="field">
-                  <label htmlFor="l">Label <span className="muted">(opsional)</span></label>
-                  <input id="l" placeholder={entry.label} value={label} onChange={(e) => setLabel(e.target.value)} />
+
+                <div className="space-y-1.5">
+                  <label htmlFor="label-input" className="block text-sm font-medium text-ink">
+                    Label <span className="font-normal text-ink-3">(opsional)</span>
+                  </label>
+                  <input
+                    id="label-input"
+                    placeholder={entry.label}
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    className="w-full min-h-11 rounded-lg border border-line-strong bg-canvas px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+                  />
                 </div>
               </div>
-            )}
-
-            {mode === 'subscription' && (
-              <p className="muted small note">
+            ) : (
+              <p className="rounded-lg border border-line bg-canvas px-3.5 py-2.5 text-sm text-ink-2">
                 {savedCred
-                  ? 'Memakai kredensial yang sudah tersimpan untuk penyedia ini. Uji dulu — tombol simpan terbuka setelah lolos.'
-                  : 'Belum ada kredensial tersimpan untuk penyedia ini. Pilih BYOK untuk menguji dengan kunci API milikmu.'}
+                  ? 'Memakai kredensial tersimpan untuk penyedia ini. Uji koneksi dulu agar daftar model muncul.'
+                  : 'Belum ada kredensial tersimpan untuk penyedia ini. Pilih BYOK untuk menguji kunci API baru.'}
               </p>
             )}
           </section>
         )}
 
-        {/* 3 — test + save */}
+        {/* Step 3 */}
         {entry && (
-          <section>
-            <h2 className="step mono"><span>3</span> Uji &amp; simpan</h2>
-            <div className="row">
-              <button type="button" className="btn" onClick={() => void runTest()} disabled={!canTest || testing}>
-                {testing ? 'Menguji…' : 'Uji koneksi'}
-              </button>
-              <button type="submit" className="btn primary" disabled={!testPassed || !selectedModel || saving}>
-                {saving ? 'Menyimpan…' : saved ? 'Tersimpan ✓' : selectedModel ? 'Simpan kredensial' : 'Simpan — pilih model dulu'}
-              </button>
+          <section className="rounded-xl border border-line bg-surface p-5 shadow-panel space-y-4">
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-subtle font-mono text-xs font-semibold text-ink">
+                3
+              </span>
+              <h2 className="text-base font-semibold text-ink">Uji koneksi dan simpan</h2>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button variant="secondary" onClick={() => void runTest()} disabled={!canTest || testing}>
+                <Plug className="h-4 w-4" aria-hidden="true" />
+                {testing ? 'Menguji koneksi...' : 'Uji koneksi'}
+              </Button>
+              <Button type="submit" variant="primary" disabled={!testPassed || !selectedModel || saving}>
+                <Check className="h-4 w-4" aria-hidden="true" />
+                {saving
+                  ? 'Menyimpan...'
+                  : selectedModel
+                    ? 'Simpan dan jadikan default'
+                    : 'Pilih model setelah uji berhasil'}
+              </Button>
             </div>
 
             {test && (
-              <div className={`result ${test.ok ? 'pass' : 'fail'}`} role="status">
-                <span className={`lamp ${test.ok ? 'ok' : 'err'}`} aria-hidden="true" />
+              <div
+                role="status"
+                className={cn(
+                  'rounded-xl border p-4 text-sm',
+                  test.ok
+                    ? 'border-ready/30 bg-ready-soft/60'
+                    : 'border-danger/35 bg-danger-soft',
+                )}
+              >
                 {test.ok ? (
-                  <div className="res-body">
-                    <strong>Koneksi berhasil{test.latencyMs ? ` · ${test.latencyMs} ms` : ''}</strong>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 font-medium text-ready-ink">
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      <span>
+                        Koneksi berhasil
+                        {test.latencyMs ? ` (${test.latencyMs} ms)` : ''}
+                      </span>
+                    </div>
                     {models.length === 0 ? (
-                      <p className="muted small">Tidak ada model terdeteksi.</p>
+                      <p className="text-xs text-ink-2">Tidak ada daftar model yang dikembalikan.</p>
                     ) : (
-                      <fieldset className="pick">
-                        <legend className="small muted">Pilih model untuk preset utama</legend>
-                        <div role="listbox" aria-label="Model terdeteksi" className="pick-list">
+                      <fieldset className="space-y-2">
+                        <legend className="text-xs font-medium text-ink-2">
+                          Pilih model untuk preset utama
+                        </legend>
+                        <div className="grid max-h-56 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
                           {models.map((m) => (
-                            <label key={m} className={`pick-item ${selectedModel === m ? 'on' : ''}`}>
+                            <label
+                              key={m}
+                              className={cn(
+                                'flex min-h-10 items-center gap-2.5 rounded-lg border px-3 py-1.5 font-mono text-xs transition-colors',
+                                selectedModel === m
+                                  ? 'border-accent bg-surface text-ink font-medium'
+                                  : 'border-line bg-surface/70 text-ink-2 hover:border-line-strong hover:text-ink',
+                              )}
+                            >
                               <input
                                 type="radio"
                                 name="model"
                                 value={m}
                                 checked={selectedModel === m}
                                 onChange={() => setSelectedModel(m)}
+                                className="accent-[var(--accent)]"
                               />
-                              <span className="mono pick-name">{m}</span>
-                              <span className="pick-mark" aria-hidden="true" />
+                              <span className="truncate">{m}</span>
                             </label>
                           ))}
                         </div>
@@ -335,7 +523,13 @@ export default function ModelsPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="res-body"><strong>Gagal.</strong> <span className="muted">{test.reason}</span></div>
+                  <div className="flex items-start gap-2 text-danger-ink">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <div>
+                      <span className="font-medium">Pengujian gagal. </span>
+                      <span>{test.reason}</span>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -343,72 +537,148 @@ export default function ModelsPage() {
         )}
       </form>
 
-      {/* saved presets — readable rows with edit / default / delete */}
-      <section className="list">
-        <h2 className="mono h">PRESET TERSIMPAN</h2>
-        {presets.length === 0 ? (
-          <p className="muted small">Belum ada preset. Simpan satu di atas untuk mulai membuat dokumen.</p>
-        ) : (
-          <ul>
-            {presets.map((p) => (
-              <li key={p.id} className="card cred">
-                {editing === p.id ? (
-                  <div className="edit-row">
-                    <div className="field">
-                      <label htmlFor={`m-${p.id}`}>Model</label>
-                      <input
-                        id={`m-${p.id}`}
-                        className="mono"
-                        value={editModel}
-                        onChange={(e) => setEditModel(e.target.value)}
-                        autoFocus
-                      />
+      {/* Saved Presets & Credentials */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold text-ink">Preset tersimpan</h2>
+          {presets.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-line-strong bg-surface/60 p-5 text-sm text-ink-2">
+              Belum ada preset tersimpan. Hubungkan satu penyedia di atas untuk mulai menulis
+              spesifikasi.
+            </div>
+          ) : (
+            <ul className="space-y-2.5">
+              {presets.map((p) => (
+                <li
+                  key={p.id}
+                  className="rounded-xl border border-line bg-surface p-4 shadow-xs"
+                >
+                  {editing === p.id ? (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label htmlFor={`edit-model-${p.id}`} className="text-xs font-medium text-ink-2">
+                          ID Model
+                        </label>
+                        <input
+                          id={`edit-model-${p.id}`}
+                          value={editModel}
+                          onChange={(e) => setEditModel(e.target.value)}
+                          autoFocus
+                          className="w-full min-h-10 rounded-lg border border-line-strong bg-canvas px-3 py-1.5 font-mono text-sm text-ink focus:border-accent focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
+                          Batal
+                        </Button>
+                        <Button size="sm" variant="primary" onClick={() => void savePresetModel(p.id)}>
+                          Simpan
+                        </Button>
+                      </div>
                     </div>
-                    <div className="right">
-                      <button type="button" className="btn ghost" onClick={() => void savePresetModel(p.id)}>Simpan</button>
-                      <button type="button" className="btn ghost" onClick={() => setEditing(null)}>Batal</button>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-ink">{p.name}</span>
+                          {p.isDefault && (
+                            <Badge tone="ready" dot>
+                              Default
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="mt-0.5 truncate font-mono text-xs text-ink-3">
+                          {p.provider} · {p.modelId}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {!p.isDefault && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => void makeDefault(p.id)}
+                            title="Jadikan preset default"
+                          >
+                            <Star className="h-3.5 w-3.5" aria-hidden="true" />
+                            Default
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Ubah model ${p.name}`}
+                          onClick={() => {
+                            setEditing(p.id);
+                            setEditModel(p.modelId);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Hapus preset ${p.name}`}
+                          onClick={() => void removePreset(p.id)}
+                          className="text-danger-ink hover:bg-danger-soft"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold text-ink">Kredensial API tersimpan</h2>
+          {credentials.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-line-strong bg-surface/60 p-5 text-sm text-ink-2">
+              Belum ada kredensial API tersimpan.
+            </div>
+          ) : (
+            <ul className="space-y-2.5">
+              {credentials.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface p-4 shadow-xs"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-subtle text-ink-2">
+                      <KeyRound className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-ink">{c.label}</p>
+                      <p className="font-mono text-xs text-ink-3">
+                        {c.provider} · ····{c.keyLast4}
+                      </p>
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="cred-main">
-                      <strong>{p.name}</strong>
-                      {p.isDefault && <span className="pill ok"><span className="dot" />default</span>}
-                      <span className="mono muted small"> · {p.provider} · {p.modelId}</span>
-                    </div>
-                    <div className="right">
-                      {!p.isDefault && <button type="button" className="btn ghost sm" onClick={() => void makeDefault(p.id)}>Jadikan default</button>}
-                      <button type="button" className="btn ghost sm" onClick={() => { setEditing(p.id); setEditModel(p.modelId); }}>Edit</button>
-                      <button type="button" className="btn ghost sm" onClick={() => void removePreset(p.id)}>Hapus</button>
-                    </div>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="list">
-        <h2 className="mono h">KREDENSIAL TERSIMPAN</h2>
-        {credentials.length === 0 && <p className="muted small">Belum ada. Simpan satu di atas untuk mulai membuat dokumen.</p>}
-        <ul>
-          {credentials.map((c) => (
-            <li key={c.id} className="card cred">
-              <div className="cred-main">
-                <strong>{c.label}</strong>
-                <span className="mono muted small"> · {c.provider} · ····{c.keyLast4}</span>
-              </div>
-              <div className="right">
-                <span className={`pill ${c.isValid === true ? 'ok' : c.isValid === false ? 'err' : ''}`}>
-                  <span className="dot" />{c.isValid === true ? 'valid' : c.isValid === false ? 'invalid' : 'belum diuji'}
-                </span>
-                <button type="button" className="btn ghost sm" onClick={() => void removeCredential(c.id)}>Hapus</button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      tone={c.isValid === true ? 'ready' : c.isValid === false ? 'danger' : 'neutral'}
+                      dot
+                    >
+                      {c.isValid === true ? 'Valid' : c.isValid === false ? 'Invalid' : 'Belum diuji'}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Hapus kredensial ${c.label}`}
+                      onClick={() => void removeCredential(c.id)}
+                      className="text-danger-ink hover:bg-danger-soft"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
