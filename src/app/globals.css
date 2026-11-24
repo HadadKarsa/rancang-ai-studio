@@ -145,7 +145,7 @@ input, textarea, select { font: inherit; color: inherit; }
 }
 .field input:focus, .field textarea:focus { border-color: var(--ink); }
 .field input::placeholder, .field textarea::placeholder { color: var(--ink-3); }
-.field .help { font-size: 11.5px; color: var(--ink-2); }
+.field .help { font-size: 11px; color: var(--ink-2); }
 
 .card {
   background: var(--card);
@@ -533,12 +533,12 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-models .step { font-size: 11px; letter-spacing: 0.1em; color: var(--ink-2); display: flex; align-items: center; gap: 10px; }
 .pg-models .step span { width: 22px; height: 22px; border-radius: 50%; background: var(--well); color: var(--ink); display: grid; place-items: center; font-size: 10px; font-weight: 700; }
 .pg-models .prov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 12px; }
-.pg-models .prov { border: 1.5px solid var(--line-2); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; background: var(--card); text-align: left; }
+.pg-models .prov { border: 1px solid var(--line-2); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; background: var(--card); text-align: left; }
 .pg-models .prov:hover { border-color: var(--ink); }
 .pg-models .prov.on { border-color: var(--ink); background: var(--paper); box-shadow: inset 0 0 0 1px var(--ink); }
 .pg-models .pname { font-weight: 700; font-size: 14px; }
 .pg-models .modes { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-.pg-models .mode { flex: 1; min-width: 240px; border: 1.5px solid var(--line-2); border-radius: 12px; padding: 14px 16px; display: flex; gap: 10px; cursor: pointer; background: var(--card); }
+.pg-models .mode { flex: 1; min-width: 240px; border: 1px solid var(--line-2); border-radius: 12px; padding: 14px 16px; display: flex; gap: 10px; cursor: pointer; background: var(--card); }
 .pg-models .mode.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 /* /models — diagnostic surface. Lamps and result borders carry the state;
    the picker itself stays ink, never vermilion: vermilion means wet ink. */
@@ -548,7 +548,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .pg-models .byok { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
 .pg-models .note { margin-top: 12px; }
 .pg-models .row { display: flex; gap: 10px; margin-top: 12px; }
-.pg-models .result { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 13.5px; }
+.pg-models .result { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 13.5px; }
 .pg-models .result.pass { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 6%, var(--card)); }
 .pg-models .result.fail { border-color: var(--vermilion); background: var(--vermilion-wash); }
 .pg-models .lamp { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex: none; }
@@ -1067,7 +1067,7 @@ input, textarea, select { font: inherit; color: inherit; }
   background: var(--vermilion); vertical-align: -2px;
   animation: pulse 1s steps(2, start) infinite;
 }
-.pg-write .waiting { color: var(--ink-2); font-size: 11.5px; display: flex; align-items: center; gap: 8px; letter-spacing: 0.04em; }
+.pg-write .waiting { color: var(--ink-2); font-size: 11px; display: flex; align-items: center; gap: 8px; letter-spacing: 0.04em; }
 .pg-write .waiting .caret { height: 12px; width: 6px; }
 
 /* the rule under the sheet while it is being written */
