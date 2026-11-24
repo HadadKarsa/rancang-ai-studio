@@ -170,7 +170,7 @@ export function Rail() {
       </nav>
 
       <footer className="rail-foot">
-        <span className="mono ver">local · v0.1.3</span>
+        <span className="mono ver">local · v0.1.4</span>
         <button
           type="button"
           className="signout"

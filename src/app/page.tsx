@@ -160,7 +160,7 @@ export default function LandingPage() {
         <span>rancang-ai · spec studio</span>
         <nav className="foot-nav">
           <Link href="/docs">Dokumentasi</Link>
-          <span>v0.1.3</span>
+          <span>v0.1.4</span>
         </nav>
       </footer>
     </main>
