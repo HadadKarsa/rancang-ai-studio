@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { api, ApiError } from '@/lib/client/api';
 import { WireframeEditor } from '@/components/WireframeEditor';
 
@@ -30,67 +32,8 @@ interface DocView extends Doc { isLocked?: boolean }
 interface VersionView extends Version { contentMd?: string }
 interface ShareLinkLite { id: string; slug: string; documentId: string | null; revokedAt: string | null }
 
-/* ── Tiny markdown renderer (headings, lists, tables, code, inline) ── */
-function renderMd(md: string): string {
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const inline = (s: string) => esc(s)
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  const lines = md.split('\n');
-  const out: string[] = [];
-  let inCode = false;
-  let listType: 'ul' | 'ol' | null = null;
-  let inTable = false;
-  const closeList = () => { if (listType) { out.push(`</${listType}>`); listType = null; } };
-  const closeTable = () => { if (inTable) { out.push('</tbody></table>'); inTable = false; } };
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? '';
-    if (line.startsWith('```')) {
-      closeList(); closeTable();
-      out.push(inCode ? '</code></pre>' : '<pre><code>');
-      inCode = !inCode;
-      continue;
-    }
-    if (inCode) { out.push(esc(line)); continue; }
-    const h = /^(#{1,4})\s+(.*)$/.exec(line);
-    if (h) {
-      closeList(); closeTable();
-      const lvl = (h[1] ?? '#').length;
-      out.push(`<h${lvl + 1}>${inline(h[2] ?? '')}</h${lvl + 1}>`);
-      continue;
-    }
-    if (/^\s*\|.*\|\s*$/.test(line)) {
-      const cells = line.trim().slice(1, -1).split('|').map((c) => c.trim());
-      if (/^[\s|:-]+$/.test(line)) continue; // separator row
-      if (!inTable) { closeList(); out.push('<table><tbody>'); inTable = true; }
-      out.push(`<tr>${cells.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`);
-      continue;
-    }
-    closeTable();
-    const ul = /^\s*[-*]\s+(.*)$/.exec(line);
-    const ol = /^\s*\d+[.)]\s+(.*)$/.exec(line);
-    if (ul) {
-      if (listType !== 'ul') { closeList(); out.push('<ul>'); listType = 'ul'; }
-      out.push(`<li>${inline(ul[1] ?? '')}</li>`);
-      continue;
-    }
-    if (ol) {
-      if (listType !== 'ol') { closeList(); out.push('<ol>'); listType = 'ol'; }
-      out.push(`<li>${inline(ol[1] ?? '')}</li>`);
-      continue;
-    }
-    closeList();
-    if (line.trim() === '') continue;
-    out.push(`<p>${inline(line)}</p>`);
-  }
-  closeList(); closeTable();
-  if (inCode) out.push('</code></pre>');
-  return out.join('\n');
-}
-
-function bytes(n: number): string {
-  return `${(new TextEncoder().encode(String(n)).length / 1024).toFixed(1)} kB`;
+function bytes(text: string): string {
+  return `${(new TextEncoder().encode(text).length / 1024).toFixed(1)} kB`;
 }
 
 export default function DocPage() {
@@ -114,6 +57,10 @@ export default function DocPage() {
   const [viewingVersion, setViewingVersion] = useState<VersionView | null>(null);
   const [shareLinks, setShareLinks] = useState<ShareLinkLite[]>([]);
   const [lockBusy, setLockBusy] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareNote, setShareNote] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
@@ -136,6 +83,17 @@ export default function DocPage() {
   }, [projectId, type]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // The overflow menu closes on Escape and on a click outside, and returns
+  // focus to its trigger — the same contract as the studio card menu.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [menuOpen]);
 
   async function regenerate() {
     setStreaming(true);
@@ -177,6 +135,29 @@ export default function DocPage() {
     await navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
+  }
+
+  async function createShare() {
+    setShareBusy(true);
+    setError(null);
+    setShareNote(null);
+    try {
+      const r = await api.post<{ link: { id: string; slug: string }; url: string }>(
+        `/projects/${projectId}/share`,
+        { scope: 'document', documentId: doc?.id, access: 'public' },
+      );
+      const full = `${window.location.origin}${r.url}`;
+      try {
+        await navigator.clipboard.writeText(full);
+        setShareNote('Tautan disalin ke papan klip.');
+      } catch {
+        setShareNote(`Tautan dibuat: ${full}`);
+      }
+      await loadShares();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Gagal membuat tautan');
+    }
+    setShareBusy(false);
   }
 
   async function saveToLibrary() {
@@ -245,7 +226,7 @@ export default function DocPage() {
         <div className="crumbs">
           <Link href="/studio" className="mono muted">Studio</Link>
           <span className="mono muted">/</span>
-          <span className="mono muted pname">{project?.name}</span>
+          <Link href={`/projects/${projectId}`} className="mono muted pname">{project?.name}</Link>
         </div>
         <nav className="tabs" aria-label="Dokumen">
           {ordered.map((t) => {
@@ -279,19 +260,17 @@ export default function DocPage() {
                   {doc?.lastGeneratedAt ? ` · ${new Date(doc.lastGeneratedAt).toLocaleString('id-ID')}` : ''}
                 </div>
               </div>
+              {/* One primary action, one download group, everything else
+                  behind the overflow menu: five equal buttons made the
+                  reader choose before reading. */}
               <div className="acts">
-                <button className="btn ghost" onClick={() => void copyMd()}>{copied ? 'Tersalin ✓' : 'Salin'}</button>
                 <button
-                  className="btn ghost"
-                  onClick={() => void toggleLock()}
-                  disabled={lockBusy}
-                  aria-pressed={Boolean(doc?.isLocked)}
-                  title="Cegah penulisan ulang menimpa dokumen ini"
+                  className="btn primary"
+                  onClick={() => void regenerate()}
+                  disabled={streaming || Boolean(doc?.isLocked)}
+                  title={doc?.isLocked ? 'Dokumen terkunci — buka kunci untuk menulis ulang' : undefined}
                 >
-                  {doc?.isLocked ? 'Buka kunci' : 'Kunci dokumen'}
-                </button>
-                <button className="btn ghost" onClick={() => void saveToLibrary()} disabled={savingLib || !content}>
-                  {libSaved ? 'Tersimpan ✓' : savingLib ? 'Menyimpan…' : 'Simpan ke library'}
+                  {streaming ? 'Menulis…' : 'Tulis ulang'}
                 </button>
                 <div className="dl" role="group" aria-label="Unduh proyek">
                   <span className="dl-label mono">Unduh</span>
@@ -307,14 +286,36 @@ export default function DocPage() {
                     </a>
                   ))}
                 </div>
-                <button
-                  className="btn primary"
-                  onClick={() => void regenerate()}
-                  disabled={streaming || Boolean(doc?.isLocked)}
-                  title={doc?.isLocked ? 'Dokumen terkunci — buka kunci untuk menulis ulang' : undefined}
-                >
-                  {streaming ? 'Menulis…' : 'Tulis ulang'}
-                </button>
+                <div className="more-wrap" ref={menuRef}>
+                  <button
+                    type="button"
+                    className="btn ghost more-btn"
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    aria-label="Aksi lain"
+                    onClick={() => setMenuOpen((v) => !v)}
+                  >
+                    ⋯
+                  </button>
+                  {menuOpen && (
+                    <div className="more-menu" role="menu" aria-label="Aksi dokumen">
+                      <button type="button" role="menuitem" className="more-item"
+                        onClick={() => { setMenuOpen(false); void copyMd(); }}>
+                        {copied ? 'Tersalin ✓' : 'Salin markdown'}
+                      </button>
+                      <button type="button" role="menuitem" className="more-item"
+                        onClick={() => { setMenuOpen(false); void saveToLibrary(); }}
+                        disabled={savingLib || !content}>
+                        {libSaved ? 'Tersimpan ✓' : savingLib ? 'Menyimpan…' : 'Simpan ke library'}
+                      </button>
+                      <button type="button" role="menuitem" className="more-item"
+                        onClick={() => { setMenuOpen(false); void toggleLock(); }}
+                        disabled={lockBusy}>
+                        {doc?.isLocked ? 'Buka kunci dokumen' : 'Kunci dokumen'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </header>
             {type === 'wireframe' ? (
@@ -331,11 +332,11 @@ export default function DocPage() {
                     <button className="linkbtn" onClick={() => setViewingVersion(null)}>kembali ke versi terbaru</button>
                   </div>
                 )}
-                <div
-                  className="body"
-                  ref={bodyRef}
-                  dangerouslySetInnerHTML={{ __html: renderMd(viewingVersion?.contentMd ?? content) }}
-                />
+                <div className="body" ref={bodyRef}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {viewingVersion?.contentMd ?? content}
+                  </ReactMarkdown>
+                </div>
               </>
             )}
             {streaming && <div className="wet mono"><span className="cursor" /> {streamTail.slice(-40)}</div>}
@@ -350,7 +351,7 @@ export default function DocPage() {
                   <div><dt>Provider</dt><dd className="mono">{latest.provider ?? '—'}</dd></div>
                   <div><dt>Token</dt><dd className="mono">{latest.promptTokens ?? '—'} + {latest.completionTokens ?? '—'}</dd></div>
                   <div><dt>Durasi</dt><dd className="mono">{latest.generationMs ? `${(latest.generationMs / 1000).toFixed(1)} dtk` : '—'}</dd></div>
-                  <div><dt>Ukuran</dt><dd className="mono">{bytes(content.length)}</dd></div>
+                  <div><dt>Ukuran</dt><dd className="mono">{bytes(content)}</dd></div>
                 </dl>
               ) : <p className="muted small">Belum pernah dibuat.</p>}
             </section>
@@ -379,25 +380,10 @@ export default function DocPage() {
             <section className="card pad">
               <h3 className="mono">BAGIKAN</h3>
               <p className="muted small">Bagikan dokumen ini sebagai tautan baca-saja.</p>
-              <button
-                className="btn"
-                onClick={async () => {
-                  try {
-                    const r = await api.post<{ link: { id: string; slug: string }; url: string }>(
-                      `/projects/${projectId}/share`,
-                      { scope: 'document', documentId: doc?.id, access: 'public' },
-                    );
-                    const full = `${window.location.origin}${r.url}`;
-                    await navigator.clipboard.writeText(full);
-                    await loadShares();
-                    alert(`Tautan disalin: ${full}`);
-                  } catch (e) {
-                    setError(e instanceof ApiError ? e.message : 'Gagal membuat tautan');
-                  }
-                }}
-              >
-                Buat tautan bagikan
+              <button className="btn" onClick={() => void createShare()} disabled={shareBusy}>
+                {shareBusy ? 'Membuat…' : 'Buat tautan bagikan'}
               </button>
+              {shareNote && <p className="share-note mono" role="status">{shareNote}</p>}
               {activeShares.length > 0 && (
                 <ul className="shares">
                   {activeShares.map((l) => (

@@ -192,7 +192,9 @@ export default function ModelsPage() {
 
       {error && <div className="alert" role="alert">{error}</div>}
 
-      <form className="card form" onSubmit={(e) => { e.preventDefault(); if (testPassed) void save(); }}>
+      {/* Three lighter sections instead of one 3-step card: each step is its
+          own block, so a long form reads as a sequence rather than a wall. */}
+      <form className="form" onSubmit={(e) => { e.preventDefault(); if (testPassed) void save(); }}>
         {/* 1 — provider */}
         <section>
           <h2 className="step mono"><span>1</span> Pilih penyedia</h2>

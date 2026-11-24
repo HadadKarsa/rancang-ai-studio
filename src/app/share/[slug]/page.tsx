@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { api, ApiError } from '@/lib/client/api';
 
 /* ── Types (mirror forge's /api/v1/share/:slug) ────────────────────── */
@@ -17,33 +19,15 @@ const DOC_LABEL: Record<string, string> = {
   api: 'API', tasks: 'Tugas', memory: 'Memori', wireframe: 'Wireframe',
 };
 
-/* Same tiny renderer as the studio viewer — one source of truth for proof style. */
-function renderMd(md: string): string {
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const inline = (s: string) => esc(s)
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  const out: string[] = [];
-  let inCode = false;
-  let listType: 'ul' | 'ol' | null = null;
-  const closeList = () => { if (listType) { out.push(`</${listType}>`); listType = null; } };
-  for (const line of md.split('\n')) {
-    if (line.startsWith('```')) { closeList(); out.push(inCode ? '</code></pre>' : '<pre><code>'); inCode = !inCode; continue; }
-    if (inCode) { out.push(esc(line)); continue; }
-    const h = /^(#{1,4})\s+(.*)$/.exec(line);
-    if (h) { closeList(); const lvl = (h[1] ?? '#').length; out.push(`<h${lvl + 1}>${inline(h[2] ?? '')}</h${lvl + 1}>`); continue; }
-    const ul = /^\s*[-*]\s+(.*)$/.exec(line);
-    const ol = /^\s*\d+[.)]\s+(.*)$/.exec(line);
-    if (ul) { if (listType !== 'ul') { closeList(); out.push('<ul>'); listType = 'ul'; } out.push(`<li>${inline(ul[1] ?? '')}</li>`); continue; }
-    if (ol) { if (listType !== 'ol') { closeList(); out.push('<ol>'); listType = 'ol'; } out.push(`<li>${inline(ol[1] ?? '')}</li>`); continue; }
-    closeList();
-    if (line.trim() === '') continue;
-    out.push(`<p>${inline(line)}</p>`);
-  }
-  closeList();
-  if (inCode) out.push('</code></pre>');
-  return out.join('\n');
+/* The public reader renders with ReactMarkdown + GFM, the same renderer the
+   studio viewer uses: a client-facing page that silently dropped every table
+   in a PRD was the worst place to keep a hand-rolled parser. */
+function Markdown({ md }: { md: string }) {
+  return (
+    <div className="body">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{md}</ReactMarkdown>
+    </div>
+  );
 }
 
 export default function SharePage() {
@@ -96,12 +80,6 @@ export default function SharePage() {
           {error && <div className="alert" role="alert">{error}</div>}
           <button type="submit" className="btn primary">Buka</button>
         </form>
-        <style jsx>{`
-          .gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-          .card { width: min(400px, 100%); padding: 30px; display: flex; flex-direction: column; gap: 14px; }
-          h1 { font-size: 21px; letter-spacing: -0.01em; }
-          .alert { border: 1.5px solid var(--vermilion); background: var(--vermilion-wash); color: var(--vermilion-ink); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
-        `}</style>
       </main>
     );
   }
@@ -113,11 +91,6 @@ export default function SharePage() {
           <h1>Tautan tidak tersedia.</h1>
           <p className="muted">{error ?? 'Tautan ini sudah kedaluwarsa atau dicabut.'}</p>
         </div>
-        <style jsx>{`
-          .gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-          .card { width: min(420px, 100%); padding: 30px; }
-          h1 { font-size: 21px; }
-        `}</style>
       </main>
     );
   }
@@ -130,23 +103,8 @@ export default function SharePage() {
         </header>
         <article className="sheet card">
           <h1>{data.document.title}</h1>
-          <div className="body" dangerouslySetInnerHTML={{ __html: renderMd(data.content) }} />
+          <Markdown md={data.content} />
         </article>
-        <style jsx global>{`
-          .pub { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; display: flex; flex-direction: column; gap: 22px; }
-          .top { padding-bottom: 6px; }
-          .brand { font-weight: 800; font-size: 17px; display: flex; flex-direction: column; }
-          .brand small { font: 600 9.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
-          .sheet { padding: 30px 32px; }
-          .sheet h1 { font-size: 24px; letter-spacing: -0.02em; margin-bottom: 18px; }
-          .body :global(h2) { font-size: 18px; margin: 24px 0 10px; }
-          .body :global(h3) { font-size: 15px; margin: 18px 0 8px; }
-          .body :global(p) { margin: 8px 0; font-size: 14.5px; }
-          .body :global(ul), .body :global(ol) { margin: 8px 0 8px 22px; font-size: 14.5px; }
-          .body :global(code) { font: 12.5px var(--mono); background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
-          .body :global(pre) { background: var(--ink); color: var(--paper); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
-          .body :global(pre code) { background: none; border: none; color: inherit; }
-        `}</style>
       </main>
     );
   }
@@ -184,37 +142,9 @@ export default function SharePage() {
       {active && (
         <article className="sheet card">
           <h2>{data.documents.find((d) => d.id === active)?.title}</h2>
-          <div className="body" dangerouslySetInnerHTML={{ __html: renderMd(contentOf(active)) }} />
+          <Markdown md={contentOf(active)} />
         </article>
       )}
-
-      <style jsx global>{`
-        .pub { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; display: flex; flex-direction: column; gap: 22px; }
-        .top { padding-bottom: 6px; }
-        .brand { font-weight: 800; font-size: 17px; display: flex; flex-direction: column; }
-        .brand small { font: 600 9.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
-        .cover { border-bottom: 1.5px solid var(--line); padding-bottom: 22px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-        .cover h1 { font-size: 32px; letter-spacing: -0.02em; }
-        .cover p { max-width: 52ch; }
-        .meta { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; }
-        .toc { display: flex; gap: 6px; flex-wrap: wrap; }
-        .toc-item { border: 1.5px solid var(--line-2); border-radius: 10px; padding: 9px 14px; display: flex; flex-direction: column; gap: 2px; background: var(--card); text-align: left; }
-        .toc-item:hover { border-color: var(--ink); }
-        .toc-item.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: var(--paper); }
-        .toc-item .t { font: 600 9.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
-        .toc-item .ti { font-size: 13px; font-weight: 600; }
-        .sheet { padding: 30px 32px; }
-        .sheet h2 { font-size: 21px; letter-spacing: -0.01em; margin-bottom: 16px; }
-        .body :global(h2) { font-size: 17px; margin: 22px 0 9px; }
-        .body :global(h3) { font-size: 14.5px; margin: 16px 0 7px; }
-        .body :global(p) { margin: 8px 0; font-size: 14.5px; }
-        .body :global(ul), .body :global(ol) { margin: 8px 0 8px 22px; font-size: 14.5px; }
-        .body :global(code) { font: 12.5px var(--mono); background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
-        .body :global(pre) { background: var(--ink); color: var(--paper); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
-        .body :global(pre code) { background: none; border: none; color: inherit; }
-        .body :global(table) { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; }
-        .body :global(td) { border: 1px solid var(--line); padding: 7px 10px; }
-      `}</style>
     </main>
   );
 }
