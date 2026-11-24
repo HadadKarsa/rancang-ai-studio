@@ -2,12 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-
-/* The manual. Static content — no API call, because a manual that needs the
-   server to explain the server is a manual you cannot read when it breaks.
-   Every claim here is checked against the code: see docs/v0.1.3-contract.md
-   §5 for the list of what is deliberately not documented (PDF export, cloud
-   auth, team collaboration — none of them exist yet). */
+import { cn } from '@/lib/cn';
 
 interface Section {
   id: string;
@@ -18,74 +13,30 @@ interface Section {
 const SECTIONS: Section[] = [
   { id: 'mulai', title: 'Mulai dari sini', kicker: '01' },
   { id: 'model', title: 'Menyiapkan model', kicker: '02' },
-  { id: 'proyek', title: 'Membuat proyek', kicker: '03' },
-  { id: 'wawancara', title: 'Wawancara', kicker: '04' },
-  { id: 'menulis', title: 'Menulis dokumen', kicker: '05' },
-  { id: 'membaca', title: 'Membaca & menyunting', kicker: '06' },
-  { id: 'wireframe', title: 'Editor wireframe', kicker: '07' },
-  { id: 'ekspor', title: 'Ekspor & bagikan', kicker: '08' },
-  { id: 'library', title: 'Library', kicker: '09' },
-  { id: 'masalah', title: 'Kalau ada masalah', kicker: '10' },
+  { id: 'proyek', title: 'Quick-Start & template', kicker: '03' },
+  { id: 'workspace', title: 'Ruang kerja terpadu', kicker: '04' },
+  { id: 'wawancara', title: 'Wawancara & konteks langsung', kicker: '05' },
+  { id: 'menulis', title: 'Menulis dokumen langsung', kicker: '06' },
+  { id: 'studio-dokumen', title: 'Document Studio & Mermaid', kicker: '07' },
+  { id: 'wireframe', title: 'Editor wireframe', kicker: '08' },
+  { id: 'ekspor', title: 'Ekspor, AI Agent & bagikan', kicker: '09' },
+  { id: 'library', title: 'Library master-detail', kicker: '10' },
+];
+
+const FLOW = [
+  { n: '01', label: 'Siapkan model', sub: '/models' },
+  { n: '02', label: 'Ide / Template', sub: '/studio' },
+  { n: '03', label: 'Wawancara', sub: 'konteks langsung' },
+  { n: '04', label: 'Tulis langsung', sub: '6 dokumen inti' },
+  { n: '05', label: 'Sunting & Mermaid', sub: 'versi & revisi' },
+  { n: '06', label: 'Ekspor & Bagikan', sub: 'ZIP · AI Agent' },
 ];
 
 function DocLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return <Link href={href} className="inline-link">{children}</Link>;
-}
-
-/* The whole manual in one picture, because 520 lines of prose opened with no
-   map at all. Drawn as inline SVG so it inherits the tokens: nodes are --well
-   discs, the spine is --line-2, and the one vermilion dot is the step where
-   ink is actually wet (writing). Two orientations, swapped by CSS, because a
-   horizontal spine at 390px is a smear. */
-const FLOW = [
-  { n: '01', label: 'Siapkan model', sub: '/models' },
-  { n: '02', label: 'Buat proyek', sub: '/studio' },
-  { n: '03', label: 'Wawancara', sub: 'pertanyaan' },
-  { n: '04', label: 'Tulis dokumen', sub: 'tujuh berkas' },
-  { n: '05', label: 'Baca & sunting', sub: 'versi' },
-  { n: '06', label: 'Ekspor & bagikan', sub: 'MD · ZIP · JSON' },
-];
-
-function FlowDiagram() {
   return (
-    <figure className="flow" aria-labelledby="flow-cap">
-      <figcaption id="flow-cap" className="cap mono">
-        alur — satu ide jadi satu set dokumen
-      </figcaption>
-
-      {/* horizontal: the spine runs left to right between the discs */}
-      <svg className="flow-h" viewBox="0 0 900 104" role="img" aria-label="Alur: siapkan model, buat proyek, wawancara, tulis dokumen, baca dan sunting, ekspor dan bagikan">
-        <line x1="24" y1="26" x2="876" y2="26" stroke="var(--line-2)" strokeWidth="1" />
-        {FLOW.map((s, i) => {
-          const x = 24 + i * 170.4;
-          const wet = s.n === '04';
-          return (
-            <g key={s.n}>
-              <circle cx={x} cy={26} r={wet ? 7 : 5} fill={wet ? 'var(--vermilion)' : 'var(--card)'} stroke={wet ? 'var(--vermilion)' : 'var(--line-2)'} strokeWidth="1" />
-              <text x={x} y={54} textAnchor="middle" className="fl-n">{s.n}</text>
-              <text x={x} y={72} textAnchor="middle" className="fl-l">{s.label}</text>
-              <text x={x} y={88} textAnchor="middle" className="fl-s">{s.sub}</text>
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* vertical: same six steps down a spine, for a phone */}
-      <svg className="flow-v" viewBox="0 0 300 400" role="img" aria-label="Alur: siapkan model, buat proyek, wawancara, tulis dokumen, baca dan sunting, ekspor dan bagikan">
-        <line x1="14" y1="14" x2="14" y2="386" stroke="var(--line-2)" strokeWidth="1" />
-        {FLOW.map((s, i) => {
-          const y = 14 + i * 74.4;
-          const wet = s.n === '04';
-          return (
-            <g key={s.n}>
-              <circle cx={14} cy={y} r={wet ? 7 : 5} fill={wet ? 'var(--vermilion)' : 'var(--card)'} stroke={wet ? 'var(--vermilion)' : 'var(--line-2)'} strokeWidth="1" />
-              <text x={34} y={y + 4} className="fl-l">{s.label}</text>
-              <text x={34} y={y + 20} className="fl-s">{s.n} · {s.sub}</text>
-            </g>
-          );
-        })}
-      </svg>
-    </figure>
+    <Link href={href} className="font-medium text-accent-ink underline underline-offset-4">
+      {children}
+    </Link>
   );
 }
 
@@ -93,7 +44,6 @@ export default function DocsPage() {
   const [active, setActive] = useState<string>(SECTIONS[0]!.id);
   const refs = useRef(new Map<string, HTMLElement>());
 
-  /* Scroll-spy: the nav marks where you are, without a library. */
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -117,33 +67,68 @@ export default function DocsPage() {
   );
 
   return (
-    <div className="pg-docs">
-      <header className="top">
-        <div>
-          <p className="eyebrow mono">panduan</p>
-          <h1>Dokumentasi</h1>
-          <p className="muted lede">
-            Cara memakai rancang-ai dari awal sampai dokumen jadi: menyiapkan
-            model, menjalankan wawancara, menulis dan membaca dokumen,
-            mengekspor, lalu menyimpan ke library.
-          </p>
-        </div>
+    <div className="mx-auto max-w-6xl space-y-8 px-5 py-7 sm:px-8">
+      <header className="space-y-1.5">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Dokumentasi rancang-ai</h1>
+        <p className="max-w-2xl text-sm leading-relaxed text-ink-2">
+          Panduan lengkap memakai rancang-ai v0.2.0 dari menyiapkan model AI hingga menghasilkan,
+          menyunting, dan mengekspor spesifikasi proyek.
+        </p>
       </header>
 
-      <FlowDiagram />
+      {/* Flow Overview */}
+      <section
+        aria-label="Alur kerja rancang-ai"
+        className="rounded-2xl border border-line bg-surface p-5 shadow-panel"
+      >
+        <p className="font-mono text-xs text-ink-3 mb-4">Alur kerja end-to-end</p>
+        <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          {FLOW.map((step) => {
+            const wet = step.n === '04';
+            return (
+              <li
+                key={step.n}
+                className={cn(
+                  'rounded-xl border p-3',
+                  wet ? 'border-accent/35 bg-accent-soft/50' : 'border-line bg-canvas',
+                )}
+              >
+                <span
+                  className={cn(
+                    'font-mono text-[11px] font-medium',
+                    wet ? 'text-accent-ink' : 'text-ink-3',
+                  )}
+                >
+                  {step.n}
+                </span>
+                <p className="mt-1 text-sm font-semibold text-ink">{step.label}</p>
+                <p className="font-mono text-[11px] text-ink-3 mt-0.5">{step.sub}</p>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
 
-      <div className="layout">
-        <nav className="toc" aria-label="Daftar isi">
-          <p className="cap mono">isi</p>
-          <ol>
+      <div className="grid gap-8 lg:grid-cols-[230px_1fr] lg:items-start">
+        <nav
+          aria-label="Daftar isi dokumentasi"
+          className="rounded-2xl border border-line bg-sidebar p-2 lg:sticky lg:top-20"
+        >
+          <p className="px-2.5 pb-1.5 pt-1 text-xs font-medium text-ink-3">Daftar isi</p>
+          <ol className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
             {SECTIONS.map((s) => (
-              <li key={s.id}>
+              <li key={s.id} className="shrink-0">
                 <a
                   href={`#${s.id}`}
-                  className={active === s.id ? 'on' : ''}
                   aria-current={active === s.id ? 'true' : undefined}
+                  className={cn(
+                    'flex min-h-9 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors',
+                    active === s.id
+                      ? 'bg-surface font-medium text-ink shadow-xs ring-1 ring-line'
+                      : 'text-ink-2 hover:bg-hover hover:text-ink',
+                  )}
                 >
-                  <span className="num mono">{s.kicker}</span>
+                  <span className="font-mono text-[11px] text-ink-3">{s.kicker}</span>
                   <span>{s.title}</span>
                 </a>
               </li>
@@ -151,428 +136,131 @@ export default function DocsPage() {
           </ol>
         </nav>
 
-        <article className="prose">
-          <section id="mulai" ref={setRef('mulai')}>
-            <p className="cap mono">01 · mulai dari sini</p>
+        <article className="min-w-0 space-y-10 rounded-2xl border border-line bg-surface p-6 shadow-panel sm:p-8 prose-fresh max-w-none">
+          <section id="mulai" ref={setRef('mulai')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">01 · Mulai dari sini</p>
             <h2>Mulai dari sini</h2>
             <p>
-              rancang-ai mengubah satu ide menjadi satu set dokumen spesifikasi.
-              Kamu menceritakan idemu, aplikasi bertanya balik seperti seorang
-              analis, lalu menulis dokumennya. Tidak ada yang perlu diisi ke
-              formulir panjang.
+              rancang-ai membantu mengubah satu ide aplikasi menjadi tujuh dokumen spesifikasi yang
+              saling terhubung. Gunakan tombol pencarian <kbd className="font-mono">Cmd/Ctrl+K</kbd>{' '}
+              di bilah atas untuk berpindah cepat antar proyek, halaman, atau mengganti mode terang
+              dan gelap tenang.
             </p>
-            <p>Urutannya selalu sama, dan setiap langkah punya halamannya sendiri:</p>
-            <ol className="steps">
-              <li>
-                <b>Siapkan model.</b> Satu penyedia dan satu model di{' '}
-                <DocLink href="/models">Models</DocLink>. Tanpa ini, tidak ada
-                yang bisa menulis.
-              </li>
-              <li>
-                <b>Buat proyek.</b> Satu proyek adalah satu aplikasi yang ingin
-                kamu rancang. Dibuat dari <DocLink href="/studio">Studio</DocLink>.
-              </li>
-              <li>
-                <b>Jalankan wawancara.</b> Lima sampai delapan pertanyaan, satu
-                per satu, dengan saran jawaban kalau kamu bingung.
-              </li>
-              <li>
-                <b>Tulis dokumen.</b> Enam dokumen ditulis berurutan dan bisa
-                kamu tonton kata demi kata.
-              </li>
-              <li>
-                <b>Baca, sunting, ekspor.</b> Unduh sebagai Markdown, ZIP, atau
-                JSON; bagikan sebagai tautan baca-saja; simpan ke library.
-              </li>
-            </ol>
-            <div className="callout">
-              <p>
-                <b>Yang perlu kamu punya:</b> satu akun di sini, dan satu kunci
-                API penyedia model (atau langganan yang sudah tersimpan). Tidak
-                ada biaya lain dari rancang-ai — token model ditagih oleh
-                penyedianya, ke akunmu sendiri.
-              </p>
-            </div>
           </section>
 
-          <section id="model" ref={setRef('model')}>
-            <p className="cap mono">02 · menyiapkan model</p>
+          <section id="model" ref={setRef('model')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">02 · Menyiapkan model</p>
             <h2>Menyiapkan model</h2>
             <p>
-              Buka <DocLink href="/models">Models</DocLink>. Halaman ini punya
-              tiga bagian: daftar penyedia, formulir kredensial, dan daftar
-              preset.
+              Buka <DocLink href="/models">Models</DocLink> untuk menghubungkan penyedia AI
+              (OpenAI, Anthropic, Google, Groq, OpenRouter, Ollama, atau endpoint kompatibel
+              OpenAI). Setelah pengujian berhasil dan kamu menyimpan preset default, indikator model
+              aktif di bilah atas langsung menampilkan model yang sedang dipakai.
             </p>
+          </section>
 
-            <h3>1. Pilih penyedia</h3>
+          <section id="proyek" ref={setRef('proyek')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">03 · Quick-Start &amp; template</p>
+            <h2>Quick-Start Composer dan template</h2>
             <p>
-              Setiap penyedia punya kartu dengan status <span className="mono">TERHUBUNG</span>{' '}
-              atau <span className="mono">BELUM</span>. Yang tersedia: OpenAI,
-              Anthropic, Google, Groq, OpenRouter, Ollama, dan penyedia lain yang
-              kompatibel dengan API OpenAI.
+              Di <DocLink href="/studio">Studio</DocLink>, ketik satu kalimat ide langsung pada
+              Quick-Start Composer lalu tekan <strong>Mulai merancang</strong>. Kamu juga bisa
+              memilih salah satu template bawaan (B2B Micro-SaaS, Mobile Marketplace, AI Agent Tool,
+              atau Internal Ops Dashboard) untuk menyertakan asumsi dasar otomatis.
             </p>
+          </section>
 
-            <h3>2. Pilih cara mengakses</h3>
+          <section id="workspace" ref={setRef('workspace')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">04 · Ruang kerja terpadu</p>
+            <h2>Ruang kerja proyek terpadu</h2>
+            <p>
+              Setiap proyek berjalan di satu halaman terpadu dengan header persisten berisi status
+              dokumen (misalnya <span className="font-mono">6/7 dok</span>), tombol Ekspor, dan
+              dialog Bagikan. Kamu dapat berpindah mulus antara mode <strong>Wawancara</strong>,{' '}
+              <strong>Tulis Langsung</strong>, dan <strong>Dokumen &amp; Wireframe</strong> tanpa
+              kehilangan konteks. Tautan lama (<span className="font-mono">/interview</span>,{' '}
+              <span className="font-mono">/write</span>,{' '}
+              <span className="font-mono">/documents/[type]</span>) otomatis diarahkan ke mode yang
+              sesuai.
+            </p>
+          </section>
+
+          <section id="wawancara" ref={setRef('wawancara')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">05 · Wawancara</p>
+            <h2>Wawancara dan ringkasan konteks langsung</h2>
+            <p>
+              Saat menjawab pertanyaan di mode Wawancara, panel kanan menampilkan{' '}
+              <strong>Ringkasan konteks terkumpul</strong> secara langsung. Jika konteks sudah dirasa
+              cukup kapan saja, tekan <strong>Cukup, lanjut tulis spesifikasi</strong> untuk
+              mengunci sesi dan langsung masuk ke penulisan dokumen.
+            </p>
+          </section>
+
+          <section id="menulis" ref={setRef('menulis')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">06 · Menulis dokumen</p>
+            <h2>Menulis dokumen langsung (SSE)</h2>
+            <p>
+              Mode <strong>Tulis Langsung</strong> menjalankan batch penulisan enam dokumen inti
+              (PRD, Arsitektur, Database, API, Tugas, Memori) secara berurutan di server. Kamu bisa
+              menutup tab, berpindah mode, menghentikan sementara, atau melanjutkan sisa dokumen
+              kapan saja.
+            </p>
+          </section>
+
+          <section id="studio-dokumen" ref={setRef('studio-dokumen')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">07 · Document Studio</p>
+            <h2>Document Studio, Mermaid, suntingan, dan versi</h2>
             <ul>
               <li>
-                <b>Langganan</b> — memakai kredensial yang sudah tersimpan untuk
-                penyedia itu. Pilih ini kalau kamu sudah pernah menyimpan
-                kuncinya.
+                <strong>Diagram Mermaid otomatis:</strong> blok kode{' '}
+                <span className="font-mono">mermaid</span> pada Arsitektur, Database (ERD), atau
+                dokumen lain dirender menjadi diagram interaktif dengan tombol lihat kode sumber.
               </li>
               <li>
-                <b>Kunci sendiri (BYOK)</b> — tempel API key-mu. Untuk Ollama dan
-                penyedia lain yang berjalan di mesinmu sendiri, isi juga{' '}
-                <b>Base URL</b>; kalau dikosongkan, alamat bawaan penyedia yang
-                dipakai dan permintaan akan gagal kalau penyedianya tidak
-                dijangkau dari server ini.
+                <strong>Sunting langsung:</strong> beralih ke mode <strong>Sunting</strong>, ubah
+                Markdown, isi catatan perubahan, lalu simpan sebagai versi baru (
+                <span className="font-mono">Ctrl/Cmd+S</span>).
+              </li>
+              <li>
+                <strong>Tulis ulang dengan instruksi revisi:</strong> berikan arahan spesifik saat
+                menulis ulang satu dokumen agar revisi tepat sasaran.
+              </li>
+              <li>
+                <strong>Riwayat versi dan pemulihan:</strong> buka pemilih versi di header dokumen
+                untuk membaca revisi lama atau memulihkannya sebagai versi terbaru.
               </li>
             </ul>
-            <p>
-              Kunci disimpan terenkripsi dan hanya empat karakter terakhirnya
-              yang ditampilkan kembali. Ada tombol mata untuk menampilkan isian
-              saat kamu mengetik — itu hanya di layar, bukan di server.
-            </p>
-
-            <h3>3. Uji, lalu simpan</h3>
-            <p>
-              Tombol <b>Uji koneksi</b> memanggil penyedia dengan kunci itu dan
-              mengembalikan daftar model yang tersedia. Tombol simpan baru
-              terbuka setelah uji berhasil dan kamu memilih satu model. Kalau uji
-              gagal, pesannya menyebut penyebabnya — kunci ditolak, alamat tidak
-              terjangkau, atau model tidak ada.
-            </p>
-
-            <h3>Preset</h3>
-            <p>
-              Setelah tersimpan, kredensial itu menjadi satu <b>preset</b>: nama,
-              penyedia, dan model. Satu preset ditandai sebagai bawaan dan
-              dipakai semua proyek yang tidak memilih sendiri. Kamu bisa
-              mengganti model sebuah preset tanpa menyimpan kunci baru, dan
-              menguji ulang kredensial yang sudah ada.
-            </p>
-            <div className="callout warn">
-              <p>
-                <b>Model yang dipakai menulis dokumen panjang.</b> Dokumen
-                terbesar di sini bisa puluhan ribu karakter. Model kecil akan
-                kehabisan jendela konteks atau berhenti di tengah; pilih model
-                yang sanggup menulis panjang.
-              </p>
-            </div>
           </section>
 
-          <section id="proyek" ref={setRef('proyek')}>
-            <p className="cap mono">03 · membuat proyek</p>
-            <h2>Membuat proyek</h2>
-            <p>
-              Di <DocLink href="/studio">Studio</DocLink>, tekan{' '}
-              <b>+ Proyek baru</b>. Isi nama (wajib, maksimal 120 karakter) dan
-              deskripsi singkat (opsional). Setelah disimpan, kamu langsung
-              dibawa ke wawancara proyek itu.
-            </p>
-            <p>
-              Studio menampilkan semua proyekmu sebagai kartu, dengan pencarian
-              nama/deskripsi dan saringan status: <span className="mono">draft</span>,{' '}
-              <span className="mono">wawancara</span>,{' '}
-              <span className="mono">menulis</span>, <span className="mono">siap</span>,{' '}
-              <span className="mono">arsip</span>. Kartu membuka halaman proyek;
-              menu <b>⋯</b> di sudut kartu menyimpan pilihan <b>Arsipkan</b> dan
-              <b>Hapus permanen</b>. Hapus membuang proyek beserta seluruh
-              wawancara, dokumen, dan versinya — permanen, dan dialognya
-              menyebutkan itu.
-            </p>
-            <div className="callout">
-              <p>
-                <b>Halaman proyek.</b> Kalau proyek sudah punya dokumen, halaman
-                proyek membuka daftar dokumen beserta pratinjaunya. Kalau belum,
-                halaman itu mengarahkanmu ke wawancara. Wawancara selalu bisa
-                dibuka lagi lewat tombol <b>Lihat wawancara</b> di kanan atas.
-              </p>
-            </div>
-          </section>
-
-          <section id="wawancara" ref={setRef('wawancara')}>
-            <p className="cap mono">04 · wawancara</p>
-            <h2>Wawancara</h2>
-            <p>
-              Wawancara berjalan seperti percakapan. Di awal, tulis satu paragraf
-              tentang idemu: aplikasi apa, untuk siapa, masalah apa yang
-              diselesaikan. Setelah itu aplikasi yang bertanya — biasanya lima
-              sampai delapan pertanyaan soal pemakai, alur inti, dan batasan.
-            </p>
-            <ul>
-              <li>
-                <b>Enter</b> mengirim jawaban, <b>Shift+Enter</b> membuat baris
-                baru.
-              </li>
-              <li>
-                Di bawah pertanyaan kadang muncul <b>saran jawaban</b>; menekannya
-                langsung mengirim jawaban itu. Kamu tetap bisa menulis sendiri.
-              </li>
-              <li>
-                Rel di kanan menunjukkan kemajuan: berapa pertanyaan sudah
-                dijawab dari totalnya.
-              </li>
-              <li>
-                <b>Mulai ulang</b> mengosongkan percakapan dan memulai sesi baru.
-                Jawaban lama tidak dipakai lagi.
-              </li>
-            </ul>
-            <p>
-              Setelah pertanyaan terakhir, halaman menampilkan ringkasan dan
-              tombol <b>Tulis dokumen</b>. Kamu tidak harus menjawab sempurna —
-              jawaban seadanya sudah cukup untuk mulai; dokumennya bisa
-              disunting setelah jadi.
-            </p>
-          </section>
-
-          <section id="menulis" ref={setRef('menulis')}>
-            <p className="cap mono">05 · menulis dokumen</p>
-            <h2>Menulis dokumen</h2>
-            <p>
-              Dari wawancara, <b>Tulis dokumen</b> membuka halaman penulisan.
-              Enam dokumen ditulis berurutan: <b>PRD</b>, <b>Arsitektur</b>,{' '}
-              <b>Database</b>, <b>API</b>, <b>Tugas</b>, <b>Memori</b>.
-              Wireframe tidak termasuk — ia dibuat terpisah, belakangan.
-            </p>
-            <p>
-              Teks muncul kata demi kata di panel kanan; daftar di kiri
-              menunjukkan dokumen mana yang sedang ditulis, mana yang sudah jadi,
-              dan mana yang menunggu. Kamu boleh menutup tab: penulisan berjalan
-              di server, dan saat kamu kembali halaman itu menyambung lagi ke
-              proses yang sama.
-            </p>
-            <ul>
-              <li>
-                <b>Hentikan</b> menghentikan batch. Dokumen yang sudah selesai
-                tetap tersimpan; yang sedang ditulis ditandai gagal.
-              </li>
-              <li>
-                <b>Lanjutkan</b> menulis sisa dokumen yang belum jadi, tanpa
-                mengulang yang sudah selesai.
-              </li>
-              <li>
-                Satu proyek hanya boleh punya satu batch berjalan. Memulai batch
-                kedua saat satu masih jalan akan ditolak dengan pesan bahwa
-                pembuatan dokumen sedang berjalan.
-              </li>
-            </ul>
-            <div className="callout warn">
-              <p>
-                <b>Token itu uang.</b> Setiap dokumen yang ditulis memakai token
-                penyedia modelmu. Menekan <b>Lanjutkan</b> berulang kali pada
-                dokumen yang sama akan menagih berulang kali. Kalau satu dokumen
-                terus gagal, periksa model dan kuncinya dulu.
-              </p>
-            </div>
-          </section>
-
-          <section id="membaca" ref={setRef('membaca')}>
-            <p className="cap mono">06 · membaca &amp; menyunting</p>
-            <h2>Membaca &amp; menyunting</h2>
-            <p>
-              Halaman proyek menampilkan daftar dokumen di kiri dan isi dokumen
-              yang dipilih di kanan, sudah dirender — tabel, daftar bertingkat,
-              dan blok kode tampil sebagaimana mestinya, bukan sebagai teks
-              mentah. Mengganti pilihan di daftar langsung mengganti pratinjau
-              tanpa berpindah halaman.
-            </p>
-            <p>
-              Untuk menyunting, buka dokumennya lewat tautan{' '}
-              <b>buka halaman</b> di pratinjau. Halaman dokumen punya:
-            </p>
-            <ul>
-              <li>
-                <b>Tab dokumen</b> untuk berpindah antara PRD, Arsitektur, dan
-                seterusnya. Dokumen yang belum jadi tampil redup.
-              </li>
-              <li>
-                <b>Riwayat versi</b>: setiap penulisan ulang membuat versi baru.
-                Versi lama tetap bisa dibaca.
-              </li>
-              <li>
-                <b>Kunci dokumen</b> supaya penulisan ulang tidak menimpanya.
-              </li>
-              <li>
-                <b>Simpan ke library</b> untuk menyimpan salinan dokumen itu.
-              </li>
-            </ul>
-            <p>
-              Wireframe bukan markdown, jadi ia tidak dirender di pratinjau;
-              pratinjau menautkan ke editornya.
-            </p>
-          </section>
-
-          <section id="wireframe" ref={setRef('wireframe')}>
-            <p className="cap mono">07 · editor wireframe</p>
+          <section id="wireframe" ref={setRef('wireframe')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">08 · Editor wireframe</p>
             <h2>Editor wireframe</h2>
             <p>
-              Wireframe adalah layar HTML sederhana untuk alur utama aplikasimu.
-              Ia dibuat dari halaman penulisan lewat tombol <b>Buat wireframe</b>,
-              dan dibuka di editornya sendiri.
-            </p>
-            <ul>
-              <li>
-                <b>Layar</b> — tiap layar punya nama dan slug; satu ditandai{' '}
-                <span className="mono">entry</span> sebagai layar pertama.
-              </li>
-              <li>
-                <b>HTML</b> — panel kiri berisi HTML layar yang sedang aktif dan
-                bisa langsung disunting. Pratinjau mengikuti ketikanmu, tetapi
-                penyimpanan dilakukan dengan tombol <b>Simpan</b>; selama ada
-                perubahan yang belum disimpan, statusnya berbunyi{' '}
-                <span className="mono">belum disimpan</span>.
-              </li>
-              <li>
-                <b>Pratinjau</b> — panel kanan merender HTML itu, dengan pilihan
-                lebar desktop, tablet, atau ponsel.
-              </li>
-            </ul>
-            <p>
-              Wireframe sengaja polos: kotak, label, dan alur — bukan desain
-              final. Gunanya untuk menyepakati susunan layar sebelum ada kode.
+              Wireframe dibuat terpisah dari dokumen inti dan dapat disunting langsung di mode
+              Dokumen &amp; Wireframe dengan pratinjau sandbox untuk lebar desktop, tablet, dan
+              ponsel.
             </p>
           </section>
 
-          <section id="ekspor" ref={setRef('ekspor')}>
-            <p className="cap mono">08 · ekspor &amp; bagikan</p>
-            <h2>Ekspor &amp; bagikan</h2>
-            <h3>Unduh</h3>
+          <section id="ekspor" ref={setRef('ekspor')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">09 · Ekspor &amp; AI Agent</p>
+            <h2>Ekspor, Salin untuk AI Agent, dan tautan bagikan</h2>
             <p>
-              Di halaman proyek, halaman dokumen, dan halaman penulisan ada
-              tombol unduh dengan tiga format:
-            </p>
-            <ul>
-              <li>
-                <b>MD</b> — semua dokumen yang sudah jadi digabung menjadi satu
-                berkas Markdown.
-              </li>
-              <li>
-                <b>ZIP</b> — satu berkas ZIP berisi README, satu berkas{' '}
-                <span className="mono">.md</span> per dokumen, dan{' '}
-                <span className="mono">wireframes/*.html</span>. Ini yang paling
-                praktis untuk diserahkan ke orang lain.
-              </li>
-              <li>
-                <b>JSON</b> — bundel yang sama sebagai data terstruktur, untuk
-                dipakai alat lain atau agen.
-              </li>
-            </ul>
-            <p>
-              Unduhan hanya jalan kalau dokumen inti (PRD, Arsitektur,
-              Database, API, Tugas, Memori) sudah jadi. Kalau ada yang kurang,
-              unduhan ditolak dan pesannya menyebut dokumen mana yang masih
-              kosong. Ekspor PDF belum ada.
-            </p>
-
-            <h3>Tautan bagikan</h3>
-            <p>
-              Di halaman dokumen ada bagian <b>Bagikan</b>. Tombolnya membuat
-              tautan baca-saja ke dokumen itu dan langsung menyalinnya ke
-              clipboard. Tautan itu bisa dibuka tanpa masuk — cocok untuk
-              menunjukkan hasil ke klien. Tautan bisa dicabut kembali; setelah
-              dicabut, alamatnya tidak lagi menampilkan apa pun.
+              Gunakan menu <strong>Salin untuk AI Agent</strong> untuk menyalin satu dokumen atau
+              seluruh proyek dalam format prompt siap tempel ke alat pemrograman AI. Menu{' '}
+              <strong>Ekspor</strong> di header menyediakan paket ZIP, gabungan Markdown, dan JSON.
+              Tombol <strong>Bagikan</strong> membuat tautan baca saja publik maupun ber kata sandi.
             </p>
           </section>
 
-          <section id="library" ref={setRef('library')}>
-            <p className="cap mono">09 · library</p>
-            <h2>Library</h2>
+          <section id="library" ref={setRef('library')} className="scroll-mt-20">
+            <p className="font-mono text-xs text-ink-3">10 · Library</p>
+            <h2>Library master-detail</h2>
             <p>
-              <DocLink href="/library">Library</DocLink> adalah tempat artefak
-              yang kamu simpan: dokumen, ekspor, dan wireframe. Isinya dikelompokkan{' '}
-              <b>satu kartu per proyek</b>, bukan satu kartu per artefak.
+              <DocLink href="/library">Library</DocLink> menampilkan daftar artefak di kiri dan
+              pratinjau penuh (Markdown, diagram Mermaid, atau HTML wireframe) di kanan, lengkap
+              dengan tombol salin, unduh berkas, unduh ZIP proyek, dan tautan kembali ke proyek.
             </p>
-            <ul>
-              <li>
-                Setiap kartu menyebut nama proyek, jumlah artefak, ukuran
-                totalnya, dan kapan terakhir disimpan.
-              </li>
-              <li>
-                <b>Unduh ZIP</b> mengunduh seluruh isi proyek itu dalam satu
-                berkas — pembuat ZIP-nya sama dengan tombol unduh di halaman
-                proyek.
-              </li>
-              <li>
-                Kartu tidak bisa diklik: library adalah tempat mengunduh dan
-                menghapus, bukan pintu masuk ke dokumen. Untuk membaca, buka
-                proyeknya dari Studio.
-              </li>
-              <li>
-                <b>Hapus</b> pada kartu proyek menghapus salinan yang tersimpan
-                di library saja. Proyek, wawancara, dan dokumennya tetap utuh.
-              </li>
-              <li>
-                Artefak yang disimpan tanpa proyek masuk ke bagian{' '}
-                <b>Simpanan lepas</b>, dan tidak punya tombol ZIP karena tidak
-                ada proyek yang bisa dibundel.
-              </li>
-            </ul>
-            <p>
-              Saringan jenis (Dokumen, Ekspor, Wireframe) tetap berlaku: ia
-              menyaring artefak sebelum dikelompokkan, jadi kartu hanya berisi
-              jenis yang kamu pilih.
-            </p>
-          </section>
-
-          <section id="masalah" ref={setRef('masalah')}>
-            <p className="cap mono">10 · kalau ada masalah</p>
-            <h2>Kalau ada masalah</h2>
-
-            <h3>Penulisan tidak mau mulai</h3>
-            <p>
-              Paling sering karena belum ada model. Buka{' '}
-              <DocLink href="/models">Models</DocLink> dan pastikan satu penyedia
-              berstatus <span className="mono">TERHUBUNG</span> dengan satu preset
-              bertanda bawaan. Pesan error yang menyebut kunci tidak ada berarti
-              kredensial untuk penyedia itu belum tersimpan atau tidak aktif.
-            </p>
-
-            <h3>Penyedia menolak kunci</h3>
-            <p>
-              Pesan yang menyebut kunci ditolak datang dari penyedianya, bukan
-              dari rancang-ai: kuncinya salah, sudah dicabut, atau kuotanya habis.
-              Uji ulang di Models; kalau uji juga gagal di sana, ganti kuncinya.
-            </p>
-
-            <h3>Penulisan berhenti di tengah</h3>
-            <p>
-              Dokumen yang belum selesai ditandai gagal dan pesannya menyebut
-              sebabnya. Tekan <b>Lanjutkan</b> untuk menulis sisanya — dokumen
-              yang sudah jadi tidak diulang. Kalau sambungan browser yang putus,
-              buka lagi halamannya: penulisan tetap berjalan di server, dan
-              halaman akan menyambung kembali.
-            </p>
-
-            <h3>Batch ditolak karena sedang berjalan</h3>
-            <p>
-              Satu proyek hanya boleh punya satu batch pada satu waktu. Kalau kamu
-              baru saja menekan tombol dari tab lain, tunggu batch itu selesai
-              atau hentikan dulu, lalu mulai lagi.
-            </p>
-
-            <h3>Error penyedia (502) atau rate limit (429)</h3>
-            <p>
-              Keduanya datang dari penyedia model. Untuk rate limit, tunggu
-              sebentar lalu lanjutkan. Untuk error penyedia, coba lagi sekali;
-              kalau tetap gagal, ganti model di preset — penyedia kadang
-              menolak satu model tertentu sementara model lain jalan.
-            </p>
-
-            <h3>Halaman kosong atau &ldquo;memuat…&rdquo; terus</h3>
-            <p>
-              Muat ulang halaman. Kalau tetap kosong, periksa apakah kamu masih
-              masuk — sesi yang kedaluwarsa membuat semua permintaan ditolak, dan
-              halaman akan mengarahkanmu ke masuk.
-            </p>
-
-            <div className="callout">
-              <p>
-                <b>Yang belum ada, dan tidak dijanjikan di sini:</b> ekspor PDF,
-                masuk lewat akun cloud, dan kolaborasi tim. Kalau kamu butuh
-                salah satunya, itu permintaan fitur, bukan pengaturan yang
-                terlewat.
-              </p>
-            </div>
           </section>
         </article>
       </div>

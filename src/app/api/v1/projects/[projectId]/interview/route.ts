@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { withRoute, parseJson } from '@/lib/api/middleware';
-import { assertProjectOwnership, appendUserAnswer, startInterviewTurn } from '@/lib/services/interview';
-import { createSession, abandonActiveSessions, getActiveSessionForProject, listSessionsForProject, listMessages } from '@/lib/db/repositories/interviews';
+import { assertProjectOwnership, appendUserAnswer, startInterviewTurn, finalizeInterview } from '@/lib/services/interview';
+import { createSession, abandonActiveSessions, getActiveSessionForProject, listSessionsForProject, listMessages, appendMessage } from '@/lib/db/repositories/interviews';
 import { getProjectById, updateProject } from '@/lib/db/repositories/projects';
 import { ValidationError, NotFoundError, ConflictError } from '@/lib/errors';
 
@@ -91,5 +91,47 @@ export const PUT = withRoute(async (ctx) => {
 
   return Response.json({ ...result, nextTurn });
 }, { bucket: 'generate' });
+
+const patchSchema = z.object({
+  action: z.literal('complete'),
+  summary: z.string().max(4000).optional(),
+});
+
+/** PATCH — early completion shortcut ("Cukup, lanjut tulis spesifikasi"). */
+export const PATCH = withRoute(async (ctx) => {
+  const projectId = ctx.params.get('projectId');
+  await assertProjectOwnership(ctx.session.user.id, projectId);
+
+  const body = await parseJson<unknown>(ctx.req);
+  const parsed = patchSchema.safeParse(body);
+  if (!parsed.success) throw new ValidationError('Invalid action', parsed.error.flatten());
+
+  let session = await getActiveSessionForProject(projectId);
+  if (!session) {
+    const project = await getProjectById(projectId, ctx.session.user.id);
+    if (!project) throw new NotFoundError('Project not found');
+    session = await createSession({
+      projectId,
+      templateId: project.templateId,
+      presetId: project.defaultPresetId,
+    });
+    if (project.description?.trim()) {
+      await appendMessage({
+        sessionId: session.id,
+        role: 'user',
+        content: project.description.trim(),
+      });
+    }
+  }
+
+  await finalizeInterview({
+    userId: ctx.session.user.id,
+    sessionId: session.id,
+    summary: parsed.data.summary,
+  });
+  await updateProject(projectId, ctx.session.user.id, { status: 'ready' });
+
+  return Response.json({ session: { ...session, status: 'completed' }, completed: true });
+}, { bucket: 'write' });
 
 export const dynamic = 'force-dynamic';

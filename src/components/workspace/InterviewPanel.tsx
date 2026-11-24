@@ -1,7 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Plus, RotateCcw, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowRight,
+  Plus,
+  RotateCcw,
+  Send,
+  CheckCircle2,
+  AlertCircle,
+  ClipboardList,
+  FastForward,
+} from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
 import { Badge, Button, useToast } from '@/components/ui';
 import type { WorkspaceProject } from './types';
@@ -52,6 +61,12 @@ function timeOf(iso: string): string {
   return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
+function summarizeTopic(question: string | null, index: number): string {
+  if (!question) return index === 0 ? 'Gambaran ide utama' : `Poin #${index + 1}`;
+  const cleaned = question.replace(/[?!.]+$/, '').trim();
+  return cleaned.length > 56 ? `${cleaned.slice(0, 56)}...` : cleaned;
+}
+
 interface InterviewPanelProps {
   project: WorkspaceProject;
   initialPrompt?: string | null;
@@ -73,6 +88,7 @@ export function InterviewPanel({
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [finishingEarly, setFinishingEarly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const seedDispatchedRef = useRef(false);
@@ -202,7 +218,50 @@ export function InterviewPanel({
     }
   }
 
-  const answers = messages.filter((m) => m.role === 'user').length;
+  // Pair each captured user answer with the preceding AI question for the live context panel.
+  const capturedContext = useMemo(() => {
+    const entries: { id: string; topic: string; answer: string }[] = [];
+    let lastQuestion: string | null = null;
+    for (const msg of messages) {
+      if (msg.role === 'assistant') {
+        lastQuestion = msg.content;
+      } else if (msg.role === 'user') {
+        entries.push({
+          id: msg.id,
+          topic: summarizeTopic(lastQuestion, entries.length),
+          answer: msg.content,
+        });
+      }
+    }
+    return entries;
+  }, [messages]);
+
+  async function finishEarlyAndWrite() {
+    setFinishingEarly(true);
+    setError(null);
+    try {
+      const summaryText = capturedContext
+        .map((c, i) => `${i + 1}. ${c.topic}: ${c.answer}`)
+        .join('\n')
+        .slice(0, 3900);
+      await api.patch(`/projects/${project.id}/interview`, {
+        action: 'complete',
+        summary: summaryText || project.description || undefined,
+      });
+      setCompleted(true);
+      toast({
+        tone: 'success',
+        title: 'Konteks dikunci, mulai menulis spesifikasi',
+      });
+      onStartWriting();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Gagal menyelesaikan wawancara.');
+    } finally {
+      setFinishingEarly(false);
+    }
+  }
+
+  const answers = capturedContext.length;
   const total = session?.totalSteps ?? 8;
   const step = Math.min(answers + (completed ? 0 : 1), total);
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
@@ -210,6 +269,7 @@ export function InterviewPanel({
     pending || completed
       ? []
       : ((lastAssistant?.metadata?.suggestions as string[] | undefined) ?? []);
+  const canSkipToWrite = !completed && !pending && (answers > 0 || Boolean(project.description));
 
   if (loading) {
     return (
@@ -220,7 +280,7 @@ export function InterviewPanel({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_290px] lg:items-start">
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
       {/* Main conversation column */}
       <div className="flex min-w-0 flex-col rounded-2xl border border-line bg-surface shadow-panel overflow-hidden">
         {error && (
@@ -248,7 +308,10 @@ export function InterviewPanel({
 
           {messages.map((m) =>
             m.role === 'user' ? (
-              <div key={m.id} className="ml-auto max-w-2xl rounded-xl border border-line bg-sidebar px-4 py-3">
+              <div
+                key={m.id}
+                className="ml-auto max-w-2xl rounded-xl border border-line bg-sidebar px-4 py-3"
+              >
                 <p className="font-mono text-[11px] text-ink-3">Kamu · {timeOf(m.createdAt)}</p>
                 <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">
                   {m.content}
@@ -364,56 +427,128 @@ export function InterviewPanel({
               <span className="font-mono text-[11px] text-ink-3">
                 Enter kirim · Shift+Enter baris baru
               </span>
-              <Button type="submit" variant="primary" size="sm" disabled={pending || !draft.trim()}>
-                <Send className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{pending ? 'Mengirim...' : 'Kirim jawaban'}</span>
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {canSkipToWrite && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={finishingEarly}
+                    onClick={() => void finishEarlyAndWrite()}
+                  >
+                    <FastForward className="h-3.5 w-3.5 text-accent-ink" aria-hidden="true" />
+                    <span>
+                      {finishingEarly ? 'Menyiapkan...' : 'Cukup, lanjut tulis spesifikasi'}
+                    </span>
+                  </Button>
+                )}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={pending || !draft.trim()}
+                >
+                  <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>{pending ? 'Mengirim...' : 'Kirim jawaban'}</span>
+                </Button>
+              </div>
             </div>
           </form>
         )}
       </div>
 
-      {/* Right rail: progress & controls */}
-      <aside className="rounded-2xl border border-line bg-surface p-5 shadow-panel space-y-4 lg:sticky lg:top-20">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-ink-2">Kemajuan wawancara</span>
-          <span className="font-mono text-sm font-semibold text-ink">
-            {completed ? total : step}/{total}
-          </span>
+      {/* Live Context Summary Panel + Progress & Shortcut */}
+      <aside className="rounded-2xl border border-line bg-surface p-5 shadow-panel space-y-5 lg:sticky lg:top-20">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-ink-2">Kemajuan wawancara</span>
+            <span className="font-mono text-sm font-semibold text-ink">
+              {completed ? total : step}/{total}
+            </span>
+          </div>
+
+          <div
+            className="grid gap-1"
+            style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
+            role="progressbar"
+            aria-label="Kemajuan wawancara"
+            aria-valuenow={completed ? total : step}
+            aria-valuemin={0}
+            aria-valuemax={total}
+          >
+            {Array.from({ length: total }, (_, i) => {
+              const n = i + 1;
+              const isDone = completed || n < step;
+              const isCurrent = !completed && n === step;
+              return (
+                <span
+                  key={n}
+                  className={`h-2 rounded-full ${
+                    isDone ? 'bg-ready' : isCurrent ? 'bg-accent' : 'bg-subtle'
+                  }`}
+                />
+              );
+            })}
+          </div>
         </div>
 
-        <div
-          className="grid gap-1"
-          style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
-          role="progressbar"
-          aria-label="Kemajuan wawancara"
-          aria-valuenow={completed ? total : step}
-          aria-valuemin={0}
-          aria-valuemax={total}
-        >
-          {Array.from({ length: total }, (_, i) => {
-            const n = i + 1;
-            const isDone = completed || n < step;
-            const isCurrent = !completed && n === step;
-            return (
-              <span
-                key={n}
-                className={`h-2 rounded-full ${
-                  isDone ? 'bg-ready' : isCurrent ? 'bg-accent' : 'bg-subtle'
-                }`}
-              />
-            );
-          })}
+        {/* Live Context Summary */}
+        <div className="border-t border-line pt-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink">
+              <ClipboardList className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
+              Ringkasan konteks terkumpul
+            </h3>
+            <span className="font-mono text-[11px] text-ink-3">{answers} poin</span>
+          </div>
+
+          {project.description && (
+            <div className="rounded-lg border border-line bg-canvas p-3">
+              <p className="text-[11px] font-medium text-ink-3">Deskripsi awal</p>
+              <p className="mt-1 text-xs leading-relaxed text-ink">{project.description}</p>
+            </div>
+          )}
+
+          {capturedContext.length === 0 ? (
+            <p className="text-xs leading-relaxed text-ink-3">
+              Setiap jawaban yang kamu kirim akan dirangkum otomatis di sini agar kamu bisa melihat
+              konteks yang ditangkap AI sebelum menulis dokumen.
+            </p>
+          ) : (
+            <ol className="max-h-72 space-y-2 overflow-y-auto pr-1">
+              {capturedContext.map((entry, idx) => (
+                <li
+                  key={entry.id}
+                  className="rounded-lg border border-line bg-canvas p-2.5 text-xs"
+                >
+                  <p className="font-medium text-ink-2">
+                    <span className="mr-1 font-mono text-[11px] text-ink-3">
+                      {String(idx + 1).padStart(2, '0')}
+                    </span>
+                    {entry.topic}
+                  </p>
+                  <p className="mt-1 line-clamp-3 leading-relaxed text-ink">{entry.answer}</p>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
 
-        <p className="text-xs leading-relaxed text-ink-2">
-          {completed
-            ? 'Seluruh jawaban tersimpan. Kamu dapat menulis dokumen kapan saja.'
-            : 'Jawab secukupnya dulu; detail teknis bisa disunting langsung setelah dokumen dibuat.'}
-        </p>
-
-        {!completed && session && (
-          <div className="border-t border-line pt-3">
+        {/* Enough-already shortcut & Restart */}
+        <div className="border-t border-line pt-4 space-y-2">
+          {canSkipToWrite && (
+            <Button
+              variant="primary"
+              size="sm"
+              className="w-full"
+              disabled={finishingEarly}
+              onClick={() => void finishEarlyAndWrite()}
+            >
+              <FastForward className="h-3.5 w-3.5" aria-hidden="true" />
+              {finishingEarly ? 'Menyiapkan...' : 'Cukup, lanjut tulis spesifikasi'}
+            </Button>
+          )}
+          {!completed && session && (
             <Button
               variant="ghost"
               size="sm"
@@ -424,8 +559,8 @@ export function InterviewPanel({
               <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
               {starting ? 'Memulai ulang...' : 'Mulai ulang wawancara'}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </aside>
     </div>
   );

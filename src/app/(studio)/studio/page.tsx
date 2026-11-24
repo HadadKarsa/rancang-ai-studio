@@ -3,29 +3,91 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  ArrowRight,
+  Archive,
+  ArchiveRestore,
+  Building2,
+  FolderOpen,
+  Layers,
+  LayoutDashboard,
+  MoreHorizontal,
+  Search,
+  Store,
+  Terminal,
+  Trash2,
+  X,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  useToast,
+} from '@/components/ui';
+import { cn } from '@/lib/cn';
 
-/* ── Types (mirror forge's /api/v1 responses) ─────────────────────── */
 type ProjectStatus = 'draft' | 'interviewing' | 'generating' | 'ready' | 'archived';
+
 interface Project {
-  id: string; name: string; description: string | null;
-  status: ProjectStatus; icon: string | null; accentColor: string;
-  updatedAt: string; createdAt: string;
-  docsReady: number; docsTotal: number;
+  id: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  icon: string | null;
+  accentColor: string;
+  updatedAt: string;
+  createdAt: string;
+  docsReady: number;
+  docsTotal: number;
 }
-type Counts = { all: number; draft: number; interviewing: number; generating: number; ready: number; archived: number };
+
+type Counts = {
+  all: number;
+  draft: number;
+  interviewing: number;
+  generating: number;
+  ready: number;
+  archived: number;
+};
+
 interface ListResp {
   projects: Project[];
   counts: Counts;
   pagination: { total: number; limit: number; nextCursor: { value: string; id: string } | null };
 }
 
-const STATUS_ID: Record<ProjectStatus, string> = {
-  draft: 'draft', interviewing: 'wawancara', generating: 'menulis', ready: 'siap', archived: 'arsip',
+interface TemplateItem {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  icon: string;
+  accentColor: string;
+  baselineAssumptions: string[];
+  defaultQuestions: string[];
+  usageCount: number;
+}
+
+const STATUS_LABEL: Record<ProjectStatus, string> = {
+  draft: 'Draft',
+  interviewing: 'Wawancara',
+  generating: 'Menulis',
+  ready: 'Siap',
+  archived: 'Arsip',
 };
-const STATUS_CLASS: Record<ProjectStatus, string> = {
-  draft: '', interviewing: 'live', generating: 'live', ready: 'ok', archived: 'ready',
-};
+
 const FILTERS: { key: ProjectStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'Semua' },
   { key: 'draft', label: 'Draft' },
@@ -35,19 +97,31 @@ const FILTERS: { key: ProjectStatus | 'all'; label: string }[] = [
   { key: 'archived', label: 'Arsip' },
 ];
 
-/* Sort is a pair because the API takes both: a column and a direction.
-   Kept as one value so the select is a single control, not two. */
 type SortKey = 'updated_at:desc' | 'created_at:desc' | 'name:asc';
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'updated_at:desc', label: 'Terbaru diubah' },
   { key: 'created_at:desc', label: 'Terbaru dibuat' },
-  { key: 'name:asc', label: 'Nama A–Z' },
+  { key: 'name:asc', label: 'Nama A-Z' },
 ];
 
-/* The accent swatches offered at creation. Ink-adjacent and paper-safe: each
-   one clears 4.5:1 against --card as a 14px glyph. The first is the default
-   the API has always used, so an untouched picker changes nothing. */
-const ACCENTS = ['#6366f1', '#c2401a', '#2f6b3a', '#8f6b2e', '#3d5a80', '#7a3b69'];
+const ACCENTS = ['#c2410c', '#0f766e', '#3d5a80', '#7a3b69', '#8f6b2e', '#6366f1'];
+
+const CATEGORY_LABEL: Record<string, string> = {
+  saas: 'SaaS',
+  marketplace: 'Marketplace',
+  ai: 'Agen AI',
+  internal: 'Internal',
+  content: 'Konten',
+  other: 'Lainnya',
+};
+
+function TemplateIcon({ category }: { category: string }) {
+  if (category === 'saas') return <Building2 className="h-4 w-4" aria-hidden="true" />;
+  if (category === 'marketplace') return <Store className="h-4 w-4" aria-hidden="true" />;
+  if (category === 'ai') return <Terminal className="h-4 w-4" aria-hidden="true" />;
+  if (category === 'internal') return <LayoutDashboard className="h-4 w-4" aria-hidden="true" />;
+  return <Layers className="h-4 w-4" aria-hidden="true" />;
+}
 
 function timeAgo(iso: string): string {
   const s = Math.max(1, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -57,83 +131,151 @@ function timeAgo(iso: string): string {
   return `${Math.floor(s / 86400)} hari lalu`;
 }
 
-/* Inline mark for projects without an icon — the fallback glyph used to be
-   a unicode diamond the self-hosted fonts don't carry (tofu on screen). */
-function Mark({ color }: { color: string }) {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-      <rect x="2" y="2" width="12" height="12" rx="2.5" fill="none" stroke={color} strokeWidth="1.8" />
-      <circle cx="8" cy="8" r="2.4" fill={color} />
-    </svg>
-  );
-}
-
-/* Seven dots, one per scaffolded document: filled = written. The dots are
-   ink, never vermilion — this is resting state, not wet ink. */
-function DocBar({ ready, total }: { ready: number; total: number }) {
-  return (
-    <span className="docbar" title={`${ready} dari ${total} dokumen siap`}>
-      <span className="dots" aria-hidden="true">
-        {Array.from({ length: total }, (_, i) => (
-          <i key={i} className={i < ready ? 'on' : ''} />
-        ))}
-      </span>
-      <span className={`doccount mono ${ready >= total ? 'full' : ''}`}>{ready}/{total} dok</span>
-    </span>
-  );
+function deriveProjectName(idea: string, fallbackTemplate?: string): string {
+  const firstLine = idea.split(/\n|[.!?]/)[0]?.trim() ?? '';
+  const words = firstLine.split(/\s+/).filter(Boolean).slice(0, 6).join(' ');
+  const candidate = words.length >= 3 ? words : fallbackTemplate || 'Proyek Baru';
+  return candidate.slice(0, 80);
 }
 
 export default function StudioPage() {
   const router = useRouter();
+  const { toast } = useToast();
+
+  // Quick-Start Composer state
+  const [idea, setIdea] = useState('');
+  const [customTitle, setCustomTitle] = useState('');
+  const [showOptions, setShowOptions] = useState(false);
+  const [accent, setAccent] = useState(ACCENTS[0]!);
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Templates from API
+  const [templates, setTemplates] = useState<TemplateItem[]>([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+
+  // Projects list state
   const [data, setData] = useState<ListResp | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<ProjectStatus | 'all'>('all');
   const [sort, setSort] = useState<SortKey>('updated_at:desc');
-  const [creating, setCreating] = useState(false);
-  const [newOpen, setNewOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newAccent, setNewAccent] = useState(ACCENTS[0]);
-  const [debounceTick, setDebounceTick] = useState(0);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // Delete / Archive state
   const [confirmDel, setConfirmDel] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [delError, setDelError] = useState<string | null>(null);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [archiving, setArchiving] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const menuWrap = useRef<HTMLDivElement | null>(null);
-  const menuFirst = useRef<HTMLButtonElement | null>(null);
 
-  const query = useCallback((cursor?: { value: string; id: string }) => {
-    const params = new URLSearchParams();
-    if (q.trim()) params.set('q', q.trim());
-    if (status !== 'all') params.set('status', status);
-    const [col, dir] = sort.split(':') as [string, string];
-    params.set('sort', col);
-    params.set('order', dir);
-    if (cursor) {
-      params.set('cursorValue', cursor.value);
-      params.set('cursorId', cursor.id);
-    }
-    return `/projects?${params.toString()}`;
-  }, [q, status, sort]);
+  useEffect(() => {
+    let alive = true;
+    api
+      .get<{ templates: TemplateItem[] }>('/templates')
+      .then((res) => {
+        if (alive) {
+          setTemplates(res.templates ?? []);
+          setTemplatesLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (alive) setTemplatesLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
-  // First page. Any change to q / status / sort starts the list over — the
-  // cursor from the previous query is meaningless against a new one.
+  const query = useCallback(
+    (cursor?: { value: string; id: string }) => {
+      const params = new URLSearchParams();
+      if (q.trim()) params.set('q', q.trim());
+      if (status !== 'all') params.set('status', status);
+      const [col, dir] = sort.split(':') as [string, string];
+      params.set('sort', col);
+      params.set('order', dir);
+      if (cursor) {
+        params.set('cursorValue', cursor.value);
+        params.set('cursorId', cursor.id);
+      }
+      return `/projects?${params.toString()}`;
+    },
+    [q, status, sort],
+  );
+
   useEffect(() => {
     let stale = false;
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
-      api.get<ListResp>(query())
-        .then((d) => { if (!stale) { setData(d); setError(null); } })
+      api
+        .get<ListResp>(query())
+        .then((d) => {
+          if (!stale) {
+            setData(d);
+            setError(null);
+          }
+        })
         .catch((e: unknown) => {
           if (!stale) setError(e instanceof ApiError ? e.message : 'Gagal memuat proyek');
         });
-    }, 250);
-    return () => { stale = true; if (debounce.current) clearTimeout(debounce.current); };
-  }, [query, debounceTick]);
+    }, 220);
+    return () => {
+      stale = true;
+      if (debounce.current) clearTimeout(debounce.current);
+    };
+  }, [query, refreshTick]);
+
+  async function launchProject() {
+    const trimmedIdea = idea.trim();
+    const trimmedTitle = customTitle.trim();
+    if (!trimmedIdea && !trimmedTitle && !selectedTemplate) return;
+
+    setCreating(true);
+    setError(null);
+    const projectName =
+      trimmedTitle ||
+      deriveProjectName(trimmedIdea || selectedTemplate?.name || 'Proyek Baru', selectedTemplate?.name);
+    const description = trimmedIdea || selectedTemplate?.description || undefined;
+
+    try {
+      const { project } = await api.post<{ project: Project }>('/projects', {
+        name: projectName,
+        description,
+        templateId: selectedTemplate?.id,
+        accentColor: accent,
+      });
+
+      if (trimmedIdea) {
+        try {
+          window.sessionStorage.setItem(`rancang.seed.${project.id}`, trimmedIdea);
+        } catch {
+          /* private mode */
+        }
+      }
+      router.push(`/projects/${project.id}?mode=interview`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Gagal membuat proyek baru');
+      setCreating(false);
+    }
+  }
+
+  function applyTemplate(tpl: TemplateItem) {
+    setSelectedTemplate(tpl);
+    if (tpl.accentColor && /^#[0-9a-fA-F]{6}$/.test(tpl.accentColor)) {
+      setAccent(tpl.accentColor);
+    }
+    if (!idea.trim()) {
+      setIdea(`Saya ingin membangun ${tpl.name}: ${tpl.description}`);
+    }
+    composerRef.current?.focus();
+    toast({
+      tone: 'info',
+      title: `Template "${tpl.name}" dipilih`,
+      description: 'Sesuaikan ide di composer lalu tekan Mulai merancang.',
+    });
+  }
 
   async function loadMore() {
     const cursor = data?.pagination.nextCursor;
@@ -141,13 +283,18 @@ export default function StudioPage() {
     setLoadingMore(true);
     try {
       const next = await api.get<ListResp>(query(cursor));
-      setData((prev) => prev
-        ? {
-            projects: [...prev.projects, ...next.projects.filter((p) => !prev.projects.some((q) => q.id === p.id))],
-            counts: next.counts,
-            pagination: next.pagination,
-          }
-        : next);
+      setData((prev) =>
+        prev
+          ? {
+              projects: [
+                ...prev.projects,
+                ...next.projects.filter((p) => !prev.projects.some((ex) => ex.id === p.id)),
+              ],
+              counts: next.counts,
+              pagination: next.pagination,
+            }
+          : next,
+      );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Gagal memuat proyek berikutnya');
     } finally {
@@ -155,335 +302,531 @@ export default function StudioPage() {
     }
   }
 
-  async function createProject() {
-    if (!newName.trim()) return;
-    setCreating(true);
-    setError(null);
+  async function toggleArchive(p: Project) {
     try {
-      const { project } = await api.post<{ project: Project }>('/projects', {
-        name: newName.trim(),
-        description: newDesc.trim() || undefined,
-        accentColor: newAccent,
+      await api.patch(
+        `/projects/${p.id}`,
+        p.status === 'archived' ? { restore: true } : { status: 'archived' },
+      );
+      toast({
+        tone: 'info',
+        title: p.status === 'archived' ? `"${p.name}" dipulihkan` : `"${p.name}" diarsipkan`,
       });
-      router.push(`/projects/${project.id}/interview`);
+      setRefreshTick((t) => t + 1);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal membuat proyek');
-      setCreating(false);
+      toast({
+        tone: 'error',
+        title: 'Gagal mengubah status arsip',
+        description: e instanceof ApiError ? e.message : undefined,
+      });
+    }
+  }
+
+  async function deleteProject(p: Project) {
+    setDeleting(true);
+    setDelError(null);
+    try {
+      await api.delete(`/projects/${p.id}?hard=1`);
+      setConfirmDel(null);
+      toast({ tone: 'info', title: `Proyek "${p.name}" dihapus permanen` });
+      setRefreshTick((t) => t + 1);
+    } catch (e) {
+      setDelError(e instanceof ApiError ? e.message : 'Gagal menghapus proyek');
+    } finally {
+      setDeleting(false);
     }
   }
 
   const cards = useMemo(() => data?.projects ?? [], [data]);
-
-  async function deleteProject(p: Project) {
-    setDeleting(p.id);
-    setDelError(null);
-    try {
-      // hard=1: the row and all its documents, versions and sessions go.
-      await api.delete(`/projects/${p.id}?hard=1`);
-      setConfirmDel(null);
-      setDebounceTick((t) => t + 1);
-    } catch (e) {
-      setDelError(e instanceof ApiError ? e.message : 'Gagal menghapus proyek');
-    } finally {
-      setDeleting(null);
-    }
-  }
-
-  async function toggleArchive(p: Project) {
-    setMenuFor(null);
-    setArchiving(p.id);
-    setError(null);
-    try {
-      // Archive stamps archived_at; restore lets the server pick the status
-      // that matches what the project actually holds.
-      await api.patch(`/projects/${p.id}`, p.status === 'archived' ? { restore: true } : { status: 'archived' });
-      setDebounceTick((t) => t + 1);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal mengubah status arsip');
-    } finally {
-      setArchiving(null);
-    }
-  }
-
-  // The menu closes on a click anywhere else and on Escape. One document
-  // listener, only while a menu is open, so nothing is listening at rest.
-  // Focus moves to the first item on open, so a keyboard user is inside the
-  // menu the moment it appears rather than tabbing into the next card.
-  useEffect(() => {
-    if (!menuFor) return;
-    menuFirst.current?.focus();
-    function onDown(e: MouseEvent) {
-      if (menuWrap.current && !menuWrap.current.contains(e.target as Node)) setMenuFor(null);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
-      // Focus goes back to the button that opened it, never to the top of the
-      // document — otherwise Escape loses your place in the grid.
-      menuWrap.current?.querySelector<HTMLButtonElement>('.job-more')?.focus();
-      setMenuFor(null);
-    }
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuFor]);
-
-  // Escape closes whichever modal is up. Bound to the document so it works
-  // while focus is inside a text field too.
-  useEffect(() => {
-    if (!newOpen && !confirmDel) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
-      if (newOpen) setNewOpen(false);
-      if (confirmDel && !deleting) setConfirmDel(null);
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [newOpen, confirmDel, deleting]);
-
-  // A card opens the project page, which decides what to show: the document
-  // list when there is something written, the interview when there is not
-  // (v0.1.3). It used to jump straight to a document or the interview, so
-  // coming back always felt like starting over (Ndan's report).
-  function cardHref(p: Project): string {
-    return `/projects/${p.id}`;
-  }
-  const live = cards.filter((p) => p.status === 'interviewing' || p.status === 'generating').length;
   const filtered = q.trim().length > 0 || status !== 'all';
 
   return (
-    <div className="pg-studio">
-      <header className="head">
+    <div className="mx-auto max-w-6xl space-y-8 px-5 py-7 sm:px-8">
+      {/* Quick-Start Composer */}
+      <section aria-labelledby="studio-heading" className="space-y-4">
         <div>
-          <p className="eyebrow mono">ruang kerja{live > 0 ? ` · ${live} sedang berjalan` : ''}</p>
-          <h1>Studio</h1>
-          <p className="muted lede">Ceritakan idemu sekali — rancang-ai mewawancarai, lalu menulis tujuh dokumen spesifikasi.</p>
+          <h1 id="studio-heading" className="text-2xl font-semibold tracking-tight text-ink">
+            Mulai spesifikasi baru
+          </h1>
+          <p className="mt-1 text-sm text-ink-2">
+            Tulis satu kalimat tentang aplikasi yang ingin kamu bangun, atau pilih template di
+            bawah sebagai titik awal.
+          </p>
         </div>
-        <button className="btn primary" onClick={() => setNewOpen(true)}>+ Proyek baru</button>
-      </header>
 
-      <div className="tools">
-        <input
-          className="search"
-          type="search"
-          placeholder="Cari nama atau deskripsi…"
-          aria-label="Cari proyek"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="chips" role="group" aria-label="Filter status">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void launchProject();
+          }}
+          className="rounded-2xl border border-line bg-surface p-4 shadow-panel sm:p-5 space-y-3"
+        >
+          {selectedTemplate && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/25 bg-accent-soft/60 px-3 py-2 text-xs">
+              <span className="flex items-center gap-2 font-medium text-accent-ink">
+                <TemplateIcon category={selectedTemplate.category} />
+                <span>Template aktif: {selectedTemplate.name}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedTemplate(null)}
+                aria-label="Hapus pilihan template"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-accent-ink hover:bg-accent/15"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="quick-start-idea" className="sr-only">
+              Ceritakan ide aplikasimu
+            </label>
+            <textarea
+              id="quick-start-idea"
+              ref={composerRef}
+              rows={3}
+              maxLength={2000}
+              value={idea}
+              onChange={(e) => setIdea(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  void launchProject();
+                }
+              }}
+              placeholder="Contoh: Aplikasi kasir dan antrean servis untuk bengkel motor, dipakai 2 mekanik dan 1 admin, dengan nota kirim ke WhatsApp..."
+              className="w-full resize-none rounded-xl border border-line bg-canvas px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+            />
+          </div>
+
+          {showOptions && (
+            <div className="grid gap-3 rounded-xl border border-line bg-sidebar/50 p-3.5 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label htmlFor="qs-title" className="block text-xs font-medium text-ink-2">
+                  Nama proyek <span className="font-normal text-ink-3">(otomatis jika kosong)</span>
+                </label>
+                <input
+                  id="qs-title"
+                  maxLength={120}
+                  value={customTitle}
+                  onChange={(e) => setCustomTitle(e.target.value)}
+                  placeholder="Contoh: Kasir Bengkel Maju"
+                  className="w-full min-h-10 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <span className="block text-xs font-medium text-ink-2">Warna penanda kartu</span>
+                <div className="flex items-center gap-2 pt-1" role="radiogroup" aria-label="Warna penanda">
+                  {ACCENTS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      role="radio"
+                      aria-checked={accent === c}
+                      aria-label={`Warna ${c}`}
+                      onClick={() => setAccent(c)}
+                      className={cn(
+                        'flex h-8 w-8 items-center justify-center rounded-lg border transition-transform',
+                        accent === c
+                          ? 'border-ink scale-105 bg-surface'
+                          : 'border-line bg-surface/60 hover:border-line-strong',
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-4 w-4 rounded-full"
+                        style={{ backgroundColor: c }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowOptions((v) => !v)}
+                aria-expanded={showOptions}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{showOptions ? 'Sembunyikan opsi' : 'Nama & warna'}</span>
+              </Button>
+              <span className="hidden sm:inline font-mono text-[11px] text-ink-3">
+                Ctrl/Cmd+Enter untuk mulai
+              </span>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={creating || (!idea.trim() && !customTitle.trim() && !selectedTemplate)}
+            >
+              <span>{creating ? 'Menyiapkan ruang kerja...' : 'Mulai merancang'}</span>
+              {!creating && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      {/* Template Starter Cards from /api/v1/templates */}
+      <section aria-labelledby="templates-heading" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 id="templates-heading" className="text-sm font-semibold text-ink">
+            Mulai dari template
+          </h2>
+          {templatesLoaded && (
+            <span className="font-mono text-xs text-ink-3">{templates.length} template siap</span>
+          )}
+        </div>
+
+        {!templatesLoaded ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-32 rounded-xl border border-line bg-surface animate-pulse" />
+            ))}
+          </div>
+        ) : templates.length === 0 ? (
+          <p className="text-xs text-ink-3">Belum ada template tersimpan.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {templates.map((tpl) => {
+              const isSelected = selectedTemplate?.id === tpl.id;
+              return (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => applyTemplate(tpl)}
+                  aria-pressed={isSelected}
+                  className={cn(
+                    'flex flex-col justify-between rounded-xl border p-4 text-left transition-colors',
+                    isSelected
+                      ? 'border-accent bg-accent-soft/50 shadow-xs'
+                      : 'border-line bg-surface hover:border-line-strong hover:bg-subtle/40',
+                  )}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line"
+                        style={{
+                          backgroundColor: `${tpl.accentColor}1a`,
+                          color: tpl.accentColor,
+                        }}
+                      >
+                        <TemplateIcon category={tpl.category} />
+                      </span>
+                      <Badge tone="neutral">
+                        {CATEGORY_LABEL[tpl.category] ?? tpl.category}
+                      </Badge>
+                    </div>
+                    <h3 className="mt-3 text-sm font-semibold text-ink">{tpl.name}</h3>
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-2">
+                      {tpl.description}
+                    </p>
+                  </div>
+                  {tpl.baselineAssumptions.length > 0 && (
+                    <p className="mt-3 truncate font-mono text-[11px] text-ink-3">
+                      {tpl.baselineAssumptions.slice(0, 2).join(' · ')}
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Existing Projects */}
+      <section aria-labelledby="projects-heading" className="space-y-4 border-t border-line pt-7">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="projects-heading" className="text-lg font-semibold tracking-tight text-ink">
+            Proyekmu
+          </h2>
+
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64 sm:flex-none">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Cari proyek..."
+                aria-label="Cari proyek"
+                className="w-full min-h-10 rounded-lg border border-line-strong bg-surface pl-9 pr-3 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+              />
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-xs text-ink-2">
+              <span className="sr-only">Urutkan proyek</span>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                aria-label="Urutkan proyek"
+                className="min-h-10 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-ink focus:border-accent focus:outline-none"
+              >
+                {SORTS.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        {/* Status Filter Chips */}
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Saring berdasarkan status">
           {FILTERS.map((f) => {
-            const n = data?.counts[f.key === 'all' ? 'all' : f.key];
+            const count = data?.counts[f.key === 'all' ? 'all' : f.key];
+            const active = status === f.key;
             return (
               <button
                 key={f.key}
-                className={`chip ${status === f.key ? 'on' : ''}`}
-                aria-pressed={status === f.key}
+                type="button"
+                aria-pressed={active}
                 onClick={() => setStatus(f.key)}
+                className={cn(
+                  'inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-medium transition-colors',
+                  active
+                    ? 'border-ink bg-ink text-canvas'
+                    : 'border-line bg-surface text-ink-2 hover:border-line-strong hover:text-ink',
+                )}
               >
-                {f.label}
-                {data && <span className="n mono">{n ?? 0}</span>}
+                <span>{f.label}</span>
+                {data && (
+                  <span
+                    className={cn(
+                      'font-mono text-[11px]',
+                      active ? 'opacity-80' : 'text-ink-3',
+                    )}
+                  >
+                    {count ?? 0}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
-        <label className="sort">
-          <span className="mono">urut</span>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            aria-label="Urutkan proyek"
+
+        {error && (
+          <div
+            role="alert"
+            className="rounded-xl border border-danger/35 bg-danger-soft px-4 py-3 text-sm text-danger-ink"
           >
-            {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-        </label>
-      </div>
-
-      {error && <div className="alert" role="alert">{error}</div>}
-
-      {!data && !error && (
-        <ul className="grid" aria-hidden="true">
-          {[0, 1, 2].map((i) => (
-            <li key={i} className="job-wrap">
-              <div className="job card skeleton">
-                <div className="job-top">
-                  <span className="sk sk-icon" />
-                  <span className="sk sk-idx" />
-                </div>
-                <span className="sk sk-title" />
-                <span className="sk sk-line" />
-                <span className="sk sk-line short" />
-                <div className="job-foot">
-                  <span className="sk sk-pill" />
-                  <span className="sk sk-when" />
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {data && cards.length === 0 && (
-        <div className="empty">
-          <p className="eyebrow mono">{filtered ? 'tidak ada hasil' : 'mulai di sini'}</p>
-          <h2>{filtered ? 'Tidak ada proyek yang cocok.' : 'Lembar kerja masih kosong.'}</h2>
-          <p className="muted">
-            {filtered
-              ? 'Coba kata kunci lain, atau buka filter Semua.'
-              : 'Satu wawancara singkat — lima sampai delapan pertanyaan — dan idemu menjadi PRD, skema data, sampai rencana rilis.'}
-          </p>
-          {!filtered && (
-            <button className="btn primary" onClick={() => setNewOpen(true)}>Mulai proyek pertama</button>
-          )}
-        </div>
-      )}
-
-      <ul className="grid">
-        {cards.map((p, i) => (
-          <li key={p.id} className="job-wrap">
-            <Link href={cardHref(p)} className="job card">
-              <div className="job-top">
-                <span className="icon" style={{ background: p.accentColor + '22', color: p.accentColor }}>
-                  <Mark color={p.accentColor} />
-                </span>
-                <span className="idx mono muted">{String(i + 1).padStart(2, '0')}</span>
-              </div>
-              <h3>{p.name}</h3>
-              <p className="muted desc">{p.description ?? 'Tanpa deskripsi.'}</p>
-              <DocBar ready={p.docsReady} total={p.docsTotal} />
-              <div className="job-foot">
-                <span className={`pill ${STATUS_CLASS[p.status]}`}>
-                  <span className="dot" />{STATUS_ID[p.status]}
-                </span>
-                <span className="mono muted when">{timeAgo(p.updatedAt)}</span>
-              </div>
-            </Link>
-
-            {/* The overflow menu sits outside the card link: a button inside
-                an <a> is invalid HTML and would navigate instead of opening. */}
-            <div className="job-menu" ref={menuFor === p.id ? menuWrap : undefined}>
-              <button
-                type="button"
-                className="job-more"
-                aria-label={`Opsi untuk ${p.name}`}
-                aria-haspopup="menu"
-                aria-expanded={menuFor === p.id}
-                aria-busy={archiving === p.id || undefined}
-                onClick={() => setMenuFor(menuFor === p.id ? null : p.id)}
-              >
-                <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                  <circle cx="3" cy="8" r="1.4" fill="currentColor" />
-                  <circle cx="8" cy="8" r="1.4" fill="currentColor" />
-                  <circle cx="13" cy="8" r="1.4" fill="currentColor" />
-                </svg>
-              </button>
-              {menuFor === p.id && (
-                <div className="menu" role="menu" aria-label={`Opsi untuk ${p.name}`}>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    ref={menuFirst}
-                    className="menu-item"
-                    onClick={() => void toggleArchive(p)}
-                  >
-                    {p.status === 'archived' ? 'Pulihkan' : 'Arsipkan'}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="menu-item danger"
-                    onClick={() => { setMenuFor(null); setDelError(null); setConfirmDel(p); }}
-                  >
-                    Hapus permanen
-                  </button>
-                </div>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      {data?.pagination.nextCursor && (
-        <div className="more">
-          <button type="button" className="btn ghost" onClick={() => void loadMore()} disabled={loadingMore}>
-            {loadingMore ? 'Memuat…' : 'Muat lebih banyak'}
-          </button>
-          <span className="mono muted more-n">
-            {cards.length} dari {data.pagination.total}
-          </span>
-        </div>
-      )}
-
-      {confirmDel && (
-        <div className="veil" role="dialog" aria-modal="true" aria-label="Hapus proyek"
-          onClick={(e) => { if (e.target === e.currentTarget && !deleting) setConfirmDel(null); }}>
-          <div className="sheet card">
-            <p className="eyebrow mono">tindakan permanen</p>
-            <h2>Hapus “{confirmDel.name}”?</h2>
-            <p className="muted">
-              Seluruh wawancara, dokumen, versi, dan riwayat proyek ini ikut terhapus permanen.
-              Kalau hanya ingin menyembunyikannya dari daftar, pakai Arsipkan di menu kartu.
-            </p>
-            {delError && <div className="alert" role="alert">{delError}</div>}
-            <div className="sheet-foot">
-              <button type="button" className="btn ghost" disabled={!!deleting}
-                onClick={() => setConfirmDel(null)}>Batal</button>
-              <button type="button" className="btn danger" disabled={!!deleting}
-                onClick={() => void deleteProject(confirmDel)}>
-                {deleting ? 'Menghapus…' : 'Hapus permanen'}
-              </button>
-            </div>
+            {error}
           </div>
-        </div>
-      )}
+        )}
 
-      {newOpen && (
-        <div className="veil" role="dialog" aria-modal="true" aria-label="Proyek baru"
-          onClick={(e) => { if (e.target === e.currentTarget) setNewOpen(false); }}>
-          <form className="sheet card" onSubmit={(e) => { e.preventDefault(); void createProject(); }}>
-            <h2>Proyek baru</h2>
-            <div className="field">
-              <label htmlFor="np-name">Nama</label>
-              <input id="np-name" autoFocus required maxLength={120}
-                placeholder="mis. Kasir Warung Bu Sari" value={newName}
-                onChange={(e) => setNewName(e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="np-desc">Deskripsi singkat <span className="muted">(opsional)</span></label>
-              <textarea id="np-desc" rows={3} maxLength={2000}
-                placeholder="Aplikasi apa yang ingin dibangun?" value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)} />
-            </div>
-            <fieldset className="swatches">
-              <legend className="mono">warna kartu <span className="muted">(opsional)</span></legend>
-              <div className="swatch-row" role="radiogroup" aria-label="Warna kartu">
-                {ACCENTS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    role="radio"
-                    aria-checked={newAccent === c}
-                    aria-label={`Warna ${c}`}
-                    className={`swatch ${newAccent === c ? 'on' : ''}`}
-                    onClick={() => setNewAccent(c)}
-                  >
-                    <Mark color={c} />
-                  </button>
-                ))}
+        {!data && !error && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-44 rounded-2xl border border-line bg-surface animate-pulse" />
+            ))}
+          </div>
+        )}
+
+        {data && cards.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-line-strong bg-surface/60 px-6 py-10 text-center">
+            <FolderOpen className="mx-auto h-7 w-7 text-ink-3" aria-hidden="true" />
+            <h3 className="mt-3 text-base font-semibold text-ink">
+              {filtered ? 'Tidak ada proyek yang cocok.' : 'Belum ada proyek di Studio.'}
+            </h3>
+            <p className="mx-auto mt-1 max-w-md text-sm text-ink-2">
+              {filtered
+                ? 'Coba kata kunci lain atau kembalikan saringan ke Semua.'
+                : 'Tulis satu kalimat ide di composer atas atau pilih salah satu template untuk memulai proyek pertamamu.'}
+            </p>
+            {filtered && (
+              <div className="mt-4">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setQ('');
+                    setStatus('all');
+                  }}
+                >
+                  Tampilkan semua proyek
+                </Button>
               </div>
-            </fieldset>
-            <div className="sheet-foot">
-              <button type="button" className="btn ghost" onClick={() => setNewOpen(false)}>Batal</button>
-              <button type="submit" className="btn primary" disabled={creating || !newName.trim()}>
-                {creating ? 'Membuat…' : 'Mulai wawancara'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
+        {cards.length > 0 && (
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {cards.map((p) => (
+              <li key={p.id} className="group relative">
+                <Link
+                  href={`/projects/${p.id}`}
+                  className="flex h-full flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-xs transition-all hover:border-line-strong hover:shadow-panel"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 pr-8">
+                      <span
+                        aria-hidden="true"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line text-sm font-semibold"
+                        style={{
+                          backgroundColor: `${p.accentColor}1a`,
+                          color: p.accentColor,
+                        }}
+                      >
+                        {p.name.slice(0, 1).toUpperCase()}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-3.5 line-clamp-1 text-base font-semibold text-ink group-hover:text-accent-ink transition-colors">
+                      {p.name}
+                    </h3>
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-2">
+                      {p.description ?? 'Belum ada deskripsi proyek.'}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    {/* 7-doc progress bar */}
+                    <div
+                      className="flex items-center justify-between gap-2"
+                      title={`${p.docsReady} dari ${p.docsTotal} dokumen siap`}
+                    >
+                      <div className="flex items-center gap-1" aria-hidden="true">
+                        {Array.from({ length: p.docsTotal || 7 }, (_, idx) => (
+                          <span
+                            key={idx}
+                            className={cn(
+                              'h-1.5 w-3.5 rounded-full',
+                              idx < p.docsReady ? 'bg-ready' : 'bg-subtle',
+                            )}
+                          />
+                        ))}
+                      </div>
+                      <span className="font-mono text-[11px] text-ink-3">
+                        {p.docsReady}/{p.docsTotal || 7} dok
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-line pt-3">
+                      <Badge
+                        tone={
+                          p.status === 'ready'
+                            ? 'ready'
+                            : p.status === 'interviewing' || p.status === 'generating'
+                              ? 'live'
+                              : 'neutral'
+                        }
+                        dot
+                      >
+                        {STATUS_LABEL[p.status]}
+                      </Badge>
+                      <span className="font-mono text-[11px] text-ink-3">
+                        {timeAgo(p.updatedAt)}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+
+                {/* Overflow menu positioned outside Link for valid HTML */}
+                <div className="absolute right-3 top-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={`Opsi untuk ${p.name}`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-subtle hover:text-ink"
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onSelect={() => void toggleArchive(p)}>
+                        {p.status === 'archived' ? (
+                          <>
+                            <ArchiveRestore className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
+                            <span>Pulihkan proyek</span>
+                          </>
+                        ) : (
+                          <>
+                            <Archive className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
+                            <span>Arsipkan</span>
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        tone="danger"
+                        onSelect={() => {
+                          setDelError(null);
+                          setConfirmDel(p);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Hapus permanen</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {data?.pagination.nextCursor && (
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+            >
+              {loadingMore ? 'Memuat...' : 'Muat lebih banyak'}
+            </Button>
+            <span className="font-mono text-xs text-ink-3">
+              {cards.length} dari {data.pagination.total}
+            </span>
+          </div>
+        )}
+      </section>
+
+      {/* Permanent delete confirmation dialog */}
+      <Dialog open={Boolean(confirmDel)} onOpenChange={(o) => !o && !deleting && setConfirmDel(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hapus &ldquo;{confirmDel?.name}&rdquo;?</DialogTitle>
+            <DialogDescription>
+              Seluruh wawancara, dokumen, riwayat versi, dan wireframe milik proyek ini akan
+              dihapus permanen. Jika hanya ingin menyembunyikannya, gunakan opsi Arsipkan.
+            </DialogDescription>
+          </DialogHeader>
+          {delError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-danger/35 bg-danger-soft px-3 py-2 text-xs text-danger-ink"
+            >
+              {delError}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" disabled={deleting} onClick={() => setConfirmDel(null)}>
+              Batal
+            </Button>
+            <Button
+              variant="danger"
+              disabled={deleting}
+              onClick={() => confirmDel && void deleteProject(confirmDel)}
+            >
+              {deleting ? 'Menghapus...' : 'Hapus permanen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
