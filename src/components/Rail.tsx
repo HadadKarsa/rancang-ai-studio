@@ -114,7 +114,7 @@ export function Rail() {
       data-collapsed={collapsed ? '1' : '0'}
     >
       <div className="rail-top">
-        <Link href="/studio" className="brand" aria-label="rancang.ai — studio">
+        <Link href="/studio" className="brand" aria-label="rancang-ai — studio">
           <span className="brand-mark" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M3 14.5V3.5h6.2a3.4 3.4 0 0 1 0 6.8H3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
@@ -122,7 +122,7 @@ export function Rail() {
             </svg>
           </span>
           <span className="brand-word">
-            rancang.ai
+            rancang-ai
             <small>spec studio</small>
           </span>
         </Link>
