@@ -63,6 +63,7 @@ export function buildModel(input: BuildModelInput): LanguageModel {
 export function buildProviderOptions(
   provider: ProviderId,
   reasoningEffort: ReasoningEffort | null | undefined,
+  maxOutputTokens: number,
 ): ProviderOptions | undefined {
   if (!reasoningEffort) return undefined;
 
@@ -87,7 +88,7 @@ export function buildProviderOptions(
       };
 
     case 'anthropic': {
-      const budgetTokens = ANTHROPIC_THINKING_BUDGET[reasoningEffort];
+      const budgetTokens = anthropicThinkingBudget(reasoningEffort, maxOutputTokens);
       return {
         anthropic: {
           thinking: budgetTokens === null
@@ -107,10 +108,30 @@ export function buildProviderOptions(
 /** `none` disables thinking; the rest are Anthropic budget tokens. */
 const ANTHROPIC_THINKING_BUDGET: Record<ReasoningEffort, number | null> = {
   none: null,
-  low: 2048,
-  medium: 8192,
-  high: 16384,
+  low: 1024,
+  medium: 4096,
+  high: 6144,
 };
+
+/** The API rejects a thinking budget below this. */
+export const ANTHROPIC_MIN_THINKING_BUDGET = 1024;
+
+/**
+ * Anthropic requires `budgetTokens >= 1024` and `budgetTokens < max_tokens`,
+ * because thinking and the answer are billed against the same output limit. So
+ * the level's budget is capped one token under the limit the call actually
+ * asks for, and a limit with no room for both gets thinking disabled rather
+ * than a request the API answers with 400.
+ */
+export function anthropicThinkingBudget(
+  reasoningEffort: ReasoningEffort,
+  maxOutputTokens: number,
+): number | null {
+  const level = ANTHROPIC_THINKING_BUDGET[reasoningEffort];
+  if (level === null) return null;
+  const capped = Math.min(level, Math.floor(maxOutputTokens) - 1);
+  return capped >= ANTHROPIC_MIN_THINKING_BUDGET ? capped : null;
+}
 
 /**
  * Validate a key + list available models (Ndan v2: test-connection endpoint).

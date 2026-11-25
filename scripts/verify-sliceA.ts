@@ -10,7 +10,7 @@ import { createClient } from '@libsql/client';
 import { getDb, setDbForTest } from '../src/lib/db/client';
 import { runMigrations } from '../src/lib/db/migrate';
 import { createCredential, createPreset, updatePreset, getPresetForUser, updateCredentialCachedModels, listCredentialsForUser } from '../src/lib/db/repositories/credentials';
-import { buildProviderOptions } from '../src/lib/llm/registry';
+import { buildProviderOptions, anthropicThinkingBudget, ANTHROPIC_MIN_THINKING_BUDGET } from '../src/lib/llm/registry';
 
 const results: string[] = [];
 function check(name: string, ok: boolean, detail = ''): void {
@@ -98,22 +98,44 @@ async function main(): Promise<void> {
   const afterEmpty = await getPresetForUser(preset.id, 'usr_test');
   check('empty PATCH preserves reasoningEffort', afterEmpty?.reasoningEffort === 'medium', String(afterEmpty?.reasoningEffort));
 
-  // 5. buildProviderOptions mapping
-  const openai = buildProviderOptions('openai', 'medium');
+  // 5. buildProviderOptions mapping. The Anthropic budget is capped against the
+  //    output limit the call actually asks for: the API rejects a budget below
+  //    1024 and a budget that is not strictly below max_tokens.
+  const openai = buildProviderOptions('openai', 'medium', 8192);
   check('openai medium', JSON.stringify(openai) === '{"openai":{"reasoningEffort":"medium"}}', JSON.stringify(openai));
-  check('null effort → undefined', buildProviderOptions('openai', null) === undefined);
-  const googleNone = buildProviderOptions('google', 'none');
-  check('google none → thinkingBudget 0', JSON.stringify(googleNone) === '{"google":{"thinkingConfig":{"thinkingBudget":0}}}', JSON.stringify(googleNone));
-  const googleHigh = buildProviderOptions('google', 'high');
-  check('google high → thinkingLevel', JSON.stringify(googleHigh) === '{"google":{"thinkingConfig":{"thinkingLevel":"high"}}}', JSON.stringify(googleHigh));
-  const aNone = buildProviderOptions('anthropic', 'none');
-  check('anthropic none → disabled', JSON.stringify(aNone) === '{"anthropic":{"thinking":{"type":"disabled"}}}', JSON.stringify(aNone));
-  const aMed = buildProviderOptions('anthropic', 'medium');
-  check('anthropic medium → 8192', JSON.stringify(aMed) === '{"anthropic":{"thinking":{"type":"enabled","budgetTokens":8192}}}', JSON.stringify(aMed));
-  const aHigh = buildProviderOptions('anthropic', 'high');
-  check('anthropic high → 16384', JSON.stringify(aHigh) === '{"anthropic":{"thinking":{"type":"enabled","budgetTokens":16384}}}', JSON.stringify(aHigh));
-  const aLow = buildProviderOptions('anthropic', 'low');
-  check('anthropic low → 2048', JSON.stringify(aLow) === '{"anthropic":{"thinking":{"type":"enabled","budgetTokens":2048}}}', JSON.stringify(aLow));
+  check('null effort -> undefined', buildProviderOptions('openai', null, 8192) === undefined);
+  const googleNone = buildProviderOptions('google', 'none', 8192);
+  check('google none -> thinkingBudget 0', JSON.stringify(googleNone) === '{"google":{"thinkingConfig":{"thinkingBudget":0}}}', JSON.stringify(googleNone));
+  const googleHigh = buildProviderOptions('google', 'high', 8192);
+  check('google high -> thinkingLevel', JSON.stringify(googleHigh) === '{"google":{"thinkingConfig":{"thinkingLevel":"high"}}}', JSON.stringify(googleHigh));
+  const aNone = buildProviderOptions('anthropic', 'none', 8192);
+  check('anthropic none -> disabled', JSON.stringify(aNone) === '{"anthropic":{"thinking":{"type":"disabled"}}}', JSON.stringify(aNone));
+  const aLow = buildProviderOptions('anthropic', 'low', 8192);
+  check('anthropic low -> 1024', JSON.stringify(aLow) === '{"anthropic":{"thinking":{"type":"enabled","budgetTokens":1024}}}', JSON.stringify(aLow));
+  const aMed = buildProviderOptions('anthropic', 'medium', 8192);
+  check('anthropic medium -> 4096', JSON.stringify(aMed) === '{"anthropic":{"thinking":{"type":"enabled","budgetTokens":4096}}}', JSON.stringify(aMed));
+  const aHigh = buildProviderOptions('anthropic', 'high', 8192);
+  check('anthropic high -> 6144', JSON.stringify(aHigh) === '{"anthropic":{"thinking":{"type":"enabled","budgetTokens":6144}}}', JSON.stringify(aHigh));
+
+  // Every level at an 8192 limit: budget strictly below the limit.
+  for (const [effort, expected] of [['low', 1024], ['medium', 4096], ['high', 6144]] as const) {
+    const budget = anthropicThinkingBudget(effort, 8192);
+    check(`anthropic ${effort} @8192 -> ${expected}`, budget === expected && budget < 8192, String(budget));
+  }
+  // At a 2048 limit the levels are capped one token under the limit.
+  for (const [effort, expected] of [['low', 1024], ['medium', 2047], ['high', 2047]] as const) {
+    const budget = anthropicThinkingBudget(effort, 2048);
+    check(`anthropic ${effort} @2048 -> ${expected}`, budget === expected && budget < 2048, String(budget));
+  }
+  // A limit too small to hold the 1024 minimum plus an answer disables thinking.
+  check('anthropic low @1024 -> disabled (boundary)', anthropicThinkingBudget('low', 1024) === null);
+  check('anthropic low @1025 -> 1024 (smallest valid)', anthropicThinkingBudget('low', 1025) === 1024);
+  check('anthropic high @1026 -> 1025 (capped)', anthropicThinkingBudget('high', 1026) === 1025);
+  check('anthropic medium @1024 -> disabled (boundary)', anthropicThinkingBudget('medium', 1024) === null);
+  check('anthropic none @1024 -> null, disabled by level not size', anthropicThinkingBudget('none', 1024) === null);
+  check('min budget constant is 1024', ANTHROPIC_MIN_THINKING_BUDGET === 1024);
+  const aTiny = buildProviderOptions('anthropic', 'medium', 1024);
+  check('anthropic medium @1024 -> disabled', JSON.stringify(aTiny) === '{"anthropic":{"thinking":{"type":"disabled"}}}', JSON.stringify(aTiny));
 
   // 6. ATOMICITY: a migration that fails half-way must roll back both the
   //    schema change and its ledger row.

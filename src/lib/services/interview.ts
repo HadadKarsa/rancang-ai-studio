@@ -61,18 +61,19 @@ export async function startInterviewTurn(input: {
       questionIndex,
       maxQuestions,
     });
+    // Thinking tokens come out of the same budget as the JSON answer, so a
+    // reasoning preset needs headroom or the turn truncates mid-object. A
+    // turn without reasoning stays at the flat budget it always had.
+    const maxOutputTokens = isReasoningActive(resolved.reasoningEffort)
+      ? resolveMaxOutputTokens({ maxTokens: resolved.maxTokens, reasoningEffort: resolved.reasoningEffort })
+      : 1024;
     const result = await generateText({
       model,
       system: prompt.system,
       prompt: prompt.prompt,
       temperature: resolved.temperature,
-      // Thinking tokens come out of the same budget as the JSON answer, so a
-      // reasoning preset needs headroom or the turn truncates mid-object. A
-      // turn without reasoning stays at the flat budget it always had.
-      maxOutputTokens: isReasoningActive(resolved.reasoningEffort)
-        ? resolveMaxOutputTokens({ maxTokens: resolved.maxTokens, reasoningEffort: resolved.reasoningEffort })
-        : 1024,
-      providerOptions: buildProviderOptions(resolved.provider, resolved.reasoningEffort),
+      maxOutputTokens,
+      providerOptions: buildProviderOptions(resolved.provider, resolved.reasoningEffort, maxOutputTokens),
     });
     // A truncated turn is half a JSON object. Appending it would put a broken
     // question in the transcript that every later document reads as context.

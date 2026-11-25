@@ -91,16 +91,17 @@ export async function streamDocumentGeneration(params: StreamDocumentParams): Pr
   await setDocumentStatus(doc.id, 'generating');
 
   const started = Date.now();
+  const maxOutputTokens = resolveMaxOutputTokens({
+    maxTokens: resolved.maxTokens,
+    reasoningEffort: resolved.reasoningEffort,
+  });
   const result = streamText({
     model,
     system: prompt.system,
     prompt: prompt.prompt,
     temperature: resolved.temperature,
-    maxOutputTokens: resolveMaxOutputTokens({
-      maxTokens: resolved.maxTokens,
-      reasoningEffort: resolved.reasoningEffort,
-    }),
-    providerOptions: buildProviderOptions(resolved.provider, resolved.reasoningEffort),
+    maxOutputTokens,
+    providerOptions: buildProviderOptions(resolved.provider, resolved.reasoningEffort, maxOutputTokens),
     abortSignal: params.abortSignal,
     onAbort: () => {
       void setDocumentStatus(doc.id, 'failed');

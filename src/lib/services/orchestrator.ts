@@ -214,14 +214,15 @@ export async function generateAllDocuments(opts: BatchOptions): Promise<BatchRes
     const started = Date.now();
     try {
       const prompt = await promptFor(ctx, opts.projectId, type, result.generated);
+      const maxOutputTokens = resolveMaxOutputTokens({
+        maxTokens: ctx.resolved.maxTokens,
+        reasoningEffort: ctx.resolved.reasoningEffort,
+      });
       const res = await generateText({
         model: ctx.model, system: prompt.system, prompt: prompt.prompt,
         temperature: ctx.resolved.temperature,
-        maxOutputTokens: resolveMaxOutputTokens({
-          maxTokens: ctx.resolved.maxTokens,
-          reasoningEffort: ctx.resolved.reasoningEffort,
-        }),
-        providerOptions: buildProviderOptions(ctx.resolved.provider, ctx.resolved.reasoningEffort),
+        maxOutputTokens,
+        providerOptions: buildProviderOptions(ctx.resolved.provider, ctx.resolved.reasoningEffort, maxOutputTokens),
       });
       // A truncated answer is a prefix, not a document: it is not persisted, it
       // is not added to `result.generated`, and so `promptFor` never feeds it to
@@ -304,14 +305,15 @@ export async function* generateAllDocumentsStream(
 
     try {
       const prompt = await promptFor(ctx, opts.projectId, type, result.generated);
+      const maxOutputTokens = resolveMaxOutputTokens({
+        maxTokens: ctx.resolved.maxTokens,
+        reasoningEffort: ctx.resolved.reasoningEffort,
+      });
       const stream = streamText({
         model: ctx.model, system: prompt.system, prompt: prompt.prompt,
         temperature: ctx.resolved.temperature,
-        maxOutputTokens: resolveMaxOutputTokens({
-          maxTokens: ctx.resolved.maxTokens,
-          reasoningEffort: ctx.resolved.reasoningEffort,
-        }),
-        providerOptions: buildProviderOptions(ctx.resolved.provider, ctx.resolved.reasoningEffort),
+        maxOutputTokens,
+        providerOptions: buildProviderOptions(ctx.resolved.provider, ctx.resolved.reasoningEffort, maxOutputTokens),
         abortSignal: opts.signal,
       });
 
