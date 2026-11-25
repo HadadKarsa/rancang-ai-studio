@@ -14,8 +14,17 @@ interface PresetLite {
   name: string;
   provider: string;
   modelId: string;
+  reasoningEffort: 'none' | 'low' | 'medium' | 'high' | null;
   isDefault: boolean;
 }
+
+/** Short enough to sit after the model id in a 160px pill. */
+const EFFORT_SHORT: Record<string, string> = {
+  none: 'off',
+  low: 'low',
+  medium: 'med',
+  high: 'high',
+};
 
 const ROUTE_LABELS: Record<string, string> = {
   '/studio': 'Studio',
@@ -110,18 +119,27 @@ function ShellInner({ children }: { children: React.ReactNode }) {
                     }
                   />
                   <Cpu className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
-                  <span className="max-w-[160px] truncate font-mono text-[11.5px]">
+                  <span className="max-w-[190px] truncate font-mono text-[11.5px]">
                     {!modelLoaded
                       ? 'memuat...'
                       : activeModel
                         ? activeModel.modelId
                         : 'Belum ada model'}
                   </span>
+                  {activeModel?.reasoningEffort && (
+                    <span className="shrink-0 rounded border border-line bg-subtle px-1 py-px font-mono text-[10px] text-ink-2">
+                      {EFFORT_SHORT[activeModel.reasoningEffort] ?? activeModel.reasoningEffort}
+                    </span>
+                  )}
                 </Link>
               </TooltipTrigger>
               <TooltipContent>
                 {activeModel
-                  ? `Model aktif: ${activeModel.provider} / ${activeModel.modelId}`
+                  ? `Model aktif: ${activeModel.provider} / ${activeModel.modelId}${
+                      activeModel.reasoningEffort
+                        ? ` · reasoning ${EFFORT_SHORT[activeModel.reasoningEffort] ?? activeModel.reasoningEffort}`
+                        : ''
+                    }`
                   : 'Atur penyedia dan model AI di halaman Models'}
               </TooltipContent>
             </Tooltip>
