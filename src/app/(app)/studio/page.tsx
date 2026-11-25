@@ -208,7 +208,8 @@ export default function StudioPage() {
   useEffect(() => {
     let stale = false;
     if (debounce.current) clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => {
+
+    const run = () => {
       api
         .get<ListResp>(query())
         .then((d) => {
@@ -220,12 +221,19 @@ export default function StudioPage() {
         .catch((e: unknown) => {
           if (!stale) setError(e instanceof ApiError ? e.message : 'Gagal memuat proyek');
         });
-    }, 220);
+    };
+
+    if (q.trim().length > 0) {
+      debounce.current = setTimeout(run, 180);
+    } else {
+      run();
+    }
+
     return () => {
       stale = true;
       if (debounce.current) clearTimeout(debounce.current);
     };
-  }, [query, refreshTick]);
+  }, [query, q, refreshTick]);
 
   async function launchProject() {
     const trimmedIdea = idea.trim();
