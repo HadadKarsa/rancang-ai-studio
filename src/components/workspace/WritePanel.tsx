@@ -6,13 +6,11 @@ import {
   AlertCircle,
   Square,
   Play,
-  BookMarked,
   FileText,
   Layout,
   Clock,
   RefreshCw,
 } from 'lucide-react';
-import { api, ApiError } from '@/lib/client/api';
 import { Badge, Button, useToast } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import type { DocumentType, WorkspaceProject } from './types';
@@ -215,7 +213,6 @@ export function WritePanel({
   const [elapsed, setElapsed] = useState(0);
   const [wireframing, setWireframing] = useState(false);
   const [stopping, setStopping] = useState(false);
-  const [savingLib, setSavingLib] = useState(false);
 
   const boxRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -610,37 +607,6 @@ export function WritePanel({
     setWireframing(false);
   }, [startBatch, watch]);
 
-  const saveAllToLibrary = useCallback(async () => {
-    setSavingLib(true);
-    setFatal(null);
-    let saved = 0;
-    try {
-      for (const d of docs) {
-        if (d.status !== 'ready') continue;
-        const full = await api.get<{ document: { id: string; title: string }; content: string | null }>(
-          `/projects/${projectId}/documents/${d.type}?content=1`,
-        );
-        if (!full.content) continue;
-        await api.post('/library', {
-          kind: 'document',
-          title: full.document.title || DOC_LABEL[d.type],
-          projectId,
-          documentId: full.document.id,
-          payload: full.content,
-        });
-        saved += 1;
-      }
-      toast({
-        tone: 'success',
-        title: `${saved} dokumen disimpan ke Library`,
-      });
-    } catch (e) {
-      setFatal(e instanceof ApiError ? e.message : 'Gagal menyimpan ke Library');
-    } finally {
-      setSavingLib(false);
-    }
-  }, [docs, projectId, toast]);
-
   return (
     <div className="space-y-5">
       {/* Status Banner */}
@@ -715,13 +681,9 @@ export function WritePanel({
               )}
               {doneCount > 0 && (
                 <>
-                  <Button
-                    variant="secondary"
-                    onClick={() => void saveAllToLibrary()}
-                    disabled={savingLib}
-                  >
-                    <BookMarked className="h-3.5 w-3.5" aria-hidden="true" />
-                    {savingLib ? 'Menyimpan...' : 'Simpan ke Library'}
+                  <Button variant="primary" onClick={() => onOpenDocument('prd')}>
+                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                    Buka Dokumen
                   </Button>
                   <Button
                     variant="secondary"
@@ -730,10 +692,6 @@ export function WritePanel({
                   >
                     <Layout className="h-3.5 w-3.5" aria-hidden="true" />
                     {wireframing ? 'Membuat wireframe...' : 'Buat wireframe'}
-                  </Button>
-                  <Button variant="primary" onClick={() => onOpenDocument('prd')}>
-                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                    Buka Dokumen
                   </Button>
                 </>
               )}
