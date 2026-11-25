@@ -4,8 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  MessageSquareText,
-  PenLine,
   FileText,
   Download,
   Share2,
@@ -14,6 +12,7 @@ import {
   FileCode2,
   AlertCircle,
   ArrowLeft,
+  Copy,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
 import {
@@ -22,6 +21,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Tabs,
   TabsList,
@@ -53,6 +53,17 @@ function isValidMode(val: string | null): val is WorkspaceMode {
   return val === 'interview' || val === 'write' || val === 'documents';
 }
 
+function StepNumber({ n }: { n: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border border-line-strong bg-canvas font-mono text-[10px] leading-none text-ink-3 transition-colors group-data-[state=active]:border-accent group-data-[state=active]:bg-accent group-data-[state=active]:text-white"
+    >
+      {n}
+    </span>
+  );
+}
+
 export function ProjectWorkspace() {
   const params = useParams<{ projectId: string }>();
   const searchParams = useSearchParams();
@@ -79,6 +90,7 @@ export function ProjectWorkspace() {
   const [autoStartWrite, setAutoStartWrite] = useState(initialAutoStart);
   const [initialPrompt, setInitialPrompt] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [copyingMd, setCopyingMd] = useState(false);
 
   // Pick up any Quick-Start Composer prompt handed off via sessionStorage
   useEffect(() => {
@@ -204,6 +216,56 @@ export function ProjectWorkspace() {
     [docs, selectedDoc],
   );
 
+  // Same rule the export route enforces: 409 while any core document is
+  // missing, so the button and the copy action stay off until all six are ready.
+  const exportGateTitle = canExport ? undefined : 'Butuh 6 dokumen inti';
+
+  async function copyForAgent() {
+    if (copyingMd) return;
+    if (!canExport) {
+      toast({
+        tone: 'error',
+        title: 'Dokumen inti belum lengkap',
+        description: `${coreReadyCount} dari ${CORE_DOC_ORDER.length} dokumen inti siap.`,
+      });
+      return;
+    }
+    setCopyingMd(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${projectId}/export?format=md`, {
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        let message = `Ekspor gagal (${res.status}).`;
+        try {
+          const body = await res.json();
+          message = body?.error?.message ?? message;
+        } catch {
+          /* non-JSON error body */
+        }
+        throw new Error(message);
+      }
+      const markdown = await res.text();
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Papan klip tidak tersedia di browser ini. Buka lewat HTTPS atau localhost.');
+      }
+      await navigator.clipboard.writeText(markdown);
+      toast({
+        tone: 'success',
+        title: 'Markdown disalin',
+        description: `${Math.max(1, Math.round(markdown.length / 1024))} KB siap ditempel ke AI agent.`,
+      });
+    } catch (e) {
+      toast({
+        tone: 'error',
+        title: 'Gagal menyalin markdown',
+        description: e instanceof Error ? e.message : 'Tidak bisa menyalin ke papan klip.',
+      });
+    } finally {
+      setCopyingMd(false);
+    }
+  }
+
   function triggerExport(format: 'zip' | 'md' | 'json') {
     if (!canExport) {
       toast({
@@ -301,7 +363,12 @@ export function ProjectWorkspace() {
           <div className="flex flex-wrap items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="secondary">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!canExport}
+                  title={exportGateTitle}
+                >
                   <Download className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Ekspor</span>
                   <ChevronDown className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
@@ -320,6 +387,11 @@ export function ProjectWorkspace() {
                   <FileCode2 className="h-4 w-4 text-ink-3" aria-hidden="true" />
                   <span>Unduh bundel JSON</span>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => void copyForAgent()} disabled={copyingMd}>
+                  <Copy className="h-4 w-4 text-ink-3" aria-hidden="true" />
+                  <span>{copyingMd ? 'Menyalin...' : 'Salin untuk AI Agent'}</span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -330,20 +402,25 @@ export function ProjectWorkspace() {
           </div>
         </div>
 
-        {/* Seamless 3-mode switcher */}
+        {/* Linear stepper: one path, documents stay shut until something is written */}
         <Tabs value={mode} onValueChange={handleModeChange}>
           <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
-            <TabsTrigger value="interview">
-              <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+            <TabsTrigger value="interview" className="group">
+              <StepNumber n={1} />
               <span>Wawancara</span>
             </TabsTrigger>
-            <TabsTrigger value="write">
-              <PenLine className="h-4 w-4" aria-hidden="true" />
-              <span>Tulis Langsung</span>
+            <TabsTrigger value="write" className="group">
+              <StepNumber n={2} />
+              <span>Tulis</span>
             </TabsTrigger>
-            <TabsTrigger value="documents">
-              <FileText className="h-4 w-4" aria-hidden="true" />
-              <span>Dokumen &amp; Wireframe</span>
+            <TabsTrigger
+              value="documents"
+              className="group"
+              disabled={readyCount === 0}
+              title={readyCount === 0 ? 'Selesaikan penulisan dulu' : undefined}
+            >
+              <StepNumber n={3} />
+              <span>Dokumen</span>
               <span className="ml-0.5 font-mono text-[11px] text-ink-3">
                 {readyCount}/{docs.length || 7}
               </span>
