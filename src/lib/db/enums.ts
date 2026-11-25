@@ -25,6 +25,10 @@ export type ShareAccess = 'public' | 'password';
 export type Viewport = 'mobile' | 'tablet' | 'desktop';
 export type TemplateCategory = 'saas' | 'marketplace' | 'ai' | 'internal' | 'content' | 'other';
 export type GenerationKind = 'interview_turn' | 'document_generate' | 'document_regenerate' | 'wireframe_generate';
+
+/** Reasoning effort a preset may ask of a provider (v0.2.2 Slice A). */
+export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high';
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = ['none', 'low', 'medium', 'high'];
 export type GenerationStatus = 'queued' | 'streaming' | 'succeeded' | 'failed' | 'aborted';
 
 export const DEFAULT_ACCENT_COLOR = '#6366f1';

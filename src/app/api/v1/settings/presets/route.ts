@@ -16,6 +16,8 @@ const createSchema = z.object({
   maxTokens: z.number().int().min(256).max(32000).optional(),
   topP: z.number().min(0).max(1).optional(),
   systemPersona: z.string().max(4000).nullable().optional(),
+  /** v0.2.2 Slice A — forwarded to the provider as its reasoning/thinking setting. */
+  reasoningEffort: z.enum(['none', 'low', 'medium', 'high']).nullable().optional(),
   isDefault: z.boolean().optional(),
 });
 

@@ -2,7 +2,14 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import type { LanguageModel } from 'ai';
-import type { ProviderId } from '@/lib/db/enums';
+import { streamText } from 'ai';
+import type { ProviderId, ReasoningEffort } from '@/lib/db/enums';
+
+/**
+ * `ai` imports ProviderOptions but does not re-export it, and @ai-sdk/provider-utils
+ * is not a direct dependency. Take the type off the call it is passed to.
+ */
+type ProviderOptions = NonNullable<Parameters<typeof streamText>[0]['providerOptions']>;
 import { ProviderError } from '@/lib/errors';
 
 /**
@@ -17,8 +24,7 @@ export const PROVIDER_DEFAULT_BASE_URLS: Partial<Record<ProviderId, string>> = {
   ollama: 'http://localhost:11434/v1',
 };
 
-export interface BuildModelInput {
-  provider: ProviderId;
+export interface BuildModelInput {  provider: ProviderId;
   modelId: string;
   apiKey: string;
   /** Credential-level base URL (custom/OpenAI-compatible). */
@@ -53,6 +59,58 @@ export function buildModel(input: BuildModelInput): LanguageModel {
     }
   }
 }
+
+export function buildProviderOptions(
+  provider: ProviderId,
+  reasoningEffort: ReasoningEffort | null | undefined,
+): ProviderOptions | undefined {
+  if (!reasoningEffort) return undefined;
+
+  switch (provider) {
+    // OpenAI-compatible endpoints all read the `openai` provider key, because
+    // buildModel() constructs them with createOpenAI.
+    case 'openai':
+    case 'groq':
+    case 'openrouter':
+    case 'custom':
+    case 'ollama':
+      return { openai: { reasoningEffort } };
+
+    case 'google':
+      // Gemini's off switch is a zero thinking budget; the levels are a name.
+      return {
+        google: {
+          thinkingConfig: reasoningEffort === 'none'
+            ? { thinkingBudget: 0 }
+            : { thinkingLevel: reasoningEffort },
+        },
+      };
+
+    case 'anthropic': {
+      const budgetTokens = ANTHROPIC_THINKING_BUDGET[reasoningEffort];
+      return {
+        anthropic: {
+          thinking: budgetTokens === null
+            ? { type: 'disabled' }
+            : { type: 'enabled', budgetTokens },
+        },
+      };
+    }
+
+    default: {
+      const exhaustive: never = provider;
+      throw new ProviderError(`Unknown provider: ${String(exhaustive)}`);
+    }
+  }
+}
+
+/** `none` disables thinking; the rest are Anthropic budget tokens. */
+const ANTHROPIC_THINKING_BUDGET: Record<ReasoningEffort, number | null> = {
+  none: null,
+  low: 2048,
+  medium: 8192,
+  high: 16384,
+};
 
 /**
  * Validate a key + list available models (Ndan v2: test-connection endpoint).

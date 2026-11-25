@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { withRoute, parseJson } from '@/lib/api/middleware';
 import { testProviderConnection } from '@/lib/llm/registry';
-import { getActiveCredentialForProvider, getCredentialRowForUser } from '@/lib/db/repositories/credentials';
+import { getActiveCredentialForProvider, getCredentialRowForUser, updateCredentialCachedModels } from '@/lib/db/repositories/credentials';
 import { decryptKey } from '@/lib/crypto/keys';
 import { PROVIDER_CATALOG } from '@/lib/llm/catalog';
 import { ValidationError } from '@/lib/errors';
@@ -32,6 +32,8 @@ export const POST = withRoute(async (ctx) => {
   // default instead and fail for a reason the user cannot see.
   let apiKey = input.apiKey;
   let storedBaseUrl: string | null = null;
+  /** Set only when the test ran against a stored credential — the row to cache onto. */
+  let storedCredentialId: string | null = null;
   if (!apiKey) {
     const row = input.credentialId
       ? await getCredentialRowForUser(input.credentialId, userId)
@@ -43,6 +45,7 @@ export const POST = withRoute(async (ctx) => {
       keyTagB64: row.key_tag_b64,
     });
     storedBaseUrl = row.base_url ?? null;
+    storedCredentialId = row.id;
   }
   if (!apiKey) throw new ValidationError('Provide apiKey or credentialId');
 
@@ -51,6 +54,11 @@ export const POST = withRoute(async (ctx) => {
     apiKey,
     baseUrl: input.baseUrl ?? storedBaseUrl,
   });
+  // A raw key in the body is never persisted, so there is no row to cache onto.
+  if (result.ok && storedCredentialId) {
+    await updateCredentialCachedModels(storedCredentialId, userId, result.models);
+    return Response.json({ ok: true, models: result.models, credentialId: storedCredentialId }, { status: 200 });
+  }
   return Response.json(result, { status: result.ok ? 200 : 422 });
 }, { bucket: 'provider_test' });
 

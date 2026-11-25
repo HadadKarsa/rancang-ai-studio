@@ -2,7 +2,7 @@
  * DB row types (snake_case, as returned by libSQL) and domain objects (camelCase).
  * One mapper per entity. 03_DATABASE §1.2 / T-103.
  */
-import type { DocumentType, DocumentStatus, ProjectStatus, InterviewStatus, MessageRole, ProviderId, GenerationKind, GenerationStatus, VersionSource, ShareScope, ShareAccess, Viewport, TemplateCategory } from './enums';
+import type { DocumentType, DocumentStatus, ProjectStatus, InterviewStatus, MessageRole, ProviderId, GenerationKind, GenerationStatus, VersionSource, ShareScope, ShareAccess, Viewport, TemplateCategory, ReasoningEffort } from './enums';
 
 export interface UserRow {
   id: string; email: string; email_verified_at: string | null; name: string | null;
@@ -94,32 +94,45 @@ export interface ProviderCredentialRow {
   id: string; user_id: string; provider: ProviderId; label: string;
   encrypted_key_b64: string; key_iv_b64: string; key_tag_b64: string; key_last4: string;
   base_url: string | null; is_active: 0 | 1; is_valid: 0 | 1 | null;
-  last_validated_at: string | null; created_at: string; updated_at: string;
+  last_validated_at: string | null; cached_models_json: string | null; created_at: string; updated_at: string;
 }
 /** Serialized to clients — never contains key material. */
 export interface ProviderCredentialPublic {
   id: string; provider: ProviderId; label: string; keyLast4: string;
   baseUrl: string | null; isActive: boolean; isValid: boolean | null;
-  lastValidatedAt: string | null; createdAt: string;
+  lastValidatedAt: string | null; cachedModels: string[]; createdAt: string;
 }
 export function mapCredentialPublic(r: ProviderCredentialRow): ProviderCredentialPublic {
-  return { id: r.id, provider: r.provider, label: r.label, keyLast4: r.key_last4, baseUrl: r.base_url, isActive: r.is_active === 1, isValid: r.is_valid === null ? null : r.is_valid === 1, lastValidatedAt: r.last_validated_at, createdAt: r.created_at };
+  return { id: r.id, provider: r.provider, label: r.label, keyLast4: r.key_last4, baseUrl: r.base_url, isActive: r.is_active === 1, isValid: r.is_valid === null ? null : r.is_valid === 1, lastValidatedAt: r.last_validated_at, cachedModels: parseCachedModels(r.cached_models_json), createdAt: r.created_at };
+}
+
+/** A malformed or absent cache is an empty list, never a throw — the column is advisory. */
+export function parseCachedModels(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((m): m is string => typeof m === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 export interface LlmPresetRow {
   id: string; user_id: string; name: string; description: string | null; provider: ProviderId;
   credential_id: string | null; model_id: string; base_url: string | null;
   temperature: number; max_tokens: number; top_p: number; system_persona: string | null;
+  reasoning_effort: ReasoningEffort | null;
   is_default: 0 | 1; created_at: string; updated_at: string;
 }
 export interface LlmPreset {
   id: string; userId: string; name: string; description: string | null; provider: ProviderId;
   credentialId: string | null; modelId: string; baseUrl: string | null;
   temperature: number; maxTokens: number; topP: number; systemPersona: string | null;
+  reasoningEffort: ReasoningEffort | null;
   isDefault: boolean; createdAt: string; updatedAt: string;
 }
 export function mapLlmPreset(r: LlmPresetRow): LlmPreset {
-  return { id: r.id, userId: r.user_id, name: r.name, description: r.description, provider: r.provider, credentialId: r.credential_id, modelId: r.model_id, baseUrl: r.base_url, temperature: r.temperature, maxTokens: r.max_tokens, topP: r.top_p, systemPersona: r.system_persona, isDefault: r.is_default === 1, createdAt: r.created_at, updatedAt: r.updated_at };
+  return { id: r.id, userId: r.user_id, name: r.name, description: r.description, provider: r.provider, credentialId: r.credential_id, modelId: r.model_id, baseUrl: r.base_url, temperature: r.temperature, maxTokens: r.max_tokens, topP: r.top_p, systemPersona: r.system_persona, reasoningEffort: r.reasoning_effort ?? null, isDefault: r.is_default === 1, createdAt: r.created_at, updatedAt: r.updated_at };
 }
 
 export interface ProjectTemplateRow {

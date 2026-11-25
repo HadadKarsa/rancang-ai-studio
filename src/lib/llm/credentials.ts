@@ -1,7 +1,7 @@
 import { getActiveCredentialForProvider, getPresetForUser, getDefaultPreset } from '@/lib/db/repositories/credentials';
 import { decryptKey } from '@/lib/crypto/keys';
 import { ProviderNotConfiguredError } from '@/lib/errors';
-import type { ProviderId } from '@/lib/db/enums';
+import type { ProviderId, ReasoningEffort } from '@/lib/db/enums';
 
 /**
  * Credential resolution (T-302). Ephemeral (session-only) keys bypass the DB.
@@ -19,6 +19,8 @@ export interface ResolvedProvider {
   systemPersona: string | null;
   presetId: string | null;
   credentialId: string | null;
+  /** Null when the preset asks for the provider's own default (v0.2.2 Slice A). */
+  reasoningEffort: ReasoningEffort | null;
 }
 
 export async function resolveApiKey(userId: string, provider: ProviderId, ephemeralKey?: string): Promise<string> {
@@ -77,6 +79,7 @@ export async function resolveProvider(input: {
       systemPersona: preset.systemPersona,
       presetId: preset.id,
       credentialId: preset.credentialId,
+      reasoningEffort: preset.reasoningEffort,
     };
   }
 
@@ -94,5 +97,6 @@ export async function resolveProvider(input: {
     systemPersona: null,
     presetId: null,
     credentialId: null,
+    reasoningEffort: null,
   };
 }

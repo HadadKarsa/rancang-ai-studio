@@ -1,5 +1,5 @@
 import { streamText, type ToolSet } from 'ai';
-import { buildModel } from '@/lib/llm/registry';
+import { buildModel, buildProviderOptions } from '@/lib/llm/registry';
 import { resolveProvider } from '@/lib/llm/credentials';
 import { buildDocumentPrompt, type GenerationInput } from '@/lib/llm/prompts';
 import { assertProjectOwnership, loadTranscript } from './interview';
@@ -96,6 +96,7 @@ export async function streamDocumentGeneration(params: StreamDocumentParams): Pr
     prompt: prompt.prompt,
     temperature: resolved.temperature,
     maxOutputTokens: resolved.maxTokens,
+    providerOptions: buildProviderOptions(resolved.provider, resolved.reasoningEffort),
     abortSignal: params.abortSignal,
     onAbort: () => {
       void setDocumentStatus(doc.id, 'failed');

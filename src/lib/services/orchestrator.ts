@@ -1,6 +1,6 @@
 import { assertProjectOwnership, loadTranscript } from './interview';
 import { resolveProvider } from '@/lib/llm/credentials';
-import { buildModel } from '@/lib/llm/registry';
+import { buildModel, buildProviderOptions } from '@/lib/llm/registry';
 import { generateText, streamText } from 'ai';
 import { getProjectById } from '@/lib/db/repositories/projects';
 import {
@@ -201,6 +201,7 @@ export async function generateAllDocuments(opts: BatchOptions): Promise<BatchRes
       const res = await generateText({
         model: ctx.model, system: prompt.system, prompt: prompt.prompt,
         temperature: ctx.resolved.temperature, maxOutputTokens: ctx.resolved.maxTokens,
+        providerOptions: buildProviderOptions(ctx.resolved.provider, ctx.resolved.reasoningEffort),
       });
       await persistDocument({
         projectId: opts.projectId, documentId: doc.id, type, text: res.text,
@@ -277,6 +278,7 @@ export async function* generateAllDocumentsStream(
       const stream = streamText({
         model: ctx.model, system: prompt.system, prompt: prompt.prompt,
         temperature: ctx.resolved.temperature, maxOutputTokens: ctx.resolved.maxTokens,
+        providerOptions: buildProviderOptions(ctx.resolved.provider, ctx.resolved.reasoningEffort),
         abortSignal: opts.signal,
       });
 

@@ -17,6 +17,8 @@ const createSchema = z.object({
   label: z.string().min(1).max(80),
   apiKey: z.string().min(8).max(400),
   baseUrl: z.string().url().max(300).nullable().optional(),
+  /** Model ids the client already knows; the test call below fills this in when it runs. */
+  cachedModels: z.array(z.string().max(200)).max(500).nullable().optional(),
   /** Validate against the provider before storing. Default true. */
   test: z.boolean().optional(),
 });
@@ -32,10 +34,13 @@ export const POST = withRoute(async (ctx) => {
   if (!parsed.success) throw new ValidationError('Invalid credential payload', parsed.error.flatten());
   const input = parsed.data;
 
-  // Optional live validation before persisting.
+  // Optional live validation before persisting. Its model list is the seed for
+  // cached_models_json, so a later form can offer models without the key again.
+  let testedModels: string[] | null = null;
   if (input.test !== false) {
     const test = await testProviderConnection({ provider: input.provider, apiKey: input.apiKey, baseUrl: input.baseUrl ?? null });
     if (!test.ok) throw new ProviderKeyInvalidError(`${input.provider}: ${test.reason}`);
+    testedModels = test.models;
   }
 
   const enc = encryptKey(input.apiKey);
@@ -48,6 +53,7 @@ export const POST = withRoute(async (ctx) => {
     keyTagB64: enc.keyTagB64,
     keyLast4: input.apiKey.slice(-4),
     baseUrl: input.baseUrl ?? null,
+    cachedModels: testedModels ?? input.cachedModels ?? null,
   });
   return Response.json({ credential }, { status: 201 });
 }, { bucket: 'provider_test', idempotent: true });

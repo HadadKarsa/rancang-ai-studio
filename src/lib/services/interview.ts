@@ -1,6 +1,6 @@
 import { generateText, streamText, type LanguageModel } from 'ai';
 import { buildInterviewPrompt, parseInterviewTurn, buildDocumentPrompt, type GenerationInput, type InterviewTurn } from '@/lib/llm/prompts';
-import { buildModel } from '@/lib/llm/registry';
+import { buildModel, buildProviderOptions } from '@/lib/llm/registry';
 import { resolveProvider, type ResolvedProvider } from '@/lib/llm/credentials';
 import { INTERVIEW_MAX_STEPS, INTERVIEW_MIN_STEPS, type DocumentType } from '@/lib/db/enums';
 import { appendMessage, completeSession, countUserMessages, getSessionById, listMessages, updateSessionProgress } from '@/lib/db/repositories/interviews';
@@ -65,7 +65,12 @@ export async function startInterviewTurn(input: {
       system: prompt.system,
       prompt: prompt.prompt,
       temperature: resolved.temperature,
-      maxOutputTokens: 1024,
+      // Thinking tokens come out of the same budget as the JSON answer, so a
+      // reasoning preset needs headroom or the turn truncates mid-object.
+      maxOutputTokens: resolved.reasoningEffort && resolved.reasoningEffort !== 'none'
+        ? Math.max(4096, resolved.maxTokens)
+        : 1024,
+      providerOptions: buildProviderOptions(resolved.provider, resolved.reasoningEffort),
     });
     const turn = parseInterviewTurn(result.text);
     const latency = Date.now() - started;
