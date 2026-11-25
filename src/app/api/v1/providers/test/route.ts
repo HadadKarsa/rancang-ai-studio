@@ -4,6 +4,8 @@ import { testProviderConnection } from '@/lib/llm/registry';
 import { getActiveCredentialForProvider, getCredentialRowForUser, updateCredentialCachedModels } from '@/lib/db/repositories/credentials';
 import { decryptKey } from '@/lib/crypto/keys';
 import { PROVIDER_CATALOG } from '@/lib/llm/catalog';
+import { bindToStoredCredential, normalizeModelList } from '@/lib/llm/credentialBinding';
+import { PROVIDERS, type ProviderId } from '@/lib/db/enums';
 import { ValidationError } from '@/lib/errors';
 
 /**
@@ -11,9 +13,13 @@ import { ValidationError } from '@/lib/errors';
  * Accepts either a raw key (the settings form's "Test connection" button,
  * nothing is persisted) or, with no key at all, tests the credential already
  * saved for that provider (subscription mode / re-testing a stored one).
+ *
+ * A stored credential is tested against its OWN provider and endpoint. The
+ * request may not redirect it: a provider or base URL that disagrees with the
+ * row is rejected before the key is decrypted or any socket is opened.
  */
 const testSchema = z.object({
-  provider: z.enum(['openai', 'anthropic', 'google', 'groq', 'openrouter', 'ollama', 'custom']),
+  provider: z.enum(PROVIDERS as unknown as [ProviderId, ...ProviderId[]]),
   apiKey: z.string().min(1).max(400).optional(),
   credentialId: z.string().max(100).optional(),
   baseUrl: z.string().max(500).optional(),
@@ -31,35 +37,54 @@ export const POST = withRoute(async (ctx) => {
   // OpenAI-compatible endpoint); testing without it would hit the provider
   // default instead and fail for a reason the user cannot see.
   let apiKey = input.apiKey;
-  let storedBaseUrl: string | null = null;
+  let testProvider: ProviderId = input.provider;
+  let testBaseUrl: string | null = input.baseUrl ?? null;
   /** Set only when the test ran against a stored credential — the row to cache onto. */
   let storedCredentialId: string | null = null;
-  if (!apiKey) {
+
+  if (input.credentialId || !apiKey) {
+    if (input.credentialId && apiKey) {
+      throw new ValidationError('Send either apiKey or credentialId, not both');
+    }
     const row = input.credentialId
       ? await getCredentialRowForUser(input.credentialId, userId)
       : await getActiveCredentialForProvider(userId, input.provider);
     if (!row || row.is_active !== 1) throw new ValidationError('Provide apiKey or credentialId');
+
+    // Ownership is already enforced by both lookups above; this only decides
+    // which provider and endpoint the stored key may be sent to.
+    const binding = bindToStoredCredential(
+      { provider: row.provider, baseUrl: row.base_url ?? null },
+      { provider: input.provider, baseUrl: input.baseUrl },
+    );
+    if (!binding.ok) throw new ValidationError(binding.reason);
+
     apiKey = decryptKey({
       encryptedKeyB64: row.encrypted_key_b64,
       keyIvB64: row.key_iv_b64,
       keyTagB64: row.key_tag_b64,
     });
-    storedBaseUrl = row.base_url ?? null;
+    testProvider = binding.provider;
+    testBaseUrl = binding.baseUrl;
     storedCredentialId = row.id;
   }
   if (!apiKey) throw new ValidationError('Provide apiKey or credentialId');
 
   const result = await testProviderConnection({
-    provider: input.provider,
+    provider: testProvider,
     apiKey,
-    baseUrl: input.baseUrl ?? storedBaseUrl,
+    baseUrl: testBaseUrl,
   });
   // A raw key in the body is never persisted, so there is no row to cache onto.
-  if (result.ok && storedCredentialId) {
-    await updateCredentialCachedModels(storedCredentialId, userId, result.models);
-    return Response.json({ ok: true, models: result.models, credentialId: storedCredentialId }, { status: 200 });
+  if (result.ok) {
+    const models = normalizeModelList(result.models);
+    if (storedCredentialId) {
+      await updateCredentialCachedModels(storedCredentialId, userId, models);
+      return Response.json({ ok: true, models, credentialId: storedCredentialId }, { status: 200 });
+    }
+    return Response.json({ ok: true, models }, { status: 200 });
   }
-  return Response.json(result, { status: result.ok ? 200 : 422 });
+  return Response.json(result, { status: 422 });
 }, { bucket: 'provider_test' });
 
 /** GET — provider catalog for the settings form (one form, subscription or BYOK). */

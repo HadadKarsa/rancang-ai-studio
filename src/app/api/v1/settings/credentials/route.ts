@@ -3,6 +3,7 @@ import { withRoute, parseJson } from '@/lib/api/middleware';
 import { createCredential, listCredentialsForUser, deleteCredential, deactivateCredential, updateCredentialValidation } from '@/lib/db/repositories/credentials';
 import { encryptKey, decryptKey } from '@/lib/crypto/keys';
 import { testProviderConnection } from '@/lib/llm/registry';
+import { normalizeModelList } from '@/lib/llm/credentialBinding';
 import { PROVIDERS, type ProviderId } from '@/lib/db/enums';
 import { ValidationError, NotFoundError, ProviderKeyInvalidError } from '@/lib/errors';
 import { getCredentialRowForUser } from '@/lib/db/repositories/credentials';
@@ -40,7 +41,7 @@ export const POST = withRoute(async (ctx) => {
   if (input.test !== false) {
     const test = await testProviderConnection({ provider: input.provider, apiKey: input.apiKey, baseUrl: input.baseUrl ?? null });
     if (!test.ok) throw new ProviderKeyInvalidError(`${input.provider}: ${test.reason}`);
-    testedModels = test.models;
+    testedModels = normalizeModelList(test.models);
   }
 
   const enc = encryptKey(input.apiKey);
@@ -53,7 +54,9 @@ export const POST = withRoute(async (ctx) => {
     keyTagB64: enc.keyTagB64,
     keyLast4: input.apiKey.slice(-4),
     baseUrl: input.baseUrl ?? null,
-    cachedModels: testedModels ?? input.cachedModels ?? null,
+    // A client-supplied list is only trusted when the test did not run; it is
+    // still normalized so a junk entry cannot reach the column.
+    cachedModels: testedModels ?? (input.cachedModels ? normalizeModelList(input.cachedModels) : null),
   });
   return Response.json({ credential }, { status: 201 });
 }, { bucket: 'provider_test', idempotent: true });

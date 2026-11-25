@@ -11,6 +11,7 @@ import { getTemplateById } from '@/lib/db/repositories/templates';
 import { listInjectedAssets } from '@/lib/db/repositories/assets';
 import { buildDocumentPrompt } from '@/lib/llm/prompts';
 import { NotFoundError } from '@/lib/errors';
+import { OUTPUT_TRUNCATED, OUTPUT_TRUNCATED_MESSAGE, isTruncated, resolveMaxOutputTokens } from '@/lib/llm/limits';
 import type { DocumentType } from '@/lib/db/enums';
 import type { GenerationInput } from '@/lib/llm/prompts';
 
@@ -183,6 +184,21 @@ async function recordFailure(
   await setDocumentStatus(documentId, 'failed');
 }
 
+/** Same as recordFailure, but the run carries OUTPUT_TRUNCATED so the cause is readable later. */
+async function recordTruncation(
+  projectId: string, documentId: string, type: DocumentType,
+  resolved: BatchContext['resolved'],
+): Promise<void> {
+  const run = await createRun({
+    projectId, documentId,
+    kind: type === 'wireframe' ? 'wireframe_generate' : 'document_generate',
+    provider: resolved.provider, modelId: resolved.modelId,
+    presetId: resolved.presetId, credentialId: resolved.credentialId,
+  });
+  await markRunFailed(run.id, OUTPUT_TRUNCATED, OUTPUT_TRUNCATED_MESSAGE);
+  await setDocumentStatus(documentId, 'failed');
+}
+
 // ── batch (non-streaming) ───────────────────────────────────────────────────
 
 export async function generateAllDocuments(opts: BatchOptions): Promise<BatchResult> {
@@ -200,9 +216,21 @@ export async function generateAllDocuments(opts: BatchOptions): Promise<BatchRes
       const prompt = await promptFor(ctx, opts.projectId, type, result.generated);
       const res = await generateText({
         model: ctx.model, system: prompt.system, prompt: prompt.prompt,
-        temperature: ctx.resolved.temperature, maxOutputTokens: ctx.resolved.maxTokens,
+        temperature: ctx.resolved.temperature,
+        maxOutputTokens: resolveMaxOutputTokens({
+          maxTokens: ctx.resolved.maxTokens,
+          reasoningEffort: ctx.resolved.reasoningEffort,
+        }),
         providerOptions: buildProviderOptions(ctx.resolved.provider, ctx.resolved.reasoningEffort),
       });
+      // A truncated answer is a prefix, not a document: it is not persisted, it
+      // is not added to `result.generated`, and so `promptFor` never feeds it to
+      // the next document as prior context.
+      if (isTruncated(res.finishReason)) {
+        await recordTruncation(opts.projectId, doc.id, type, ctx.resolved);
+        result.failed.push({ type, error: OUTPUT_TRUNCATED_MESSAGE });
+        continue;
+      }
       await persistDocument({
         projectId: opts.projectId, documentId: doc.id, type, text: res.text,
         userId: opts.userId, startedAt: started, resolved: ctx.resolved, usage: res.usage,
@@ -271,13 +299,18 @@ export async function* generateAllDocumentsStream(
     const started = Date.now();
     let text = '';
     let aborted = false;
+    let truncated = false;
     let usage: { inputTokens?: number | null; outputTokens?: number | null } | null = null;
 
     try {
       const prompt = await promptFor(ctx, opts.projectId, type, result.generated);
       const stream = streamText({
         model: ctx.model, system: prompt.system, prompt: prompt.prompt,
-        temperature: ctx.resolved.temperature, maxOutputTokens: ctx.resolved.maxTokens,
+        temperature: ctx.resolved.temperature,
+        maxOutputTokens: resolveMaxOutputTokens({
+          maxTokens: ctx.resolved.maxTokens,
+          reasoningEffort: ctx.resolved.reasoningEffort,
+        }),
         providerOptions: buildProviderOptions(ctx.resolved.provider, ctx.resolved.reasoningEffort),
         abortSignal: opts.signal,
       });
@@ -289,7 +322,11 @@ export async function* generateAllDocumentsStream(
       }
 
       if (opts.signal?.aborted) aborted = true;
-      else usage = await Promise.resolve(stream.usage).catch(() => null);
+      else {
+        const finishReason = await Promise.resolve(stream.finishReason).catch(() => null);
+        truncated = isTruncated(finishReason);
+        usage = await Promise.resolve(stream.usage).catch(() => null);
+      }
     } catch (e) {
       if (opts.signal?.aborted) {
         aborted = true;
@@ -326,6 +363,17 @@ export async function* generateAllDocumentsStream(
       const message = 'Model mengembalikan teks kosong';
       result.failed.push({ type, error: message });
       yield { event: 'error', data: { type, message } };
+      continue;
+    }
+
+    // Truncated: the streamed prefix is not a document. Nothing is persisted
+    // (no version, so it cannot be read back as finished work) and the type is
+    // absent from `result.generated`, so it never becomes context for the next
+    // document.
+    if (truncated) {
+      await recordTruncation(opts.projectId, doc.id, type, ctx.resolved);
+      result.failed.push({ type, error: OUTPUT_TRUNCATED_MESSAGE });
+      yield { event: 'error', data: { type, message: OUTPUT_TRUNCATED_MESSAGE } };
       continue;
     }
 

@@ -8,7 +8,8 @@ import { getProjectById } from '@/lib/db/repositories/projects';
 import { getTemplateById } from '@/lib/db/repositories/templates';
 import { createRun, markRunFailed, markRunSucceeded } from '@/lib/db/repositories/generationRuns';
 import { ForbiddenError } from '@/lib/auth/errors';
-import { NotFoundError, ProviderError, ProviderNotConfiguredError, ValidationError } from '@/lib/errors';
+import { AppError, NotFoundError, ProviderError, ProviderNotConfiguredError, ValidationError } from '@/lib/errors';
+import { OUTPUT_TRUNCATED, OUTPUT_TRUNCATED_MESSAGE, isTruncated, isReasoningActive, resolveMaxOutputTokens } from '@/lib/llm/limits';
 import { nowIso } from '@/lib/ids';
 
 /**
@@ -66,12 +67,19 @@ export async function startInterviewTurn(input: {
       prompt: prompt.prompt,
       temperature: resolved.temperature,
       // Thinking tokens come out of the same budget as the JSON answer, so a
-      // reasoning preset needs headroom or the turn truncates mid-object.
-      maxOutputTokens: resolved.reasoningEffort && resolved.reasoningEffort !== 'none'
-        ? Math.max(4096, resolved.maxTokens)
+      // reasoning preset needs headroom or the turn truncates mid-object. A
+      // turn without reasoning stays at the flat budget it always had.
+      maxOutputTokens: isReasoningActive(resolved.reasoningEffort)
+        ? resolveMaxOutputTokens({ maxTokens: resolved.maxTokens, reasoningEffort: resolved.reasoningEffort })
         : 1024,
       providerOptions: buildProviderOptions(resolved.provider, resolved.reasoningEffort),
     });
+    // A truncated turn is half a JSON object. Appending it would put a broken
+    // question in the transcript that every later document reads as context.
+    if (isTruncated(result.finishReason)) {
+      await markRunFailed(run.id, OUTPUT_TRUNCATED, OUTPUT_TRUNCATED_MESSAGE);
+      throw new ProviderError(OUTPUT_TRUNCATED_MESSAGE);
+    }
     const turn = parseInterviewTurn(result.text);
     const latency = Date.now() - started;
 
@@ -89,6 +97,10 @@ export async function startInterviewTurn(input: {
     });
     return turn;
   } catch (e) {
+    if (e instanceof AppError) {
+      // Already recorded (truncation) or already the right shape for the client.
+      throw e;
+    }
     await markRunFailed(run.id, 'PROVIDER_ERROR', e instanceof Error ? e.message : String(e));
     if (e instanceof ProviderNotConfiguredError) {
       throw new ProviderNotConfiguredError('Model belum punya API key — atur di halaman Models');

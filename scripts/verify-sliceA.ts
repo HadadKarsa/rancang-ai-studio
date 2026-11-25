@@ -3,9 +3,13 @@
  * Run: DATABASE_URL=file:<tmp> ENCRYPTION_KEY=<32b64> tsx scripts/verify-sliceA.ts
  */
 import { randomBytes } from 'node:crypto';
-import { getDb } from '../src/lib/db/client';
+import { mkdtemp, mkdir, writeFile, cp, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { createClient } from '@libsql/client';
+import { getDb, setDbForTest } from '../src/lib/db/client';
 import { runMigrations } from '../src/lib/db/migrate';
-import { createCredential, createPreset, updatePreset, getPresetForUser, updateCredentialCachedModels, getCredentialRowById, listCredentialsForUser } from '../src/lib/db/repositories/credentials';
+import { createCredential, createPreset, updatePreset, getPresetForUser, updateCredentialCachedModels, listCredentialsForUser } from '../src/lib/db/repositories/credentials';
 import { buildProviderOptions } from '../src/lib/llm/registry';
 
 const results: string[] = [];
@@ -48,7 +52,7 @@ async function main(): Promise<void> {
   check('updateCredentialCachedModels persists', JSON.stringify(reread?.cachedModels) === '["model-c"]', JSON.stringify(reread?.cachedModels));
 
   // a corrupt cache must not throw
-  await db.execute('UPDATE provider_credentials SET cached_models_json = ? WHERE id = ?', ['not json', cred.id]);
+  await db.execute('UPDATE provider_credentials SET cached_models_json = ? WHERE id = ?', ['{not json', cred.id]);
   const corrupt = (await listCredentialsForUser('usr_test'))[0];
   check('malformed cache degrades to []', Array.isArray(corrupt?.cachedModels) && corrupt.cachedModels.length === 0);
 
@@ -75,6 +79,25 @@ async function main(): Promise<void> {
   }
   check('CHECK rejects an invalid effort', rejected);
 
+  // 4b. REGRESSION: a PATCH that does not mention reasoningEffort must keep it.
+  await updatePreset(preset.id, 'usr_test', { reasoningEffort: 'medium' });
+  await updatePreset(preset.id, 'usr_test', { name: 'renamed' });
+  const afterName = await getPresetForUser(preset.id, 'usr_test');
+  check('PATCH name preserves reasoningEffort', afterName?.reasoningEffort === 'medium', String(afterName?.reasoningEffort));
+
+  await updatePreset(preset.id, 'usr_test', { temperature: 0.2, maxTokens: 2000 });
+  const afterSampling = await getPresetForUser(preset.id, 'usr_test');
+  check('PATCH temperature/maxTokens preserves reasoningEffort', afterSampling?.reasoningEffort === 'medium', String(afterSampling?.reasoningEffort));
+
+  await updatePreset(preset.id, 'usr_test', { isDefault: true });
+  const afterDefault = await getPresetForUser(preset.id, 'usr_test');
+  check('PATCH isDefault preserves reasoningEffort', afterDefault?.reasoningEffort === 'medium', String(afterDefault?.reasoningEffort));
+
+  // An empty patch is a no-op, not a wipe.
+  await updatePreset(preset.id, 'usr_test', {});
+  const afterEmpty = await getPresetForUser(preset.id, 'usr_test');
+  check('empty PATCH preserves reasoningEffort', afterEmpty?.reasoningEffort === 'medium', String(afterEmpty?.reasoningEffort));
+
   // 5. buildProviderOptions mapping
   const openai = buildProviderOptions('openai', 'medium');
   check('openai medium', JSON.stringify(openai) === '{"openai":{"reasoningEffort":"medium"}}', JSON.stringify(openai));
@@ -92,10 +115,73 @@ async function main(): Promise<void> {
   const aLow = buildProviderOptions('anthropic', 'low');
   check('anthropic low → 2048', JSON.stringify(aLow) === '{"anthropic":{"thinking":{"type":"enabled","budgetTokens":2048}}}', JSON.stringify(aLow));
 
+  // 6. ATOMICITY: a migration that fails half-way must roll back both the
+  //    schema change and its ledger row.
+  await checkMigrationAtomicity();
+
   console.log(results.join('\n'));
   const failed = results.filter((r) => r.startsWith('FAIL')).length;
   console.log(`\n${results.length - failed}/${results.length} passed`);
   void randomBytes;
+}
+
+/**
+ * Build a throwaway migration directory from the real ones plus one bad file
+ * whose first statement is valid and second is not, run it against a fresh
+ * isolated DB, and prove nothing from that file survived.
+ */
+async function checkMigrationAtomicity(): Promise<void> {
+  const realDir = path.resolve(process.cwd(), 'migrations');
+  const work = await mkdtemp(path.join(tmpdir(), 'sliceA-mig-'));
+  const dir = path.join(work, 'migrations');
+  await mkdir(dir);
+
+  for (const f of (await readdir(realDir)).filter((f) => f.endsWith('.sql')).sort()) {
+    await cp(path.join(realDir, f), path.join(dir, f));
+  }
+  // A valid ALTER followed by a statement that cannot succeed: if the file
+  // were applied non-transactionally, `half_applied` would remain.
+  await writeFile(
+    path.join(dir, '004_broken.sql'),
+    'ALTER TABLE llm_presets ADD COLUMN half_applied TEXT;\n' +
+    'ALTER TABLE no_such_table ADD COLUMN nope TEXT;\n',
+  );
+
+  const dbPath = path.join(work, 'atomic.db');
+  const client = createClient({ url: `file:${dbPath}` });
+  const previous = getDb();
+  setDbForTest(client);
+  try {
+    let threw = false;
+    let message = '';
+    try {
+      await runMigrations(dir);
+    } catch (e) {
+      threw = true;
+      message = e instanceof Error ? e.message : String(e);
+    }
+    check('failing migration throws', threw, message.slice(0, 120));
+
+    const cols = (await client.execute('PRAGMA table_info(llm_presets)')).rows.map((r) => String(r.name));
+    check('schema change from failed migration rolled back', !cols.includes('half_applied'), cols.join(','));
+
+    const ledger = (await client.execute("SELECT id FROM _migrations WHERE id = '004_broken.sql'")).rows;
+    check('no ledger row for failed migration', ledger.length === 0, `${ledger.length} row(s)`);
+
+    // The three real migrations before it must still be applied and recorded.
+    const applied = (await client.execute('SELECT id FROM _migrations ORDER BY id')).rows.map((r) => String(r.id));
+    check('earlier migrations still applied', applied.length === 3 && applied.includes('003_reasoning_and_models_cache.sql'), applied.join(','));
+
+    // And the runner retries it: removing the bad file lets the next run finish.
+    await writeFile(path.join(dir, '004_broken.sql'), 'ALTER TABLE llm_presets ADD COLUMN half_applied TEXT;\n');
+    const retried = await runMigrations(dir);
+    check('retry after fix applies the file', retried.includes('004_broken.sql'), retried.join(','));
+    const colsAfter = (await client.execute('PRAGMA table_info(llm_presets)')).rows.map((r) => String(r.name));
+    check('retried migration now present', colsAfter.includes('half_applied'));
+  } finally {
+    setDbForTest(previous);
+    client.close();
+  }
 }
 
 main().catch((e) => { console.error('verify failed:', e); process.exit(1); });

@@ -10,6 +10,7 @@ import { getTemplateById } from '@/lib/db/repositories/templates';
 import { listInjectedAssets } from '@/lib/db/repositories/assets';
 import { getActiveSessionForProject, listSessionsForProject } from '@/lib/db/repositories/interviews';
 import { DocumentLockedError, GenerationInProgressError, NotFoundError } from '@/lib/errors';
+import { OUTPUT_TRUNCATED, OUTPUT_TRUNCATED_MESSAGE, isTruncated, resolveMaxOutputTokens } from '@/lib/llm/limits';
 import type { DocumentType } from '@/lib/db/enums';
 
 /**
@@ -95,7 +96,10 @@ export async function streamDocumentGeneration(params: StreamDocumentParams): Pr
     system: prompt.system,
     prompt: prompt.prompt,
     temperature: resolved.temperature,
-    maxOutputTokens: resolved.maxTokens,
+    maxOutputTokens: resolveMaxOutputTokens({
+      maxTokens: resolved.maxTokens,
+      reasoningEffort: resolved.reasoningEffort,
+    }),
     providerOptions: buildProviderOptions(resolved.provider, resolved.reasoningEffort),
     abortSignal: params.abortSignal,
     onAbort: () => {
@@ -112,6 +116,14 @@ export async function streamDocumentGeneration(params: StreamDocumentParams): Pr
         if (event.finishReason === 'error' || event.finishReason === 'interrupted') {
           await setDocumentStatus(doc.id, 'failed');
           await markRunAborted(run.id);
+          return;
+        }
+        // Truncated: the text is a prefix of a document, not a document. Keep
+        // no version (a stored prefix would be read as finished work) and mark
+        // the run failed so nothing downstream treats it as context.
+        if (isTruncated(event.finishReason)) {
+          await setDocumentStatus(doc.id, 'failed');
+          await markRunFailed(run.id, OUTPUT_TRUNCATED, OUTPUT_TRUNCATED_MESSAGE);
           return;
         }
         const content = event.text;
