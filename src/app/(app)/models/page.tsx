@@ -82,6 +82,43 @@ const PROVIDER_LABEL: Record<string, string> = {
   ollama: 'Ollama',
 };
 
+/**
+ * Which credential a preset actually resolves to, for display.
+ * Backend rule (src/lib/llm/credentials.ts): a preset with a credentialId uses
+ * that row; a preset with credentialId = null falls back to the provider's
+ * active credential.
+ */
+function resolvedCredential(preset: Preset, credentials: Credential[]): Credential | undefined {
+  if (preset.credentialId) {
+    const explicit = credentials.find((c) => c.id === preset.credentialId);
+    if (explicit) return explicit;
+  }
+  // Same ordering as getActiveCredentialForProvider: is_valid DESC, created_at DESC.
+  const rank = (c: Credential) => (c.isValid === true ? 0 : c.isValid === false ? 1 : 2);
+  return credentials
+    .filter((c) => c.provider === preset.provider)
+    .sort((a, b) => rank(a) - rank(b))[0];
+}
+
+/**
+ * A credential is in use when a preset names it, OR when any preset of the same
+ * provider has credentialId = null — that preset resolves to the provider's
+ * active credential at call time, so deleting one can pull a key out from under
+ * it. Both rules must clear before anything is hard-deleted.
+ */
+function isCredentialClaimed(
+  credential: Credential,
+  presets: Preset[],
+  exceptPresetId?: string,
+): boolean {
+  return presets.some(
+    (p) =>
+      p.id !== exceptPresetId &&
+      (p.credentialId === credential.id ||
+        (p.credentialId === null && p.provider === credential.provider)),
+  );
+}
+
 export default function ModelsPage() {
   const { toast } = useToast();
   const { refreshActiveModel } = useAppShell();
@@ -133,6 +170,9 @@ export default function ModelsPage() {
   const needsBaseUrl = provider === 'custom' || entry?.needsBaseUrl === true;
   const canTest = provider !== '' && apiKey.trim().length > 0 && (!needsBaseUrl || baseUrl.trim().length > 0);
   const testPassed = test?.ok === true;
+  // Saving no longer requires a passed connection test: a provider that refuses
+  // GET /models can still be saved through its manual model id.
+  const canSave = provider !== '' && selectedModel.trim().length > 0 && !saving;
   const models = testPassed && test?.models ? test.models : [];
   const hasDefault = presets.some((p) => p.isDefault);
 
@@ -144,19 +184,15 @@ export default function ModelsPage() {
 
   // One row per connected model: a preset is the row, its credential supplies last4.
   const rows = useMemo(
-    () =>
-      presets.map((p) => ({
-        preset: p,
-        credential: p.credentialId ? credentials.find((c) => c.id === p.credentialId) : undefined,
-      })),
+    () => presets.map((p) => ({ preset: p, credential: resolvedCredential(p, credentials) })),
     [presets, credentials],
   );
 
   /** Credentials no preset points at — shown so nothing is stranded, deletable on their own. */
-  const orphanCredentials = useMemo(() => {
-    const used = new Set(presets.map((p) => p.credentialId).filter(Boolean) as string[]);
-    return credentials.filter((c) => !used.has(c.id));
-  }, [presets, credentials]);
+  const orphanCredentials = useMemo(
+    () => credentials.filter((c) => !isCredentialClaimed(c, presets)),
+    [presets, credentials],
+  );
 
   async function runTest() {
     if (!provider) return;
@@ -189,14 +225,14 @@ export default function ModelsPage() {
     setSaving(true);
     setError(null);
     try {
-      const cred = await api.post<Credential>('/settings/credentials', {
+      const res = await api.post<{ credential: Credential }>('/settings/credentials', {
         provider,
         label: label.trim() || PROVIDER_LABEL[provider] || provider,
         apiKey: apiKey.trim(),
         baseUrl: baseUrl.trim() || undefined,
-        test: true,
+        test: testPassed,
       });
-      const credentialId = cred.id;
+      const credentialId = res.credential.id;
       await api.post('/settings/presets', {
         name: label.trim() || PROVIDER_LABEL[provider] || provider,
         provider,
@@ -253,7 +289,8 @@ export default function ModelsPage() {
     setError(null);
     try {
       await api.delete(`/settings/presets?id=${preset.id}`);
-      const stillUsed = presets.filter((p) => p.id !== preset.id).some((p) => p.credentialId === preset.credentialId);
+      const usedBy = credentials.find((c) => c.id === preset.credentialId);
+      const stillUsed = usedBy ? isCredentialClaimed(usedBy, presets, preset.id) : false;
       if (preset.credentialId && !stillUsed) {
         await api.delete(`/settings/credentials?id=${preset.credentialId}&mode=hard`);
       }
@@ -268,7 +305,10 @@ export default function ModelsPage() {
   async function removeOrphan(id: string) {
     setError(null);
     try {
-      await api.delete(`/settings/credentials?id=${id}&mode=hard`);
+      const target = credentials.find((c) => c.id === id);
+      const claimed = target ? isCredentialClaimed(target, presets) : false;
+      // Soft by default; a hard delete only when neither rule claims it.
+      await api.delete(`/settings/credentials?id=${id}&mode=${claimed ? 'soft' : 'hard'}`);
       toast({ tone: 'info', title: 'Kredensial dihapus' });
       await load();
     } catch (e) {
@@ -322,7 +362,7 @@ export default function ModelsPage() {
         className="space-y-6"
         onSubmit={(e) => {
           e.preventDefault();
-          if (testPassed && selectedModel.trim()) void save();
+          if (canSave) void save();
         }}
       >
         <section className="space-y-3">
@@ -376,6 +416,7 @@ export default function ModelsPage() {
                   onChange={(e) => {
                     setApiKey(e.target.value);
                     setTest(null);
+                    setSelectedModel('');
                     setManualModel(false);
                   }}
                   className="min-h-11 flex-1 rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
@@ -412,6 +453,7 @@ export default function ModelsPage() {
                 onChange={(e) => {
                   setBaseUrl(e.target.value);
                   setTest(null);
+                  setSelectedModel('');
                   setManualModel(false);
                 }}
                 className="min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
@@ -439,7 +481,7 @@ export default function ModelsPage() {
                 <Plug className="h-4 w-4" aria-hidden="true" />
                 {testing ? 'Menguji koneksi...' : 'Uji koneksi'}
               </Button>
-              <Button type="submit" variant="primary" disabled={!testPassed || !selectedModel.trim() || saving}>
+              <Button type="submit" variant="primary" disabled={!canSave}>
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                 {saving ? 'Menyimpan...' : 'Simpan sebagai default'}
               </Button>
@@ -553,9 +595,27 @@ export default function ModelsPage() {
                   <div className="flex items-start gap-2 text-danger-ink">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                     <div>
-                      <span className="font-medium">Pengujian gagal. </span>
+                      <span className="font-medium">Uji koneksi gagal. </span>
                       <span>{test.reason}</span>
                     </div>
+                  </div>
+                )}
+                {!test.ok && (
+                  <div className="mt-3 space-y-1.5">
+                    <label htmlFor="manual-model-fallback" className="block text-xs font-medium text-ink">
+                      ID model
+                    </label>
+                    <input
+                      id="manual-model-fallback"
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      placeholder="mis. deepseek-chat atau gpt-4o-mini"
+                      className="min-h-10 w-full rounded-lg border border-line-strong bg-canvas px-3 py-1.5 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+                    />
+                    <p className="text-xs text-ink-2">
+                      Sebagian penyedia menolak daftar model. Isi ID model yang kamu pakai, lalu simpan —
+                      kredensial disimpan tanpa uji koneksi.
+                    </p>
                   </div>
                 )}
               </div>
@@ -613,6 +673,7 @@ export default function ModelsPage() {
                       <p className="truncate font-mono text-xs text-ink-2">{p.modelId}</p>
                       <p className="font-mono text-[11px] text-ink-3">
                         {c ? `····${c.keyLast4}` : 'kredensial tidak ditemukan'}
+                        {c && !p.credentialId ? ' · kredensial aktif penyedia' : ''}
                         {c?.isValid === false ? ' · kunci ditolak' : ''}
                       </p>
                     </div>
