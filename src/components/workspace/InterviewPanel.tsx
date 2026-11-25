@@ -92,21 +92,32 @@ export function InterviewPanel({
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const seedDispatchedRef = useRef(false);
+  const initialPromptRef = useRef(initialPrompt);
+  initialPromptRef.current = initialPrompt;
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const iv = await api.get<InterviewResp>(`/projects/${project.id}/interview`);
+      const loaded = iv.messages ?? [];
       setSession(iv.active ?? iv.latest ?? null);
-      setCompleted(!iv.active && iv.latest?.status === 'completed');
-      setMessages(iv.messages ?? []);
+      const isDone = !iv.active && iv.latest?.status === 'completed';
+      setCompleted(isDone);
+      setMessages(loaded);
+      // A refresh drops the sessionStorage seed (and with it the Quick-Start idea).
+      // Fall back to the project description, but only when the composer is empty
+      // and the interview has not started yet: never overwrite what was typed.
+      const prompt = initialPromptRef.current;
+      if (loaded.length === 0 && !isDone && !prompt && project.description) {
+        setDraft((current) => (current.trim().length === 0 ? project.description! : current));
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Gagal memuat sesi wawancara');
     } finally {
       setLoading(false);
     }
-  }, [project.id]);
+  }, [project.id, project.description]);
 
   useEffect(() => {
     void load();
@@ -427,21 +438,7 @@ export function InterviewPanel({
               <span className="font-mono text-[11px] text-ink-3">
                 Enter kirim · Shift+Enter baris baru
               </span>
-              <div className="flex flex-wrap items-center gap-2">
-                {canSkipToWrite && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={finishingEarly}
-                    onClick={() => void finishEarlyAndWrite()}
-                  >
-                    <FastForward className="h-3.5 w-3.5 text-accent-ink" aria-hidden="true" />
-                    <span>
-                      {finishingEarly ? 'Menyiapkan...' : 'Cukup, lanjut tulis spesifikasi'}
-                    </span>
-                  </Button>
-                )}
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button
                   type="submit"
                   variant="primary"
