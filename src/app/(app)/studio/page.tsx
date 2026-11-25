@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
+  AlertTriangle,
   ArrowRight,
   Archive,
   ArchiveRestore,
@@ -155,6 +156,9 @@ export default function StudioPage() {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
+  // Model readiness: null until known, so the banner never flashes on load.
+  const [hasModel, setHasModel] = useState<boolean | null>(null);
+
   // Projects list state
   const [data, setData] = useState<ListResp | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -182,6 +186,22 @@ export default function StudioPage() {
       })
       .catch(() => {
         if (alive) setTemplatesLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .get<{ presets: { isDefault: boolean }[] }>('/settings/presets')
+      .then((res) => {
+        if (alive) setHasModel((res.presets ?? []).length > 0);
+      })
+      .catch(() => {
+        // Unknown, not "missing": stay silent rather than warn wrongly.
+        if (alive) setHasModel(null);
       });
     return () => {
       alive = false;
@@ -361,6 +381,28 @@ export default function StudioPage() {
             bawah sebagai titik awal.
           </p>
         </div>
+
+        {hasModel === false && (
+          <div
+            role="status"
+            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-warn/35 bg-warn-soft px-4 py-3 text-sm"
+          >
+            <span className="flex items-start gap-2.5 text-ink">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden="true" />
+              <span>
+                Belum ada model AI terhubung. Tanpa model, wawancara tidak bisa berjalan dan proyek
+                akan berhenti di tengah jalan.
+              </span>
+            </span>
+            <Link
+              href="/models"
+              className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-accent-hover"
+            >
+              Hubungkan model
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          </div>
+        )}
 
         <form
           onSubmit={(e) => {
