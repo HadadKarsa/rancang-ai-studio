@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_VERSION } from '@/lib/version';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -245,7 +246,7 @@ export function Rail({ mobileOpen = false, onMobileClose }: RailProps) {
         {!isCompact && (
           <div className="mb-1.5 flex items-center justify-between px-2.5 text-[11px] font-mono text-ink-3">
             <span>local</span>
-            <span>v0.2.2</span>
+            <span>{APP_VERSION}</span>
           </div>
         )}
         <button

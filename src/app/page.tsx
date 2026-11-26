@@ -1,3 +1,4 @@
+import { APP_VERSION } from '@/lib/version';
 import Link from 'next/link';
 import { PublicThemeToggle } from '@/components/PublicThemeToggle';
 
@@ -232,7 +233,7 @@ export default function LandingPage() {
             <Link href="/docs" className="hover:text-ink transition-colors">
               Dokumentasi
             </Link>
-            <span>v0.2.2</span>
+            <span>{APP_VERSION}</span>
           </nav>
         </div>
       </footer>

@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_VERSION } from '@/lib/version';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
@@ -71,7 +72,7 @@ export default function DocsPage() {
       <header className="space-y-1.5">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Dokumentasi rancang-ai</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-ink-2">
-          Panduan lengkap memakai rancang-ai v0.2.2 dari menyiapkan model AI hingga menghasilkan,
+          Panduan lengkap memakai rancang-ai {APP_VERSION} dari menyiapkan model AI hingga menghasilkan,
           menyunting, dan mengekspor spesifikasi proyek.
         </p>
       </header>
