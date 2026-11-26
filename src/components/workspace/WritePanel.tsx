@@ -655,7 +655,11 @@ export function WritePanel({
               : busy
                 ? 'Setiap dokumen ditulis kata demi kata di server. Kamu boleh berpindah tab tanpa menghentikan proses.'
                 : phase === 'done'
-                  ? 'Dokumen inti sudah selesai ditulis dan siap dibaca, disunting, atau diekspor.'
+                  ? project.purpose === 'team'
+                    ? 'Dokumen inti selesai. Pakai sebagai kontrak kerja tim: baca, sunting, lalu unduh paketnya.'
+                    : project.purpose === 'documentation'
+                      ? 'Dokumen inti selesai. Baca langsung di sini atau unduh sebagai berkas.'
+                      : 'Dokumen inti sudah selesai ditulis dan siap dibaca, disunting, atau diekspor.'
                   : 'Dokumen yang sudah selesai tetap tersimpan. Lanjutkan untuk menulis dokumen yang tersisa.'}
           </p>
         </div>
@@ -683,7 +687,11 @@ export function WritePanel({
                 <>
                   <Button variant="primary" onClick={() => onOpenDocument('prd')}>
                     <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                    Buka Dokumen
+                    {project.purpose === 'team'
+                      ? 'Buka spesifikasi implementasi'
+                      : project.purpose === 'documentation'
+                        ? 'Baca dokumen'
+                        : 'Buka Dokumen'}
                   </Button>
                   <Button
                     variant="secondary"
