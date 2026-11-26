@@ -484,7 +484,7 @@ export function DocumentPanel({
       {/* Always-visible 7-document sidebar */}
       <aside
         aria-label="Daftar tujuh dokumen spesifikasi"
-        className="rounded-2xl border border-line bg-sidebar p-2 lg:sticky lg:top-20"
+        className="min-w-0 rounded-2xl border border-line bg-sidebar p-2 lg:sticky lg:top-20"
       >
         <p className="hidden lg:block px-2.5 pb-1.5 pt-1 text-xs font-medium text-ink-3">
           Tujuh dokumen

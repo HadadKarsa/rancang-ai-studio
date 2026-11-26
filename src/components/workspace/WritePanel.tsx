@@ -729,7 +729,7 @@ export function WritePanel({
       <div className="grid gap-5 lg:grid-cols-[240px_1fr] lg:items-start">
         <nav
           aria-label="Antrean dokumen"
-          className="rounded-2xl border border-line bg-sidebar p-2 lg:sticky lg:top-20"
+          className="min-w-0 rounded-2xl border border-line bg-sidebar p-2 lg:sticky lg:top-20"
         >
           <ul className="flex gap-1.5 overflow-x-auto lg:flex-col lg:overflow-visible">
             {docs.map((d, idx) => {

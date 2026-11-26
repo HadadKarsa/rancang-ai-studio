@@ -477,7 +477,7 @@ export function ProjectWorkspace() {
 
         {/* Linear stepper: one path, documents stay shut until something is written */}
         <Tabs value={mode} onValueChange={handleModeChange}>
-          <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
+          <TabsList className="w-full sm:w-auto">
             <TabsTrigger value="interview" className="group">
               <StepNumber n={1} />
               <span>Wawancara</span>
@@ -494,7 +494,7 @@ export function ProjectWorkspace() {
             >
               <StepNumber n={3} />
               <span>Dokumen</span>
-              <span className="ml-0.5 font-mono text-[11px] text-ink-3">
+              <span className="ml-0.5 hidden font-mono text-[11px] text-ink-3 sm:inline">
                 {readyCount}/{docs.length || 7}
               </span>
             </TabsTrigger>
