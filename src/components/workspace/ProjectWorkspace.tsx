@@ -21,6 +21,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Tabs,
@@ -33,7 +34,14 @@ import { InterviewPanel } from './InterviewPanel';
 import { WritePanel } from './WritePanel';
 import { DocumentPanel } from './DocumentPanel';
 import { ShareDialog } from './ShareDialog';
-import type { DocumentType, WorkspaceDoc, WorkspaceMode, WorkspaceProject } from './types';
+import type {
+  DocumentType,
+  ProjectPurpose,
+  WorkspaceDoc,
+  WorkspaceMode,
+  WorkspaceProject,
+} from './types';
+import { PROJECT_PURPOSE_LABEL } from './types';
 import { CORE_DOC_ORDER, DOC_ORDER, isValidDocType } from './types';
 
 interface ProjectResp {
@@ -72,6 +80,7 @@ export function ProjectWorkspace() {
   const { toast } = useToast();
 
   const [project, setProject] = useState<WorkspaceProject | null>(null);
+  const [savingPurpose, setSavingPurpose] = useState(false);
   const [docs, setDocs] = useState<WorkspaceDoc[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -266,6 +275,34 @@ export function ProjectWorkspace() {
     }
   }
 
+  async function changePurpose(next: ProjectPurpose | null) {
+    if (!project || savingPurpose) return;
+    const previous = project.purpose;
+    if (previous === next) return;
+
+    setSavingPurpose(true);
+    setProject({ ...project, purpose: next });
+    try {
+      const res = await api.patch<ProjectResp>(`/projects/${projectId}`, { purpose: next });
+      setProject(res.project);
+      toast({
+        tone: 'success',
+        title: 'Tujuan diperbarui',
+        description:
+          'Berlaku untuk wawancara dan penulisan berikutnya. Dokumen yang sudah ada tidak berubah.',
+      });
+    } catch (e) {
+      setProject({ ...project, purpose: previous });
+      toast({
+        tone: 'error',
+        title: 'Gagal menyimpan tujuan',
+        description: e instanceof ApiError ? e.message : 'Coba lagi sebentar lagi.',
+      });
+    } finally {
+      setSavingPurpose(false);
+    }
+  }
+
   function triggerExport(format: 'zip' | 'md' | 'json') {
     if (!canExport) {
       toast({
@@ -351,6 +388,42 @@ export function ProjectWorkspace() {
                 >
                   {readyCount}/{docs.length || 7} dok
                 </span>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={savingPurpose}
+                      className="min-h-9"
+                      title="Tujuan dokumen menentukan penekanan wawancara dan penulisan"
+                    >
+                      <span className="text-ink-2">
+                        {project.purpose ? PROJECT_PURPOSE_LABEL[project.purpose] : 'Pilih tujuan'}
+                      </span>
+                      <ChevronDown className="h-3 w-3 text-ink-3" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuLabel>Tujuan dokumen</DropdownMenuLabel>
+                    {(Object.keys(PROJECT_PURPOSE_LABEL) as ProjectPurpose[]).map((value) => (
+                      <DropdownMenuItem
+                        key={value}
+                        onSelect={() => void changePurpose(value)}
+                        disabled={project.purpose === value}
+                      >
+                        <span>{PROJECT_PURPOSE_LABEL[value]}</span>
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => void changePurpose(null)}
+                      disabled={project.purpose === null}
+                    >
+                      <span>Belum ditentukan</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               {project.description && (
                 <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-ink-2">
