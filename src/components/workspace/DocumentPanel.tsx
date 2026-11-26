@@ -23,6 +23,12 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
 import {
+  AGENT_PLACEMENT_HINT,
+  AGENT_USAGE_HINT,
+  buildAgentCompanionInstructions,
+  formatAgentSpecPrompt,
+} from '@/lib/export/agentInstructions';
+import {
   Badge,
   Button,
   Dialog,
@@ -108,22 +114,6 @@ function formatBytes(text: string): string {
   return len < 1024 ? `${len} B` : `${(len / 1024).toFixed(1)} kB`;
 }
 
-function formatAgentPrompt(
-  project: WorkspaceProject,
-  docLabel: string,
-  versionNum: number | undefined,
-  markdown: string,
-): string {
-  return [
-    `<rancang_spec project="${project.name}" slug="${project.slug}" document="${docLabel}" version="v${versionNum ?? 1}">`,
-    `Gunakan spesifikasi berikut sebagai sumber kebenaran saat merancang dan menulis kode.`,
-    `Ikuti kontrak, skema, batasan, dan konvensi yang tertulis tanpa mengubah keputusan yang sudah dikunci.`,
-    '',
-    markdown.trim(),
-    `</rancang_spec>`,
-  ].join('\n');
-}
-
 export function DocumentPanel({
   project,
   docs,
@@ -157,6 +147,7 @@ export function DocumentPanel({
   const [savingLib, setSavingLib] = useState(false);
   const [lockBusy, setLockBusy] = useState(false);
   const [copyingProject, setCopyingProject] = useState(false);
+  const [copyingAgent, setCopyingAgent] = useState(false);
 
   const cache = useRef<Map<DocumentType, DocResp>>(new Map());
 
@@ -356,12 +347,33 @@ export function DocumentPanel({
     }
   }
 
+  // Deterministic template, no model call: the same text the zip ships as
+  // AGENT_INSTRUCTIONS.md, so what a user pastes matches what they download.
+  async function copyAgentInstructions() {
+    if (copyingAgent) return;
+    setCopyingAgent(true);
+    try {
+      const hasWireframes = docs.some((d) => d.type === 'wireframe' && d.status === 'ready');
+      const text = buildAgentCompanionInstructions(project, { hasWireframes });
+      await navigator.clipboard.writeText(text);
+      toast({
+        tone: 'success',
+        title: 'Instruksi agent disalin',
+        description: 'Tempel sebagai system prompt atau pesan pertama bersama bundle spesifikasi.',
+      });
+    } catch {
+      toast({ tone: 'error', title: 'Gagal menyalin instruksi agent' });
+    } finally {
+      setCopyingAgent(false);
+    }
+  }
+
   async function copyForAgent(scope: 'doc' | 'project') {
     if (scope === 'doc') {
       const target = viewingVersion?.contentMd ?? content;
       if (!target) return;
       const ver = viewingVersion?.versionNumber ?? versions[0]?.versionNumber;
-      const formatted = formatAgentPrompt(project, DOC_LABEL[selectedType], ver, target);
+      const formatted = formatAgentSpecPrompt(project, DOC_LABEL[selectedType], ver, target);
       try {
         await navigator.clipboard.writeText(formatted);
         toast({
@@ -391,7 +403,7 @@ export function DocumentPanel({
         throw new Error(msg);
       }
       const allMd = await res.text();
-      const formatted = formatAgentPrompt(project, 'ALL_SPECS', undefined, allMd);
+      const formatted = formatAgentSpecPrompt(project, 'ALL_SPECS', undefined, allMd);
       await navigator.clipboard.writeText(formatted);
       toast({
         tone: 'success',
@@ -463,6 +475,7 @@ export function DocumentPanel({
     [docs],
   );
   const latestVersion = versions[0];
+  const readyCount = docs.filter((d) => d.status === 'ready').length;
   const displayedContent = viewingVersion?.contentMd ?? content;
   const editDirty = editing && editDraft !== content;
 
@@ -660,6 +673,15 @@ export function DocumentPanel({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => void copyAgentInstructions()}
+                      disabled={copyingAgent}
+                      className="font-medium"
+                    >
+                      <TerminalSquare className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
+                      {copyingAgent ? 'Menyalin instruksi...' : 'Salin instruksi agent'}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={() => void copyForAgent('doc')}>
                       <Copy className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
                       Salin {DOC_LABEL[selectedType]} untuk AI Agent
@@ -723,6 +745,48 @@ export function DocumentPanel({
             </div>
           )}
         </header>
+
+        {/* AI agent handoff: only for projects written for an agent, and only once
+            something exists to hand over. Both hints are the same strings the zip
+            ships, so the screen and the download say the same thing. */}
+        {project.purpose === 'ai_agent' && readyCount > 0 && (
+          <section
+            aria-label="Serah terima ke AI agent"
+            className="border-b border-line bg-sidebar/50 px-5 py-3.5"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-ink">Serahkan bundle ini ke AI agent</p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-2">{AGENT_USAGE_HINT}</p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-3">{AGENT_PLACEMENT_HINT}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => void copyAgentInstructions()}
+                  disabled={copyingAgent}
+                >
+                  <TerminalSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                  {copyingAgent ? 'Menyalin...' : 'Salin instruksi agent'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    window.location.href = `/api/v1/projects/${project.id}/export?format=zip`;
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
+                  Unduh bundle spesifikasi
+                </Button>
+              </div>
+            </div>
+            <p className="mt-2 font-mono text-[11px] text-ink-3">
+              {readyCount} dari {docs.length} dokumen siap · instruksi dibuat tanpa panggilan model
+            </p>
+          </section>
+        )}
 
         {error && (
           <div
