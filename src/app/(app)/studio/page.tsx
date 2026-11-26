@@ -40,6 +40,34 @@ import { cn } from '@/lib/cn';
 
 type ProjectStatus = 'draft' | 'interviewing' | 'generating' | 'ready' | 'archived';
 
+// Mirrors ProjectPurpose in src/lib/db/enums.ts (owned by forge). Swap to the import
+// once that module lands on this branch.
+type ProjectPurpose = 'documentation' | 'team' | 'ai_agent';
+
+const PURPOSE_LABEL: Record<ProjectPurpose, string> = {
+  documentation: 'Dokumentasi',
+  team: 'Implementasi tim',
+  ai_agent: 'Implementasi dengan AI agent',
+};
+
+const PURPOSE_OPTIONS: { value: ProjectPurpose; label: string; hint: string }[] = [
+  {
+    value: 'documentation',
+    label: 'Dokumentasi',
+    hint: 'Tugas kuliah atau proyek PM — spesifikasi yang bisa dibaca sendiri.',
+  },
+  {
+    value: 'team',
+    label: 'Implementasi sendiri atau tim',
+    hint: 'Kontrak teknis, dependensi, dan kriteria penerimaan yang bisa diuji.',
+  },
+  {
+    value: 'ai_agent',
+    label: 'Implementasi dengan AI agent',
+    hint: 'Bundle spesifikasi plus instruksi siap tempel untuk agent.',
+  },
+];
+
 interface Project {
   id: string;
   name: string;
@@ -51,6 +79,7 @@ interface Project {
   createdAt: string;
   docsReady: number;
   docsTotal: number;
+  purpose: ProjectPurpose | null;
 }
 
 type Counts = {
@@ -147,6 +176,8 @@ export default function StudioPage() {
   const [idea, setIdea] = useState('');
   const [customTitle, setCustomTitle] = useState('');
   const [showOptions, setShowOptions] = useState(false);
+  const [purpose, setPurpose] = useState<ProjectPurpose | null>(null);
+  const [purposeHelpOpen, setPurposeHelpOpen] = useState(false);
   const [accent, setAccent] = useState(ACCENTS[0]!);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
   const [creating, setCreating] = useState(false);
@@ -273,6 +304,7 @@ export default function StudioPage() {
         description,
         templateId: selectedTemplate?.id,
         accentColor: accent,
+        purpose: purpose ?? undefined,
       });
 
       if (trimmedIdea) {
@@ -293,6 +325,10 @@ export default function StudioPage() {
     setSelectedTemplate(tpl);
     if (tpl.accentColor && /^#[0-9a-fA-F]{6}$/.test(tpl.accentColor)) {
       setAccent(tpl.accentColor);
+    }
+    // Fill only what is empty: a template must never erase the user's own words.
+    if (!customTitle.trim()) {
+      setCustomTitle(tpl.name);
     }
     if (!idea.trim()) {
       setIdea(`Saya ingin membangun ${tpl.name}: ${tpl.description}`);
@@ -428,9 +464,23 @@ export default function StudioPage() {
             </div>
           )}
 
-          <div>
-            <label htmlFor="quick-start-idea" className="sr-only">
-              Ceritakan ide aplikasimu
+          <div className="space-y-1">
+            <label htmlFor="qs-title" className="block text-xs font-medium text-ink-2">
+              Judul proyek <span className="font-normal text-ink-3">(otomatis jika kosong)</span>
+            </label>
+            <input
+              id="qs-title"
+              maxLength={120}
+              value={customTitle}
+              onChange={(e) => setCustomTitle(e.target.value)}
+              placeholder="Contoh: Kasir Bengkel Maju"
+              className="w-full min-h-11 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="quick-start-idea" className="block text-xs font-medium text-ink-2">
+              Detail proyek
             </label>
             <textarea
               id="quick-start-idea"
@@ -450,21 +500,61 @@ export default function StudioPage() {
             />
           </div>
 
+          <fieldset className="space-y-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <legend className="text-xs font-medium text-ink-2">
+                Dokumen ini akan dipakai untuk apa?
+                <span className="ml-1 font-normal text-ink-3">(opsional)</span>
+              </legend>
+              <button
+                type="button"
+                onClick={() => setPurposeHelpOpen(true)}
+                className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                Bantu pilih
+              </button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {PURPOSE_OPTIONS.map((opt) => {
+                const active = purpose === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setPurpose(active ? null : opt.value)}
+                    className={cn(
+                      'min-h-11 rounded-lg border px-3 py-2 text-left transition-colors',
+                      active
+                        ? 'border-accent bg-accent-soft/60'
+                        : 'border-line bg-surface hover:border-line-strong',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'block text-[13px] font-medium',
+                        active ? 'text-accent-ink' : 'text-ink',
+                      )}
+                    >
+                      {opt.label}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-snug text-ink-2">
+                      {opt.hint}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {purpose && (
+              <p className="text-[11px] text-ink-2">
+                Dipilih: <span className="font-medium text-ink">{PURPOSE_LABEL[purpose]}</span>. Klik
+                lagi untuk membatalkan.
+              </p>
+            )}
+          </fieldset>
+
           {showOptions && (
-            <div className="grid gap-3 rounded-xl border border-line bg-sidebar/50 p-3.5 sm:grid-cols-2">
-              <div className="space-y-1">
-                <label htmlFor="qs-title" className="block text-xs font-medium text-ink-2">
-                  Nama proyek <span className="font-normal text-ink-3">(otomatis jika kosong)</span>
-                </label>
-                <input
-                  id="qs-title"
-                  maxLength={120}
-                  value={customTitle}
-                  onChange={(e) => setCustomTitle(e.target.value)}
-                  placeholder="Contoh: Kasir Bengkel Maju"
-                  className="w-full min-h-10 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
-                />
-              </div>
+            <div className="rounded-xl border border-line bg-sidebar/50 p-3.5">
 
               <div className="space-y-1">
                 <span className="block text-xs font-medium text-ink-2">Warna penanda kartu</span>
@@ -505,7 +595,7 @@ export default function StudioPage() {
                 aria-expanded={showOptions}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{showOptions ? 'Sembunyikan opsi' : 'Nama & warna'}</span>
+                <span>{showOptions ? 'Sembunyikan opsi' : 'Warna kartu'}</span>
               </Button>
               <span className="hidden sm:inline font-mono text-[11px] text-ink-3">
                 Ctrl/Cmd+Enter untuk mulai
@@ -737,6 +827,11 @@ export default function StudioPage() {
                     <h3 className="mt-3.5 line-clamp-1 text-base font-semibold text-ink group-hover:text-accent-ink transition-colors">
                       {p.name}
                     </h3>
+                    {p.purpose && (
+                      <span className="mt-1.5 inline-block rounded border border-line px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-2">
+                        {PURPOSE_LABEL[p.purpose]}
+                      </span>
+                    )}
                     <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-2">
                       {p.description ?? 'Belum ada deskripsi proyek.'}
                     </p>
@@ -844,6 +939,45 @@ export default function StudioPage() {
           </div>
         )}
       </section>
+
+      {/* Purpose explainer dialog */}
+      <Dialog open={purposeHelpOpen} onOpenChange={setPurposeHelpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mau dipakai untuk apa dokumennya?</DialogTitle>
+            <DialogDescription>
+              Pilihan ini mengubah apa yang ditanyakan saat wawancara dan apa yang ditekankan di
+              dokumen. Bisa diubah kapan saja setelah proyek dibuat.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-3">
+            {PURPOSE_OPTIONS.map((opt) => (
+              <li key={opt.value} className="rounded-lg border border-line p-3">
+                <p className="text-sm font-medium text-ink">{opt.label}</p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-2">{opt.hint}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs leading-relaxed text-ink-2">
+            Tidak yakin? Lewati saja. Tanpa pilihan, alur wawancara berjalan seperti biasa dan
+            dokumen ditulis netral.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPurposeHelpOpen(false)}>
+              Tutup
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setPurpose('ai_agent');
+                setPurposeHelpOpen(false);
+              }}
+            >
+              Pakai untuk AI agent
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Permanent delete confirmation dialog */}
       <Dialog open={Boolean(confirmDel)} onOpenChange={(o) => !o && !deleting && setConfirmDel(null)}>
