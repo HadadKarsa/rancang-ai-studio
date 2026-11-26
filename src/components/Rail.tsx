@@ -245,7 +245,7 @@ export function Rail({ mobileOpen = false, onMobileClose }: RailProps) {
         {!isCompact && (
           <div className="mb-1.5 flex items-center justify-between px-2.5 text-[11px] font-mono text-ink-3">
             <span>local</span>
-            <span>v0.2.0</span>
+            <span>v0.2.2</span>
           </div>
         )}
         <button

@@ -232,7 +232,7 @@ export default function LandingPage() {
             <Link href="/docs" className="hover:text-ink transition-colors">
               Dokumentasi
             </Link>
-            <span>v0.2.0</span>
+            <span>v0.2.2</span>
           </nav>
         </div>
       </footer>
