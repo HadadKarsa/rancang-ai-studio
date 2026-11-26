@@ -56,6 +56,8 @@ export async function startInterviewTurn(input: {
   try {
     const prompt = buildInterviewPrompt({
       projectName: project.name,
+      projectDescription: project.description,
+      projectPurpose: project.purpose,
       baselineAssumptions: template?.baselineAssumptions ?? [],
       transcript: transcript.map((m) => ({ role: m.role, content: m.content })),
       questionIndex,

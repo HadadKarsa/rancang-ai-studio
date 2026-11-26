@@ -1,12 +1,13 @@
 import { execute, query, queryOne, transaction } from '../client';
 import { mapProject, type Project, type ProjectRow } from '../types';
-import { DOCUMENT_TYPES, type DocumentType, type ProjectStatus } from '../enums';
+import { DOCUMENT_TYPES, type DocumentType, type ProjectPurpose, type ProjectStatus } from '../enums';
 import { newId, nowIso } from '@/lib/ids';
 
 export interface CreateProjectInput {
   userId: string;
   name: string;
   description?: string | null;
+  purpose?: ProjectPurpose | null;
   templateId?: string | null;
   defaultPresetId?: string | null;
   accentColor?: string;
@@ -40,9 +41,9 @@ export async function createProjectWithScaffold(input: CreateProjectInput): Prom
 
   await transaction(async (tx) => {
     tx.run(
-      `INSERT INTO projects (id, user_id, template_id, default_preset_id, name, slug, description, status, icon, accent_color, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)`,
-      [id, input.userId, input.templateId ?? null, input.defaultPresetId ?? null, input.name, slug, input.description ?? null, input.icon ?? null, input.accentColor ?? '#6366f1', now, now],
+      `INSERT INTO projects (id, user_id, template_id, default_preset_id, name, slug, description, status, purpose, icon, accent_color, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)`,
+      [id, input.userId, input.templateId ?? null, input.defaultPresetId ?? null, input.name, slug, input.description ?? null, input.purpose ?? null, input.icon ?? null, input.accentColor ?? '#6366f1', now, now],
     );
     DOCUMENT_TYPES.forEach((type, index) => {
       const docId = newId('doc');
@@ -224,6 +225,12 @@ export async function listProjectsByUser(userId: string, opts: ListProjectsOpts 
 export interface UpdateProjectPatch {
   name?: string;
   description?: string | null;
+  /**
+   * Only the column and `updated_at` change. Document statuses and stored
+   * versions are deliberately untouched: a new purpose applies to the next
+   * interview turn, generation or export, never retroactively.
+   */
+  purpose?: ProjectPurpose | null;
   status?: ProjectStatus;
   defaultPresetId?: string | null;
   icon?: string | null;
@@ -238,6 +245,7 @@ export async function updateProject(id: string, userId: string, patch: UpdatePro
   const params: unknown[] = [];
   if (patch.name !== undefined) { sets.push('name = ?'); params.push(patch.name); }
   if (patch.description !== undefined) { sets.push('description = ?'); params.push(patch.description); }
+  if (patch.purpose !== undefined) { sets.push('purpose = ?'); params.push(patch.purpose); }
   if (patch.status !== undefined) { sets.push('status = ?'); params.push(patch.status); }
   if (patch.defaultPresetId !== undefined) { sets.push('default_preset_id = ?'); params.push(patch.defaultPresetId); }
   if (patch.icon !== undefined) { sets.push('icon = ?'); params.push(patch.icon); }

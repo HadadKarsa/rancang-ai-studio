@@ -17,6 +17,13 @@ export const DOCUMENT_STATUSES: readonly DocumentStatus[] = ['pending', 'generat
 export type ProjectStatus = 'draft' | 'interviewing' | 'generating' | 'ready' | 'archived';
 export const PROJECT_STATUSES: readonly ProjectStatus[] = ['draft', 'interviewing', 'generating', 'ready', 'archived'];
 
+/**
+ * What the finished spec bundle is for (v0.2.3). `null` on a project means the
+ * user skipped the choice: prompts and exports then behave exactly as v0.2.2.
+ */
+export type ProjectPurpose = 'documentation' | 'team' | 'ai_agent';
+export const PROJECT_PURPOSES: readonly ProjectPurpose[] = ['documentation', 'team', 'ai_agent'];
+
 export type InterviewStatus = 'active' | 'completed' | 'abandoned';
 export type MessageRole = 'assistant' | 'user' | 'system';
 export type VersionSource = 'initial' | 'regenerate' | 'manual_edit' | 'restore';

@@ -70,6 +70,7 @@ export async function streamDocumentGeneration(params: StreamDocumentParams): Pr
   const generationInput: GenerationInput = {
     projectName: project.name,
     projectDescription: project.description,
+    projectPurpose: project.purpose,
     interviewTranscript: transcript,
     baselineAssumptions: template?.baselineAssumptions ?? [],
     injectedAssets: assets.filter((a) => a.contentText).map((a) => ({ name: a.name, content: a.contentText as string })),

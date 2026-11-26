@@ -3,11 +3,13 @@ import { withRoute, parseJson } from '@/lib/api/middleware';
 import { createProjectWithScaffold, listProjectsByUser } from '@/lib/db/repositories/projects';
 import { listTagsForUser, createTag, attachTagsToProject } from '@/lib/db/repositories/templates';
 import { ValidationError } from '@/lib/errors';
-import { DOCUMENT_TYPES } from '@/lib/db/enums';
+import { DOCUMENT_TYPES, PROJECT_PURPOSES } from '@/lib/db/enums';
 
 const createSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional(),
+  /** Optional: omitted or null keeps the v0.2.2 behaviour. */
+  purpose: z.enum(PROJECT_PURPOSES).nullable().optional(),
   templateId: z.string().optional(),
   presetId: z.string().optional(),
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
@@ -29,6 +31,7 @@ export const POST = withRoute(async (ctx) => {
     userId: ctx.session.user.id,
     name: input.name,
     description: input.description,
+    purpose: input.purpose ?? null,
     templateId: input.templateId ?? null,
     defaultPresetId: input.presetId ?? null,
     accentColor: input.accentColor,
