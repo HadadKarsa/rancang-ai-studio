@@ -4,11 +4,14 @@ import { getProjectById, updateProject, archiveProject, deleteProject, countProj
 import { listDocuments } from '@/lib/db/repositories/documents';
 import { listTagsForProject, replaceProjectTags } from '@/lib/db/repositories/templates';
 import { ValidationError, NotFoundError } from '@/lib/errors';
+import { PROJECT_PURPOSES } from '@/lib/db/enums';
 
 
 const patchSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   description: z.string().max(2000).nullable().optional(),
+  /** Writes projects.purpose only — never touches document status or versions. */
+  purpose: z.enum(PROJECT_PURPOSES).nullable().optional(),
   status: z.enum(['draft', 'interviewing', 'generating', 'ready', 'archived']).optional(),
   defaultPresetId: z.string().nullable().optional(),
   icon: z.string().max(64).nullable().optional(),

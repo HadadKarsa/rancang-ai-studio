@@ -1,4 +1,5 @@
 import type { DocumentType } from '@/lib/documents/types';
+import type { ProjectPurpose } from '@/lib/db/enums';
 
 /**
  * Prompt templates (T-303). Each builder returns { system, prompt }.
@@ -8,6 +9,8 @@ import type { DocumentType } from '@/lib/documents/types';
 export interface GenerationInput {
   projectName: string;
   projectDescription: string | null;
+  /** Optional (v0.2.3). Null/undefined emits nothing extra — v0.2.2 behaviour. */
+  projectPurpose?: ProjectPurpose | null;
   interviewTranscript: { role: 'assistant' | 'user' | 'system'; content: string }[];
   baselineAssumptions: string[];
   injectedAssets: { name: string; content: string }[];
@@ -34,10 +37,46 @@ function assetsBlock(assets: GenerationInput['injectedAssets']): string {
   return assets.map((a) => `### ${a.name}\n${a.content}`).join('\n\n');
 }
 
+/**
+ * What each purpose asks of the writing (v0.2.3). Kept next to the prompt so the
+ * emphasis a document gets and the emphasis the interview asks about cannot
+ * drift apart.
+ */
+export const PURPOSE_DIRECTIVE: Record<ProjectPurpose, { label: string; interviewFocus: string; writingEmphasis: string }> = {
+  documentation: {
+    label: 'Dokumentasi',
+    interviewFocus:
+      'who will read this document, the problem context, scope and non-goals, and the decisions that need a clear explanation',
+    writingEmphasis:
+      'Write a self-contained specification that stands on its own. State the rationale behind each decision, make assumptions explicit, and name trade-offs and open questions plainly. The reader may be a lecturer, a PM, or a teammate who was not in the interview.',
+  },
+  team: {
+    label: 'Implementasi tim',
+    interviewFocus:
+      'technical constraints, the core user and system flows, integrations, failure and error modes, and acceptance criteria',
+    writingEmphasis:
+      'Prioritize concrete technical contracts: schemas, module boundaries, dependencies between tasks, failure handling, and acceptance criteria that can be tested. Assume the reader is an engineer who will build from this document.',
+  },
+  ai_agent: {
+    label: 'Implementasi dengan AI agent',
+    interviewFocus:
+      'technical and implementation constraints (as for a team), plus the execution sequence, invariants that must not change, and decisions that still need confirmation before coding',
+    writingEmphasis:
+      'Maximize unambiguity across documents: use the same entity, endpoint and file names in every document. Give an explicit step-by-step execution order, state locked invariants, and end with an explicit list of open decisions the user must confirm before coding begins.',
+  },
+};
+
+/** Empty string when no purpose is set, so a legacy project's prompt is unchanged. */
+function purposeBlock(purpose: ProjectPurpose | null | undefined): string {
+  if (!purpose) return '';
+  const directive = PURPOSE_DIRECTIVE[purpose];
+  return `\nTARGET PURPOSE: ${directive.label}\n${directive.writingEmphasis}\n`;
+}
+
 function contextBlock(input: GenerationInput): string {
   return `PROJECT: ${input.projectName}
 ${input.projectDescription ? `DESCRIPTION: ${input.projectDescription}` : ''}
-
+${purposeBlock(input.projectPurpose)}
 BASELINE ASSUMPTIONS:
 ${input.baselineAssumptions.length > 0 ? input.baselineAssumptions.map((a) => `- ${a}`).join('\n') : '(none)'}
 
@@ -128,18 +167,26 @@ export function buildDocumentPrompt(type: DocumentType, input: GenerationInput):
 
 export function buildInterviewPrompt(input: {
   projectName: string;
+  projectDescription?: string | null;
+  projectPurpose?: ProjectPurpose | null;
   baselineAssumptions: string[];
   transcript: GenerationInput['interviewTranscript'];
   questionIndex: number;
   maxQuestions: number;
 }): { system: string; prompt: string } {
+  const purpose = input.projectPurpose ? PURPOSE_DIRECTIVE[input.projectPurpose] : null;
+  const purposeGuidance = purpose
+    ? `\nPURPOSE GUIDANCE (${purpose.label}):\nFocus your questions on ${purpose.interviewFocus}.`
+    : '';
+
   return {
     system: `You run a warm, sharp product interview. One question at a time. Adaptive: aim for ${input.maxQuestions} questions total (never more), wrap up early when you have enough.
-You speak like a thoughtful human collaborator — no corporate filler, no restating answers back verbatim.
+You speak like a thoughtful human collaborator — no corporate filler, no restating answers back verbatim.${purposeGuidance}
 Every reply is STRICT JSON, no markdown fence:
 {"question": "...", "suggestions": ["...", "..."], "isComplete": false, "reasoning": "one line, why you ask this"}
 "suggestions" holds 2–3 short candidate answers the user might tap. Set "isComplete": true only when the picture is genuinely enough to spec the product.`,
     prompt: `PROJECT: ${input.projectName}
+${input.projectDescription?.trim() ? `DESCRIPTION: ${input.projectDescription.trim()}\n` : ''}
 BASELINE ASSUMPTIONS:
 ${input.baselineAssumptions.map((a) => `- ${a}`).join('\n') || '(none)'}
 

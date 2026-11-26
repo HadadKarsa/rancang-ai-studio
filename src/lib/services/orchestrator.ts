@@ -119,6 +119,7 @@ async function promptFor(
   return buildDocumentPrompt(type, {
     projectName: ctx.project.name,
     projectDescription: ctx.project.description,
+    projectPurpose: ctx.project.purpose,
     interviewTranscript: ctx.transcript,
     baselineAssumptions: ctx.baselineAssumptions,
     injectedAssets: [...ctx.assets, ...priorContext],

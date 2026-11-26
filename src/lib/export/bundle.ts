@@ -2,6 +2,8 @@ import { getProjectById } from '@/lib/db/repositories/projects';
 import { listDocuments, listCurrentVersionsForProject } from '@/lib/db/repositories/documents';
 import { listScreens } from '@/lib/db/repositories/wireframes';
 import { DOCUMENT_META, DOCUMENT_TYPES, type DocumentType } from '@/lib/documents/types';
+import type { ProjectPurpose } from '@/lib/db/enums';
+import { PROJECT_PURPOSE_LABEL, buildAgentCompanionInstructions, AGENT_USAGE_HINT } from './agentInstructions';
 import { NotFoundError, ConflictError } from '@/lib/errors';
 import { createZip, type ZipEntry } from './zip';
 
@@ -32,7 +34,11 @@ export interface ExportedDocument {
 }
 
 export interface ExportBundle {
-  project: { id: string; name: string; slug: string; description: string | null; status: string };
+  project: {
+    id: string; name: string; slug: string; description: string | null; status: string;
+    /** v0.2.3: null when the user skipped the choice — export stays as v0.2.2. */
+    purpose: ProjectPurpose | null;
+  };
   documents: ExportedDocument[];
   wireframes: { name: string; slug: string; viewport: string; html: string }[];
   /** Documents scaffolded but never generated, in order — used for the 409 message. */
@@ -104,6 +110,7 @@ export async function buildExportBundle(userId: string, projectId: string): Prom
       slug: project.slug,
       description: project.description,
       status: project.status,
+      purpose: project.purpose,
     },
     documents,
     wireframes: screens.map((s) => ({ name: s.name, slug: s.slug, viewport: s.viewport, html: s.htmlContent })),
@@ -128,6 +135,7 @@ export function renderCombinedMarkdown(bundle: ExportBundle): string {
   lines.push(
     `- **Slug:** \`${project.slug}\``,
     `- **Status:** ${project.status}`,
+    ...(project.purpose ? [`- **Tujuan:** ${PROJECT_PURPOSE_LABEL[project.purpose]}`] : []),
     `- **Diekspor:** ${bundle.generatedAt}`,
     `- **Dokumen:** ${documents.length} dari ${DOCUMENT_TYPES.length}`,
     `- **Wireframe:** ${bundle.wireframe === 'absent' ? 'belum dibuat (opsional)' : `${wireframes.length} layar`}`,
@@ -172,14 +180,26 @@ export function renderCombinedMarkdown(bundle: ExportBundle): string {
 export function renderZip(bundle: ExportBundle): Buffer {
   const entries: ZipEntry[] = [];
   const { project, documents, wireframes } = bundle;
+  const isAgentBundle = project.purpose === 'ai_agent';
 
   const readme = [
     `# ${project.name}`,
     '',
     project.description ?? '',
     '',
+    ...(project.purpose ? [`- **Tujuan:** ${PROJECT_PURPOSE_LABEL[project.purpose]}`] : []),
     `Diekspor ${bundle.generatedAt} dari rancang-ai.`,
     '',
+    ...(isAgentBundle
+      ? [
+          '## Instruksi AI Agent',
+          '',
+          'Paket ini menyertakan `AGENT_INSTRUCTIONS.md` — instruksi siap tempel untuk AI agent.',
+          '',
+          AGENT_USAGE_HINT,
+          '',
+        ]
+      : []),
     '## Dokumen',
     '',
     ...documents.map((d) => `- \`${FILE_PREFIX[d.type]}\` — ${d.title} (rev ${d.versionNumber})`),
@@ -189,6 +209,15 @@ export function renderZip(bundle: ExportBundle): Buffer {
     '',
   ].join('\n');
   entries.push({ name: 'README.md', content: readme });
+
+  // Only an ai_agent bundle carries the companion instructions; every other
+  // purpose keeps the v0.2.2 zip structure byte for byte.
+  if (isAgentBundle) {
+    entries.push({
+      name: 'AGENT_INSTRUCTIONS.md',
+      content: buildAgentCompanionInstructions(project, { hasWireframes: wireframes.length > 0 }),
+    });
+  }
 
   for (const doc of documents) {
     const header = `# ${doc.title}\n\n*rev ${doc.versionNumber} · ${doc.status} · ${isoDate(doc.lastGeneratedAt)}*\n\n`;
@@ -206,6 +235,9 @@ export function renderJson(bundle: ExportBundle): unknown {
   return {
     project: bundle.project,
     generatedAt: bundle.generatedAt,
+    ...(bundle.project.purpose === 'ai_agent'
+      ? { agentInstructions: buildAgentCompanionInstructions(bundle.project, { hasWireframes: bundle.wireframes.length > 0 }) }
+      : {}),
     documents: bundle.documents.map((d) => ({
       type: d.type,
       title: d.title,

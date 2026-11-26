@@ -2,7 +2,7 @@
  * DB row types (snake_case, as returned by libSQL) and domain objects (camelCase).
  * One mapper per entity. 03_DATABASE §1.2 / T-103.
  */
-import type { DocumentType, DocumentStatus, ProjectStatus, InterviewStatus, MessageRole, ProviderId, GenerationKind, GenerationStatus, VersionSource, ShareScope, ShareAccess, Viewport, TemplateCategory, ReasoningEffort } from './enums';
+import type { DocumentType, DocumentStatus, ProjectStatus, ProjectPurpose, InterviewStatus, MessageRole, ProviderId, GenerationKind, GenerationStatus, VersionSource, ShareScope, ShareAccess, Viewport, TemplateCategory, ReasoningEffort } from './enums';
 
 export interface UserRow {
   id: string; email: string; email_verified_at: string | null; name: string | null;
@@ -21,17 +21,19 @@ export function mapUser(r: UserRow): User {
 export interface ProjectRow {
   id: string; user_id: string; template_id: string | null; default_preset_id: string | null;
   name: string; slug: string; description: string | null; status: ProjectStatus;
+  purpose: ProjectPurpose | null;
   icon: string | null; accent_color: string; archived_at: string | null; last_opened_at: string | null;
   created_at: string; updated_at: string;
 }
 export interface Project {
   id: string; userId: string; templateId: string | null; defaultPresetId: string | null;
   name: string; slug: string; description: string | null; status: ProjectStatus;
+  purpose: ProjectPurpose | null;
   icon: string | null; accentColor: string; archivedAt: string | null; lastOpenedAt: string | null;
   createdAt: string; updatedAt: string;
 }
 export function mapProject(r: ProjectRow): Project {
-  return { id: r.id, userId: r.user_id, templateId: r.template_id, defaultPresetId: r.default_preset_id, name: r.name, slug: r.slug, description: r.description, status: r.status, icon: r.icon, accentColor: r.accent_color, archivedAt: r.archived_at, lastOpenedAt: r.last_opened_at, createdAt: r.created_at, updatedAt: r.updated_at };
+  return { id: r.id, userId: r.user_id, templateId: r.template_id, defaultPresetId: r.default_preset_id, name: r.name, slug: r.slug, description: r.description, status: r.status, purpose: r.purpose ?? null, icon: r.icon, accentColor: r.accent_color, archivedAt: r.archived_at, lastOpenedAt: r.last_opened_at, createdAt: r.created_at, updatedAt: r.updated_at };
 }
 
 export interface SpecDocumentRow {
