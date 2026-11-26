@@ -21,6 +21,8 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
+import type { ProjectPurpose } from '@/lib/db/enums';
+import { PROJECT_PURPOSE_LABEL as PURPOSE_LABEL } from '@/lib/export/agentInstructions';
 import {
   Badge,
   Button,
@@ -39,16 +41,6 @@ import {
 import { cn } from '@/lib/cn';
 
 type ProjectStatus = 'draft' | 'interviewing' | 'generating' | 'ready' | 'archived';
-
-// Mirrors ProjectPurpose in src/lib/db/enums.ts (owned by forge). Swap to the import
-// once that module lands on this branch.
-type ProjectPurpose = 'documentation' | 'team' | 'ai_agent';
-
-const PURPOSE_LABEL: Record<ProjectPurpose, string> = {
-  documentation: 'Dokumentasi',
-  team: 'Implementasi tim',
-  ai_agent: 'Implementasi dengan AI agent',
-};
 
 const PURPOSE_OPTIONS: { value: ProjectPurpose; label: string; hint: string }[] = [
   {

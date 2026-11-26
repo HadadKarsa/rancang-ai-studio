@@ -1,3 +1,8 @@
+import type { ProjectPurpose } from '@/lib/db/enums';
+
+export type { ProjectPurpose };
+export { PROJECT_PURPOSE_LABEL } from '@/lib/export/agentInstructions';
+
 export type DocumentType =
   | 'prd'
   | 'architecture'
@@ -11,15 +16,6 @@ export type DocStatus = 'pending' | 'generating' | 'ready' | 'failed' | 'stale';
 
 export type WorkspaceMode = 'interview' | 'write' | 'documents';
 
-// Mirrors ProjectPurpose in src/lib/db/enums.ts (owned by forge). Swap to the import
-// once that module lands on this branch.
-export type ProjectPurpose = 'documentation' | 'team' | 'ai_agent';
-
-export const PROJECT_PURPOSE_LABEL: Record<ProjectPurpose, string> = {
-  documentation: 'Dokumentasi',
-  team: 'Implementasi tim',
-  ai_agent: 'Implementasi dengan AI agent',
-};
 
 export interface WorkspaceProject {
   id: string;
