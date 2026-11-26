@@ -97,6 +97,7 @@ export async function streamDocumentGeneration(params: StreamDocumentParams): Pr
     reasoningEffort: resolved.reasoningEffort,
   });
   const result = streamText({
+    maxRetries: 0,
     model,
     system: prompt.system,
     prompt: prompt.prompt,

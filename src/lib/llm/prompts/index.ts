@@ -24,7 +24,8 @@ Rules:
 - Concrete over generic. Name real trade-offs; never pad with filler.
 - No "In today's fast-paced world". No restating the question.
 - Short paragraphs, tight tables, decisions stated with reasons.
-- Where a diagram helps, use a Mermaid fenced block.
+- Use compact sections so the entire document fits the output budget. Avoid repeating prior specs.
+- Keep Mermaid diagrams small. Use ASCII identifiers, double-quoted flowchart node labels, and one statement per line. For ER diagrams use simple entity names and Mermaid attribute types without SQL constraints or type parameters. Close each diagram fence.
 - Output Markdown only. No preamble, no closing summary of what you wrote.`;
 
 function transcriptBlock(transcript: GenerationInput['interviewTranscript']): string {

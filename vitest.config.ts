@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    env: { DATABASE_URL: 'file::memory:' },
     include: ['src/**/*.test.ts'],
   },
 });

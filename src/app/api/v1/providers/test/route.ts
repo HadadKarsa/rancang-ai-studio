@@ -3,7 +3,7 @@ import { withRoute, parseJson } from '@/lib/api/middleware';
 import { testProviderConnection } from '@/lib/llm/registry';
 import { getActiveCredentialForProvider, getCredentialRowForUser, updateCredentialCachedModels } from '@/lib/db/repositories/credentials';
 import { decryptKey } from '@/lib/crypto/keys';
-import { PROVIDER_CATALOG } from '@/lib/llm/catalog';
+import { PROVIDER_CATALOG, supportsNewConnection } from '@/lib/llm/catalog';
 import { bindToStoredCredential, normalizeModelList } from '@/lib/llm/credentialBinding';
 import { PROVIDERS, type ProviderId } from '@/lib/db/enums';
 import { ValidationError } from '@/lib/errors';
@@ -12,7 +12,7 @@ import { ValidationError } from '@/lib/errors';
  * POST /api/v1/providers/test — validate a key and list available models.
  * Accepts either a raw key (the settings form's "Test connection" button,
  * nothing is persisted) or, with no key at all, tests the credential already
- * saved for that provider (subscription mode / re-testing a stored one).
+ * saved for that provider.
  *
  * A stored credential is tested against its OWN provider and endpoint. The
  * request may not redirect it: a provider or base URL that disagrees with the
@@ -31,6 +31,9 @@ export const POST = withRoute(async (ctx) => {
   const parsed = testSchema.safeParse(body);
   if (!parsed.success) throw new ValidationError('Invalid test payload', parsed.error.flatten());
   const input = parsed.data;
+  if (input.apiKey && !supportsNewConnection(input.provider)) {
+    throw new ValidationError('New connections require an OpenAI-compatible provider');
+  }
 
   // No key in the body means "test with the credential already saved for this
   // provider". That credential owns its base URL (Ollama, a custom
@@ -87,7 +90,6 @@ export const POST = withRoute(async (ctx) => {
   return Response.json(result, { status: 422 });
 }, { bucket: 'provider_test' });
 
-/** GET — provider catalog for the settings form (one form, subscription or BYOK). */
-export const GET = withRoute(async () => Response.json({ providers: PROVIDER_CATALOG }), { bucket: 'read' });
+export const GET = withRoute(async () => Response.json({ providers: PROVIDER_CATALOG.filter((p) => supportsNewConnection(p.id)) }), { bucket: 'read' });
 
 export const dynamic = 'force-dynamic';

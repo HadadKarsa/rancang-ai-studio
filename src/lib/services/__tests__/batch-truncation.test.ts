@@ -219,6 +219,32 @@ describe('batch generation and truncated output', () => {
     expect(runs[0]?.error_code).toBe('OUTPUT_TRUNCATED');
   });
 
+  it('stops the batch on a provider quota error after partial output', async () => {
+    const { userId, projectId, docs } = await seed();
+    currentModel = new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'stream-start', warnings: [] });
+            controller.enqueue({ type: 'text-start', id: 'partial' });
+            controller.enqueue({ type: 'text-delta', id: 'partial', delta: 'partial' });
+            controller.enqueue({ type: 'error', error: new Error('429 Too Many Requests') });
+            controller.close();
+          },
+        }),
+      }),
+    });
+    const { generateAllDocumentsStream } = await import('@/lib/services/orchestrator');
+    const events = [];
+    for await (const event of generateAllDocumentsStream({ userId, projectId, types: ['prd', 'architecture'] })) {
+      events.push(event);
+    }
+    expect(events.filter(event => event.event === 'doc')).toHaveLength(1);
+    expect(events.at(-1)).toMatchObject({ event: 'finish', data: { generated: [], failed: [{ type: 'prd' }] } });
+    const { getDb } = await import('@/lib/db/client');
+    expect((await getDb().execute('SELECT id FROM document_versions WHERE document_id = ?', [docs.prd])).rows).toEqual([]);
+  });
+
   it('streaming batch: a complete document still reaches ready', async () => {
     const { userId, projectId, docs } = await seed();
     const { generateAllDocumentsStream } = await import('@/lib/services/orchestrator');

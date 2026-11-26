@@ -42,7 +42,7 @@ import type {
   WorkspaceProject,
 } from './types';
 import { PROJECT_PURPOSE_LABEL } from './types';
-import { CORE_DOC_ORDER, DOC_ORDER, isValidDocType } from './types';
+import { CORE_DOC_ORDER, isValidDocType } from './types';
 
 interface ProjectResp {
   project: WorkspaceProject;
@@ -139,9 +139,9 @@ export function ProjectWorkspace() {
       try {
         const res = await api.get<ProjectResp>(`/projects/${projectId}`);
         setProject(res.project);
-        const ordered = [...res.documents].sort(
+        const ordered = res.documents.filter((doc) => CORE_DOC_ORDER.includes(doc.type)).sort(
           (a, b) =>
-            DOC_ORDER.indexOf(a.type) - DOC_ORDER.indexOf(b.type) || a.orderIndex - b.orderIndex,
+            CORE_DOC_ORDER.indexOf(a.type) - CORE_DOC_ORDER.indexOf(b.type) || a.orderIndex - b.orderIndex,
         );
         setDocs(ordered);
         setProjectBreadcrumb(res.project.name);

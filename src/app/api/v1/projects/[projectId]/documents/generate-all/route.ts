@@ -12,7 +12,7 @@ const bodySchema = z.object({
   apiKey: z.string().min(8).max(400).optional(),
   /** Deprecated: wireframe is opt-in now. Accepted so old clients keep working. */
   skipWireframe: z.boolean().optional(),
-  /** Explicit document selection. Wireframe is only written when named here. */
+  /** Explicit core document selection. */
   types: z.array(z.string()).optional(),
 });
 
@@ -28,8 +28,7 @@ const bodySchema = z.object({
  * One batch per project: a second start while one is running gets 409, whether
  * it comes from this endpoint or from a stream attach.
  *
- * Defaults to the six core documents and stops before wireframe; pass
- * `types: ["wireframe"]` to write the wireframe.
+ * Defaults to the six core documents.
  */
 export const POST = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
@@ -48,8 +47,8 @@ export const POST = withRoute(async (ctx) => {
   if (input.types && input.types.length > 0) {
     const out: DocumentType[] = [];
     for (const t of input.types) {
-      if (t === 'all') { out.push('prd', 'architecture', 'database', 'api', 'tasks', 'memory', 'wireframe'); continue; }
-      if (!isDocumentType(t)) throw new ValidationError(`Unknown document type: ${t}`, { type: t });
+      if (t === 'all') { out.push('prd', 'architecture', 'database', 'api', 'tasks', 'memory'); continue; }
+      if (!isDocumentType(t) || t === 'wireframe') throw new ValidationError(`Unknown document type: ${t}`, { type: t });
       out.push(t);
     }
     types = out;

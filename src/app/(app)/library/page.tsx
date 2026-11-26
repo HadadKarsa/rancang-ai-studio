@@ -73,6 +73,15 @@ export default function LibraryPage() {
   const { toast } = useToast();
 
   const [items, setItems] = useState<LibraryItem[]>([]);
+  const projectGroups = useMemo(() => {
+    const groups = new Map<string | null, LibraryItem[]>();
+    for (const item of items) {
+      const group = groups.get(item.projectId);
+      if (group) group.push(item);
+      else groups.set(item.projectId, [item]);
+    }
+    return Array.from(groups.entries());
+  }, [items]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [kind, setKind] = useState<'' | LibraryItem['kind']>('');
   const [q, setQ] = useState('');
@@ -249,7 +258,7 @@ export default function LibraryPage() {
           <BookMarked className="mx-auto h-7 w-7 text-ink-3" aria-hidden="true" />
           <h2 className="mt-3 text-base font-semibold text-ink">Library masih kosong</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-ink-2">
-            Buka dokumen atau wireframe di ruang kerja proyek, lalu pilih &ldquo;Simpan ke
+            Buka dokumen di ruang kerja proyek, lalu pilih &ldquo;Simpan ke
             Library&rdquo; untuk menyimpannya sebagai arsip yang mudah diakses kembali.
           </p>
           <div className="mt-5">
@@ -293,7 +302,6 @@ export default function LibraryPage() {
                     ['', 'Semua'],
                     ['document', 'Dokumen'],
                     ['export', 'Ekspor'],
-                    ['wireframe', 'Wireframe'],
                   ] as const
                 ).map(([v, label]) => (
                   <button
@@ -325,8 +333,12 @@ export default function LibraryPage() {
                 Tidak ada artefak yang cocok dengan filter ini.
               </p>
             ) : (
-              <ul className="max-h-[68vh] divide-y divide-line overflow-y-auto">
-                {items.map((item) => {
+              <div className="max-h-[68vh] overflow-y-auto">
+                {projectGroups.map(([projectId, entries]) => (
+                  <section key={projectId ?? 'unassigned'}>
+                    <h3 className="border-y border-line bg-sidebar px-4 py-2 text-sm font-semibold">{entries[0]?.projectName ?? 'Tanpa proyek'}</h3>
+                    <ul className="divide-y divide-line">
+                {entries.map((item) => {
                   const active = item.id === selectedId;
                   return (
                     <li key={item.id}>
@@ -354,9 +366,7 @@ export default function LibraryPage() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-ink">{item.title}</p>
-                          <p className="mt-0.5 truncate text-xs text-ink-2">
-                            {item.projectName ?? 'Simpanan lepas'}
-                          </p>
+
                           <div className="mt-1.5 flex items-center gap-2 font-mono text-[11px] text-ink-3">
                             <span>{KIND_LABEL[item.kind]}</span>
                             <span>·</span>
@@ -369,7 +379,10 @@ export default function LibraryPage() {
                     </li>
                   );
                 })}
-              </ul>
+                    </ul>
+                  </section>
+                ))}
+              </div>
             )}
 
             {nextCursor && (

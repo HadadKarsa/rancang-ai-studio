@@ -40,16 +40,6 @@ export interface WorkspaceDoc {
   currentVersionId: string | null;
 }
 
-export const DOC_ORDER: DocumentType[] = [
-  'prd',
-  'architecture',
-  'database',
-  'api',
-  'tasks',
-  'memory',
-  'wireframe',
-];
-
 export const CORE_DOC_ORDER: DocumentType[] = [
   'prd',
   'architecture',
@@ -88,7 +78,7 @@ export const DOC_STATUS_LABEL: Record<DocStatus, string> = {
 };
 
 export function isValidDocType(value: string | null | undefined): value is DocumentType {
-  return Boolean(value && (DOC_ORDER as readonly string[]).includes(value));
+  return Boolean(value && (CORE_DOC_ORDER as readonly string[]).includes(value));
 }
 
 export function formatTimeAgo(iso: string | null): string {

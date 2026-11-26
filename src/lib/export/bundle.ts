@@ -137,18 +137,9 @@ export function renderCombinedMarkdown(bundle: ExportBundle): string {
     `- **Status:** ${project.status}`,
     ...(project.purpose ? [`- **Tujuan:** ${PROJECT_PURPOSE_LABEL[project.purpose]}`] : []),
     `- **Diekspor:** ${bundle.generatedAt}`,
-    `- **Dokumen:** ${documents.length} dari ${DOCUMENT_TYPES.length}`,
-    `- **Wireframe:** ${bundle.wireframe === 'absent' ? 'belum dibuat (opsional)' : `${wireframes.length} layar`}`,
+    `- **Dokumen:** ${documents.length}`,
     '',
   );
-  if (bundle.wireframe === 'absent') {
-    lines.push(
-      '> Wireframe belum dibuat untuk proyek ini. Dokumen inti lengkap; wireframe',
-      '> bersifat opsional dan bisa dibuat menyusul dari halaman proyek.',
-      '',
-    );
-  }
-
   lines.push('## Isi', '');
   for (const doc of documents) {
     const anchor = doc.title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
@@ -205,7 +196,7 @@ export function renderZip(bundle: ExportBundle): Buffer {
     ...documents.map((d) => `- \`${FILE_PREFIX[d.type]}\` — ${d.title} (rev ${d.versionNumber})`),
     ...(wireframes.length > 0
       ? ['', '## Wireframes', '', ...wireframes.map((w) => `- \`wireframes/${w.slug}.html\` — ${w.name} (${w.viewport})`)]
-      : ['', '## Wireframes', '', 'Belum dibuat. Wireframe bersifat opsional dan tidak termasuk dalam paket ini.']),
+      : []),
     '',
   ].join('\n');
   entries.push({ name: 'README.md', content: readme });

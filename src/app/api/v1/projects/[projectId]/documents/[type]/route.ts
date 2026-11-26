@@ -21,7 +21,7 @@ const generateSchema = z.object({
 export const POST = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
   const type = ctx.params.get('type');
-  if (!isDocumentType(type)) throw new DocumentNotFoundError(type);
+  if (!isDocumentType(type) || type === 'wireframe') throw new DocumentNotFoundError(type);
   await assertProjectOwnership(ctx.session.user.id, projectId);
 
   let input: z.infer<typeof generateSchema> = {};

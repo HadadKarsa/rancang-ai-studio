@@ -4,17 +4,12 @@ import { createCredential, listCredentialsForUser, deleteCredential, deactivateC
 import { encryptKey, decryptKey } from '@/lib/crypto/keys';
 import { testProviderConnection } from '@/lib/llm/registry';
 import { normalizeModelList } from '@/lib/llm/credentialBinding';
-import { PROVIDERS, type ProviderId } from '@/lib/db/enums';
+import { CONNECTION_PROVIDERS } from '@/lib/llm/catalog';
 import { ValidationError, NotFoundError, ProviderKeyInvalidError } from '@/lib/errors';
 import { getCredentialRowForUser } from '@/lib/db/repositories/credentials';
 
-/**
- * Credentials API (Ndan v2: ONE form — subscription sign-in OR BYOK with a
- * custom OpenAI-compatible base URL). Keys are AES-256-GCM encrypted at rest;
- * responses never include key material, only last4.
- */
 const createSchema = z.object({
-  provider: z.enum(PROVIDERS as [ProviderId, ...ProviderId[]]),
+  provider: z.enum(CONNECTION_PROVIDERS),
   label: z.string().min(1).max(80),
   apiKey: z.string().min(8).max(400),
   baseUrl: z.string().url().max(300).nullable().optional(),

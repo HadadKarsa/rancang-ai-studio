@@ -23,7 +23,6 @@ import { cn } from '@/lib/cn';
 
 type ProviderId = 'openai' | 'anthropic' | 'google' | 'groq' | 'openrouter' | 'ollama' | 'custom';
 
-/** v0.2.1: four choices only. The DB enum keeps every id, so legacy rows still resolve. */
 const CHOICES: { id: ProviderId; label: string; hint: string }[] = [
   {
     id: 'custom',
@@ -31,14 +30,12 @@ const CHOICES: { id: ProviderId; label: string; hint: string }[] = [
     hint: 'Kenari / DeepSeek / Ollama / lainnya',
   },
   { id: 'openai', label: 'OpenAI', hint: 'api.openai.com' },
-  { id: 'anthropic', label: 'Anthropic', hint: 'Claude' },
-  { id: 'google', label: 'Google Gemini', hint: 'generativelanguage' },
 ];
 
 interface CatalogEntry {
   id: ProviderId;
   label: string;
-  authStyle: 'api-key' | 'subscription' | 'none';
+  authStyle: 'api-key' | 'none';
   keyPrefix: string;
   defaultBaseUrl: string | null;
   needsBaseUrl: boolean;
@@ -197,7 +194,7 @@ function ModelPicker({
           className={cn(
             'inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-lg border border-line bg-canvas px-2.5 py-1.5',
             'font-mono text-xs text-ink transition-colors hover:border-line-strong hover:bg-subtle',
-            'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+            'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
             'disabled:cursor-not-allowed disabled:opacity-50',
           )}
         >
@@ -219,7 +216,7 @@ function ModelPicker({
               onChange={(e) => setQuery(e.target.value)}
               placeholder={options.length > 0 ? `Saring ${options.length} model` : 'Belum ada daftar model'}
               aria-label={`Saring model untuk ${label}`}
-              className="min-h-9 w-full rounded-lg border border-line-strong bg-canvas pl-8 pr-2.5 py-1.5 text-xs text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+              className="min-h-9 w-full rounded-lg border border-line-strong bg-canvas pl-8 pr-2.5 py-1.5 text-xs text-ink placeholder:text-ink-3 focus:border-accent"
             />
           </div>
         </div>
@@ -279,7 +276,7 @@ function ModelPicker({
                     }
                   }}
                   placeholder="deepseek-chat"
-                  className="min-h-9 min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-2.5 py-1.5 font-mono text-xs text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+                  className="min-h-9 min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-2.5 py-1.5 font-mono text-xs text-ink placeholder:text-ink-3 focus:border-accent"
                 />
                 <Button size="sm" variant="secondary" onClick={commitManual} disabled={!draft.trim()}>
                   Pakai
@@ -343,7 +340,7 @@ function EffortSelect({
             onClick={() => onChange(o.value)}
             className={cn(
               'min-h-8 rounded-[6px] px-2 text-[11px] font-medium transition-colors',
-              'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+              'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus',
               'disabled:cursor-not-allowed disabled:opacity-50',
               active ? 'bg-surface text-ink shadow-xs' : 'text-ink-3 hover:text-ink',
             )}
@@ -358,7 +355,7 @@ function EffortSelect({
 
 export default function ModelsPage() {
   const { toast } = useToast();
-  const { refreshActiveModel } = useAppShell();
+  const { refreshActiveModel, modelRefreshTick } = useAppShell();
 
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
@@ -403,7 +400,7 @@ export default function ModelsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, modelRefreshTick]);
 
   const entry = catalog.find((c) => c.id === provider);
   const needsBaseUrl = provider === 'custom' || entry?.needsBaseUrl === true;
@@ -413,7 +410,6 @@ export default function ModelsPage() {
   // GET /models can still be saved through its manual model id.
   const canSave = provider !== '' && selectedModel.trim().length > 0 && !saving;
   const models = testPassed && test?.models ? test.models : [];
-  const hasDefault = presets.some((p) => p.isDefault);
 
   // One row per connected model: a preset is the row, its credential supplies last4.
   const rows = useMemo(
@@ -589,7 +585,7 @@ export default function ModelsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-7 px-5 py-7 sm:px-8">
+    <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-5 sm:space-y-7 sm:px-6 sm:py-7 lg:px-8">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1.5">
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Models</h1>
@@ -597,15 +593,13 @@ export default function ModelsPage() {
             Satu model default dipakai untuk wawancara dan penulisan spesifikasi di seluruh studio.
           </p>
         </div>
-        {hasDefault && (
-          <Link
-            href="/studio"
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink shadow-xs transition-colors hover:bg-subtle"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Kembali ke Studio
-          </Link>
-        )}
+        <Link
+          href="/studio"
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink shadow-xs transition-colors hover:bg-subtle"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Kembali ke Studio
+        </Link>
       </header>
 
       {error && (
@@ -791,7 +785,7 @@ export default function ModelsPage() {
           <span className="min-w-0">
             <span className="block text-sm font-medium text-ink">Tambah penyedia baru</span>
             <span className="block text-xs text-ink-3">
-              Kunci API atau endpoint OpenAI-compatible
+              Gunakan kunci API milik Anda untuk endpoint OpenAI-compatible.
             </span>
           </span>
           <ChevronDown
@@ -821,13 +815,14 @@ export default function ModelsPage() {
                       aria-pressed={selected}
                       onClick={() => {
                         setProvider(c.id);
+                        setApiKey('');
                         setTest(null);
                         setSelectedModel('');
                         setBaseUrl('');
                       }}
                       className={cn(
                         'flex min-h-14 flex-col justify-center gap-0.5 rounded-lg border px-3.5 py-2.5 text-left transition-colors',
-                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
                         selected
                           ? 'border-accent bg-accent-soft/60'
                           : 'border-line bg-canvas hover:border-line-strong hover:bg-subtle/60',
@@ -859,7 +854,7 @@ export default function ModelsPage() {
                         setTest(null);
                         setSelectedModel('');
                       }}
-                      className="min-h-11 min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+                      className="min-h-11 min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent"
                     />
                     <Button
                       variant="secondary"
@@ -896,7 +891,7 @@ export default function ModelsPage() {
                         setTest(null);
                         setSelectedModel('');
                       }}
-                      className="min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+                      className="min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent"
                     />
                     {!needsBaseUrl && (
                       <p className="text-[11px] text-ink-3">Kosongkan untuk memakai endpoint bawaan.</p>
@@ -912,7 +907,7 @@ export default function ModelsPage() {
                       placeholder={PROVIDER_LABEL[provider] ?? provider}
                       value={label}
                       onChange={(e) => setLabel(e.target.value)}
-                      className="min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+                      className="min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 focus:border-accent"
                     />
                   </div>
                 </div>
@@ -985,7 +980,7 @@ export default function ModelsPage() {
                             value={selectedModel}
                             onChange={(e) => setSelectedModel(e.target.value)}
                             placeholder="deepseek-chat"
-                            className="min-h-10 w-full rounded-lg border border-line-strong bg-canvas px-3 py-1.5 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+                            className="min-h-10 w-full rounded-lg border border-line-strong bg-canvas px-3 py-1.5 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent"
                           />
                           <p className="text-xs text-ink-2">
                             Sebagian penyedia menolak daftar model. Isi ID model yang kamu pakai lalu simpan;

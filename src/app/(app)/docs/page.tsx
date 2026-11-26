@@ -19,9 +19,17 @@ const SECTIONS: Section[] = [
   { id: 'wawancara', title: 'Wawancara & konteks langsung', kicker: '05' },
   { id: 'menulis', title: 'Menulis dokumen langsung', kicker: '06' },
   { id: 'studio-dokumen', title: 'Document Studio & Mermaid', kicker: '07' },
-  { id: 'wireframe', title: 'Editor wireframe', kicker: '08' },
-  { id: 'ekspor', title: 'Ekspor, AI Agent & bagikan', kicker: '09' },
-  { id: 'library', title: 'Library master-detail', kicker: '10' },
+  { id: 'ekspor', title: 'Ekspor, AI Agent & bagikan', kicker: '08' },
+  { id: 'library', title: 'Library master-detail', kicker: '09' },
+];
+
+const DOCUMENT_GUIDES = [
+  { id: 'prd', title: 'PRD — kebutuhan produk', purpose: 'Sepakati siapa yang mengalami masalah, hasil yang ingin dicapai, dan batas versi pertama.', example: 'Untuk aplikasi janji temu klinik, pasien perlu memilih jadwal kosong. Pembayaran daring dapat menunggu versi berikutnya.', check: 'Tuliskan kriteria penerimaan yang bisa diuji. Misalnya, setelah pasien memesan satu slot, pasien lain tidak bisa memilih slot itu.' },
+  { id: 'architecture', title: 'Arsitektur sistem', purpose: 'Petakan tanggung jawab antarmuka, layanan, penyimpanan, dan sistem eksternal.', example: 'Formulir mengirim pesanan ke layanan jadwal. Layanan menyimpan janji temu sebelum meminta layanan pesan mengirim konfirmasi.', check: 'Telusuri satu permintaan dari awal sampai akhir. Apa yang terjadi jika pesan konfirmasi gagal terkirim?' },
+  { id: 'database', title: 'Skema basis data', purpose: 'Tentukan entitas, hubungan, dan aturan yang menjaga konsistensi data.', example: 'Satu dokter memiliki banyak slot. Setiap janji temu merujuk ke satu pasien dan satu slot.', check: 'Pastikan dua permintaan serentak tidak dapat menghasilkan dua janji aktif pada slot yang sama.' },
+  { id: 'api', title: 'Kontrak API', purpose: 'Sepakati masukan, keluaran, izin akses, dan respons kesalahan untuk setiap operasi.', example: 'POST /janji menerima ID slot. Layanan mengembalikan 201 beserta ID janji, atau 409 bila slot sudah terisi.', check: 'Periksa apakah klien punya informasi yang cukup untuk menawarkan pilihan jadwal lain setelah konflik.' },
+  { id: 'tasks', title: 'Daftar tugas implementasi', purpose: 'Pecah lingkup PRD menjadi pekerjaan yang dapat diselesaikan dan diuji secara terpisah.', example: 'Buat aturan keunikan slot, terapkan pemesanan, lalu hubungkan formulir. Uji dua pemesanan pada waktu yang sama.', check: 'Setiap tugas memiliki hasil yang bisa diperiksa dan menyebutkan pekerjaan yang harus selesai lebih dulu.' },
+  { id: 'memory', title: 'Memori proyek', purpose: 'Catat keputusan, alasan, istilah, dan pertanyaan terbuka untuk orang yang melanjutkan pekerjaan.', example: 'Tim memilih menyimpan waktu janji dalam UTC dan menampilkannya dalam zona klinik. Kebijakan pembatalan masih menunggu keputusan.', check: 'Pisahkan keputusan yang disepakati dari usulan. Perbarui catatan ketika kebijakan berubah.' },
 ];
 
 const FLOW = [
@@ -110,10 +118,10 @@ export default function DocsPage() {
         </ol>
       </section>
 
-      <div className="grid gap-8 lg:grid-cols-[230px_1fr] lg:items-start">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[230px_1fr] lg:items-start">
         <nav
           aria-label="Daftar isi dokumentasi"
-          className="rounded-2xl border border-line bg-sidebar p-2 lg:sticky lg:top-20"
+          className="min-w-0 rounded-2xl border border-line bg-sidebar p-2 lg:sticky lg:top-20"
         >
           <p className="px-2.5 pb-1.5 pt-1 text-xs font-medium text-ink-3">Daftar isi</p>
           <ol className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
@@ -142,7 +150,7 @@ export default function DocsPage() {
             <p className="font-mono text-xs text-ink-3">01 · Mulai dari sini</p>
             <h2>Mulai dari sini</h2>
             <p>
-              rancang-ai membantu mengubah satu ide aplikasi menjadi tujuh dokumen spesifikasi yang
+              rancang-ai membantu mengubah satu ide aplikasi menjadi enam dokumen spesifikasi yang
               saling terhubung. Gunakan tombol pencarian <kbd className="font-mono">Cmd/Ctrl+K</kbd>{' '}
               di bilah atas untuk berpindah cepat antar proyek, halaman, atau mengganti mode terang
               dan gelap tenang.
@@ -178,7 +186,7 @@ export default function DocsPage() {
               Setiap proyek berjalan di satu halaman terpadu dengan header persisten berisi status
               dokumen (misalnya <span className="font-mono">6/7 dok</span>), tombol Ekspor, dan
               dialog Bagikan. Kamu dapat berpindah mulus antara mode <strong>Wawancara</strong>,{' '}
-              <strong>Tulis Langsung</strong>, dan <strong>Dokumen &amp; Wireframe</strong> tanpa
+              <strong>Tulis Langsung</strong>, dan <strong>Dokumen</strong> tanpa
               kehilangan konteks. Tautan lama (<span className="font-mono">/interview</span>,{' '}
               <span className="font-mono">/write</span>,{' '}
               <span className="font-mono">/documents/[type]</span>) otomatis diarahkan ke mode yang
@@ -211,6 +219,14 @@ export default function DocsPage() {
           <section id="studio-dokumen" ref={setRef('studio-dokumen')} className="scroll-mt-20">
             <p className="font-mono text-xs text-ink-3">07 · Document Studio</p>
             <h2>Document Studio, Mermaid, suntingan, dan versi</h2>
+            {DOCUMENT_GUIDES.map(guide => (
+              <section key={guide.id} id={`panduan-${guide.id}`} className="scroll-mt-20">
+                <h3>{guide.title}</h3>
+                <p>{guide.purpose}</p>
+                <p><strong>Contoh.</strong> {guide.example}</p>
+                <p><strong>Saat meninjau.</strong> {guide.check}</p>
+              </section>
+            ))}
             <ul>
               <li>
                 <strong>Diagram Mermaid otomatis:</strong> blok kode{' '}
@@ -233,18 +249,10 @@ export default function DocsPage() {
             </ul>
           </section>
 
-          <section id="wireframe" ref={setRef('wireframe')} className="scroll-mt-20">
-            <p className="font-mono text-xs text-ink-3">08 · Editor wireframe</p>
-            <h2>Editor wireframe</h2>
-            <p>
-              Wireframe dibuat terpisah dari dokumen inti dan dapat disunting langsung di mode
-              Dokumen &amp; Wireframe dengan pratinjau sandbox untuk lebar desktop, tablet, dan
-              ponsel.
-            </p>
-          </section>
+
 
           <section id="ekspor" ref={setRef('ekspor')} className="scroll-mt-20">
-            <p className="font-mono text-xs text-ink-3">09 · Ekspor &amp; AI Agent</p>
+            <p className="font-mono text-xs text-ink-3">08 · Ekspor &amp; AI Agent</p>
             <h2>Ekspor, Salin untuk AI Agent, dan tautan bagikan</h2>
             <p>
               Gunakan menu <strong>Salin untuk AI Agent</strong> untuk menyalin satu dokumen atau
@@ -255,11 +263,11 @@ export default function DocsPage() {
           </section>
 
           <section id="library" ref={setRef('library')} className="scroll-mt-20">
-            <p className="font-mono text-xs text-ink-3">10 · Library</p>
+            <p className="font-mono text-xs text-ink-3">09 · Library</p>
             <h2>Library master-detail</h2>
             <p>
               <DocLink href="/library">Library</DocLink> menampilkan daftar artefak di kiri dan
-              pratinjau penuh (Markdown, diagram Mermaid, atau HTML wireframe) di kanan, lengkap
+              pratinjau penuh (Markdown atau diagram Mermaid) di kanan, lengkap
               dengan tombol salin, unduh berkas, unduh ZIP proyek, dan tautan kembali ke proyek.
             </p>
           </section>

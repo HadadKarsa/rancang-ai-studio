@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
@@ -47,11 +48,10 @@ import {
   PopoverTrigger,
   useToast,
 } from '@/components/ui';
-import { WireframeEditor } from '@/components/WireframeEditor';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { cn } from '@/lib/cn';
 import type { DocumentType, WorkspaceDoc, WorkspaceProject } from './types';
-import { DOC_LABEL, DOC_ORDER, DOC_SUBTITLE, formatTimeAgo } from './types';
+import { DOC_LABEL, CORE_DOC_ORDER, DOC_SUBTITLE, formatTimeAgo } from './types';
 
 interface DocVersion {
   id: string;
@@ -425,7 +425,7 @@ export function DocumentPanel({
     setSavingLib(true);
     try {
       await api.post('/library', {
-        kind: selectedType === 'wireframe' ? 'wireframe' : 'document',
+        kind: 'document',
         title: activeDoc.title || DOC_LABEL[selectedType],
         projectId: project.id,
         documentId: activeDoc.id,
@@ -469,7 +469,7 @@ export function DocumentPanel({
 
   const orderedDocs = useMemo(
     () =>
-      DOC_ORDER.map((type) => docs.find((d) => d.type === type)).filter(
+      CORE_DOC_ORDER.map((type) => docs.find((d) => d.type === type)).filter(
         (d): d is WorkspaceDoc => Boolean(d),
       ),
     [docs],
@@ -534,6 +534,7 @@ export function DocumentPanel({
               <h2 className="truncate text-lg font-semibold tracking-tight text-ink">
                 {activeDoc?.title ?? DOC_LABEL[selectedType]}
               </h2>
+              <Link className="text-xs text-accent-ink underline" href={`/docs#panduan-${selectedType}`}>Panduan {DOC_LABEL[selectedType]}</Link>
               {activeDoc?.isLocked && <Badge tone="warn">Terkunci</Badge>}
             </div>
             <p className="mt-0.5 font-mono text-xs text-ink-3">
@@ -827,13 +828,7 @@ export function DocumentPanel({
         )}
 
         <div className="p-5 sm:p-7">
-          {selectedType === 'wireframe' ? (
-            <WireframeEditor
-              projectId={project.id}
-              onGenerateWireframe={() => void regenerate()}
-              generating={streaming}
-            />
-          ) : loading ? (
+          {loading ? (
             <p className="font-mono text-xs text-ink-3">Memuat isi dokumen...</p>
           ) : editing ? (
             <div className="space-y-4">

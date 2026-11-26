@@ -3,10 +3,10 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, Search, Sun, Moon, ChevronRight, Cpu } from 'lucide-react';
+import { Menu, Search, Sun, Moon, ChevronRight } from 'lucide-react';
 import { Rail } from '@/components/Rail';
 import { AppShellProvider, useAppShell } from '@/components/AppShellContext';
-import { CommandPalette, useTheme, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
+import { CommandPalette, useToast, useTheme, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
 import { api } from '@/lib/client/api';
 
 interface PresetLite {
@@ -14,17 +14,10 @@ interface PresetLite {
   name: string;
   provider: string;
   modelId: string;
+  credentialId: string | null;
   reasoningEffort: 'none' | 'low' | 'medium' | 'high' | null;
   isDefault: boolean;
 }
-
-/** Short enough to sit after the model id in a 160px pill. */
-const EFFORT_SHORT: Record<string, string> = {
-  none: 'off',
-  low: 'low',
-  medium: 'med',
-  high: 'high',
-};
 
 const ROUTE_LABELS: Record<string, string> = {
   '/studio': 'Studio',
@@ -39,29 +32,49 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const { projectBreadcrumb, modelRefreshTick } = useAppShell();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
-  const [activeModel, setActiveModel] = React.useState<PresetLite | null>(null);
-  const [modelLoaded, setModelLoaded] = React.useState(false);
+  const projectId = pathname.match(/^\/projects\/([^/]+)/)?.[1];
+  const isProjectRoute = Boolean(projectId);
+  const [presets, setPresets] = React.useState<PresetLite[]>([]);
+  const [selected, setSelected] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [loaded, setLoaded] = React.useState(false);
+  const { refreshActiveModel } = useAppShell();
+  const { toast } = useToast();
 
   React.useEffect(() => {
     let alive = true;
-    api
-      .get<{ presets: PresetLite[] }>('/settings/presets')
-      .then((res) => {
-        if (!alive) return;
-        const list = res.presets ?? [];
-        const def = list.find((p) => p.isDefault) ?? list[0] ?? null;
-        setActiveModel(def);
-        setModelLoaded(true);
-      })
-      .catch(() => {
-        if (alive) setModelLoaded(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [modelRefreshTick]);
+    setLoaded(false);
+    Promise.all([
+      api.get<{ presets: PresetLite[] }>('/settings/presets'),
+      projectId ? api.get<{ project: { defaultPresetId: string | null } }>(`/projects/${projectId}`) : null,
+      api.get<{ credentials: { id: string; isActive: boolean; isValid: boolean | null }[] }>('/settings/credentials'),
+    ]).then(([result, detail, keys]) => {
+      if (!alive) return;
+      const connected = result.presets.filter(p => keys.credentials.some(k => k.id === p.credentialId && k.isActive && k.isValid !== false));
+      setPresets(connected);
+      setSelected(detail?.project.defaultPresetId ?? result.presets.find(p => p.isDefault)?.id ?? '');
+      setLoaded(true);
+    }).catch(() => {
+      if (alive) { setPresets([]); setSelected(''); setLoaded(true); }
+    });
+    return () => { alive = false; };
+  }, [projectId, modelRefreshTick]);
 
-  const isProjectRoute = pathname.startsWith('/projects/');
+  async function chooseModel(id: string) {
+    setBusy(true);
+    try {
+      if (projectId) await api.patch(`/projects/${projectId}`, { defaultPresetId: id });
+      else await api.patch(`/settings/presets?id=${encodeURIComponent(id)}`, { isDefault: true });
+      setSelected(id);
+      refreshActiveModel();
+      toast({ tone: 'success', title: 'Model untuk generasi berikutnya diperbarui' });
+    } catch {
+      toast({ tone: 'error', title: 'Gagal mengganti model. Coba lagi.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const sectionLabel = isProjectRoute
     ? 'Studio'
     : ROUTE_LABELS[pathname] ?? ROUTE_LABELS[`/${pathname.split('/')[1] ?? ''}`] ?? 'Studio';
@@ -104,45 +117,20 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href="/models"
-                  className="hidden sm:inline-flex min-h-9 items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-xs text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={
-                      activeModel
-                        ? 'h-2 w-2 rounded-full bg-ready'
-                        : 'h-2 w-2 rounded-full bg-ink-3'
-                    }
-                  />
-                  <Cpu className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
-                  <span className="max-w-[190px] truncate font-mono text-[11.5px]">
-                    {!modelLoaded
-                      ? 'memuat...'
-                      : activeModel
-                        ? activeModel.modelId
-                        : 'Belum ada model'}
-                  </span>
-                  {activeModel?.reasoningEffort && (
-                    <span className="shrink-0 rounded border border-line bg-subtle px-1 py-px font-mono text-[10px] text-ink-2">
-                      {EFFORT_SHORT[activeModel.reasoningEffort] ?? activeModel.reasoningEffort}
-                    </span>
-                  )}
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent>
-                {activeModel
-                  ? `Model aktif: ${activeModel.provider} / ${activeModel.modelId}${
-                      activeModel.reasoningEffort
-                        ? ` · reasoning ${EFFORT_SHORT[activeModel.reasoningEffort] ?? activeModel.reasoningEffort}`
-                        : ''
-                    }`
-                  : 'Atur penyedia dan model AI di halaman Models'}
-              </TooltipContent>
-            </Tooltip>
+            {loaded && !presets.length ? (
+              <Link href="/models" className="rounded-lg border border-line px-2 py-2 text-xs">Hubungkan model</Link>
+            ) : (
+              <select
+                aria-label="Model untuk generasi berikutnya"
+                value={presets.some(p => p.id === selected) ? selected : ''}
+                disabled={!loaded || busy}
+                onChange={e => void chooseModel(e.target.value)}
+                className="min-h-11 max-w-[30vw] cursor-pointer rounded-lg border border-line-strong bg-surface px-2 font-mono text-xs text-ink sm:min-h-9 sm:max-w-64"
+              >
+                <option value="" disabled>{loaded ? 'Pilih model' : 'Memuat…'}</option>
+                {presets.map(p => <option key={p.id} value={p.id}>{p.modelId} · {p.name}</option>)}
+              </select>
+            )}
 
             <button
               type="button"

@@ -1,13 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   AlertCircle,
   Square,
   Play,
   FileText,
-  Layout,
   Clock,
   RefreshCw,
 } from 'lucide-react';
@@ -209,9 +208,9 @@ export function WritePanel({
   const [active, setActive] = useState<DocumentType>('prd');
   const [phase, setPhase] = useState<Phase>('connecting');
   const [fatal, setFatal] = useState<string | null>(null);
-  const [follow, setFollow] = useState(true);
+  const follow = useRef(true);
+  const lastScrollTop = useRef(0);
   const [elapsed, setElapsed] = useState(0);
-  const [wireframing, setWireframing] = useState(false);
   const [stopping, setStopping] = useState(false);
 
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -287,7 +286,7 @@ export function WritePanel({
 
     if (snap.finished) {
       finishedRef.current = true;
-      setPhase(stoppedRef.current ? 'stopped' : 'done');
+      setPhase(stoppedRef.current ? 'stopped' : snap.result?.failed.length ? 'interrupted' : 'done');
       onDocumentsChanged();
       return;
     }
@@ -346,7 +345,7 @@ export function WritePanel({
       if (event === 'doc') {
         const type = payload.type as DocumentType;
         patch(type, { status: 'writing', error: null });
-        setActive(type);
+        if (follow.current) setActive(type);
         return;
       }
       if (event === 'delta') {
@@ -371,7 +370,7 @@ export function WritePanel({
       if (event === 'finish') {
         flushNow();
         finishedRef.current = true;
-        setPhase(stoppedRef.current ? 'stopped' : 'done');
+        setPhase(stoppedRef.current ? 'stopped' : Array.isArray(payload.failed) && payload.failed.length ? 'interrupted' : 'done');
         onDocumentsChanged();
       }
     });
@@ -484,7 +483,7 @@ export function WritePanel({
       setElapsed(0);
       setDocs(initDocs(list));
       setActive(list[0] ?? 'prd');
-      setFollow(true);
+      follow.current = true;
 
       const isDefaultOrder =
         list.length === CORE_DOC_ORDER.length && list.every((t, i) => t === CORE_DOC_ORDER[i]);
@@ -504,6 +503,10 @@ export function WritePanel({
             message = body?.error?.message ?? message;
           } catch {
             /* not JSON */
+          }
+          if (res.status === 429) {
+            const seconds = res.headers.get('Retry-After');
+            message = seconds ? `Batas permintaan tercapai. Coba lagi setelah ${seconds} detik.` : 'Batas permintaan tercapai. Tunggu sebelum mencoba lagi.';
           }
           setFatal(message);
           setPhase('error');
@@ -545,14 +548,14 @@ export function WritePanel({
     return () => window.clearInterval(id);
   }, [phase]);
 
-  const activeStatus = docs.find((d) => d.type === active)?.status;
-  useEffect(() => {
-    if (!follow || activeStatus !== 'writing') return;
-    const el = boxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [docs, follow, active, activeStatus]);
-
   const current = useMemo(() => docs.find((d) => d.type === active) ?? docs[0], [docs, active]);
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el || !follow.current || current?.status !== 'writing') return;
+    el.scrollTop = el.scrollHeight;
+    lastScrollTop.current = el.scrollTop;
+  }, [current?.type, current?.text, current?.status]);
+
   const doneCount = docs.filter((d) => d.status === 'ready').length;
   const busy = phase === 'writing' || phase === 'connecting' || phase === 'reconnecting';
 
@@ -598,14 +601,6 @@ export function WritePanel({
       if (started) await watch();
     })();
   }, [docs, startBatch, watch]);
-
-  const startWireframe = useCallback(async () => {
-    setWireframing(true);
-    setFatal(null);
-    const started = await startBatch(['wireframe']);
-    if (started) await watch();
-    setWireframing(false);
-  }, [startBatch, watch]);
 
   return (
     <div className="space-y-5">
@@ -693,14 +688,7 @@ export function WritePanel({
                         ? 'Baca dokumen'
                         : 'Buka Dokumen'}
                   </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => void startWireframe()}
-                    disabled={wireframing}
-                  >
-                    <Layout className="h-3.5 w-3.5" aria-hidden="true" />
-                    {wireframing ? 'Membuat wireframe...' : 'Buat wireframe'}
-                  </Button>
+
                 </>
               )}
             </>
@@ -801,9 +789,12 @@ export function WritePanel({
             ref={boxRef}
             onScroll={(e) => {
               const el = e.currentTarget;
-              setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 48);
+              if (el.scrollTop < lastScrollTop.current) follow.current = false;
+              else if (el.scrollHeight - el.scrollTop - el.clientHeight <= 2) follow.current = true;
+              lastScrollTop.current = el.scrollTop;
             }}
-            className="max-h-[62vh] min-h-[360px] overflow-y-auto p-5 sm:p-6"
+            onWheel={(e) => { if (e.deltaY < 0) follow.current = false; }}
+            className="[overflow-anchor:none] max-h-[62vh] min-h-[360px] overflow-y-auto p-5 sm:p-6"
           >
             {current?.text ? (
               <div
@@ -824,7 +815,7 @@ export function WritePanel({
             ) : current?.status === 'ready' ? (
               <div className="space-y-3">
                 <p className="text-sm text-ink-2">
-                  Dokumen ini sudah tersimpan di server. Buka di mode Dokumen & Wireframe untuk
+                  Dokumen ini sudah tersimpan di server. Buka di mode Dokumen untuk
                   membaca, merender diagram, atau menyunting isinya.
                 </p>
                 <Button size="sm" variant="primary" onClick={() => onOpenDocument(current.type)}>

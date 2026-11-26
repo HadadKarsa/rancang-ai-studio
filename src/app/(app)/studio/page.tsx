@@ -406,7 +406,8 @@ export default function StudioPage() {
           </h1>
           <p className="mt-1 text-sm text-ink-2">
             Tulis satu kalimat tentang aplikasi yang ingin kamu bangun, atau pilih template di
-            bawah sebagai titik awal.
+            bawah sebagai titik awal.{' '}
+            <Link href="/docs#panduan-prd" className="text-accent-ink underline">Pelajari PRD dan lima dokumen pendukung.</Link>
           </p>
         </div>
 
@@ -466,7 +467,7 @@ export default function StudioPage() {
               value={customTitle}
               onChange={(e) => setCustomTitle(e.target.value)}
               placeholder="Contoh: Kasir Bengkel Maju"
-              className="w-full min-h-11 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+              className="w-full min-h-11 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:border-accent"
             />
           </div>
 
@@ -488,7 +489,7 @@ export default function StudioPage() {
                 }
               }}
               placeholder="Contoh: Aplikasi kasir dan antrean servis untuk bengkel motor, dipakai 2 mekanik dan 1 admin, dengan nota kirim ke WhatsApp..."
-              className="w-full resize-none rounded-xl border border-line bg-canvas px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+              className="w-full resize-none rounded-xl border border-line bg-canvas px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-3 focus:border-accent"
             />
           </div>
 
@@ -501,7 +502,7 @@ export default function StudioPage() {
               <button
                 type="button"
                 onClick={() => setPurposeHelpOpen(true)}
-                className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
               >
                 Bantu pilih
               </button>
@@ -618,7 +619,7 @@ export default function StudioPage() {
         </div>
 
         {!templatesLoaded ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="h-32 rounded-xl border border-line bg-surface animate-pulse" />
             ))}
@@ -626,7 +627,7 @@ export default function StudioPage() {
         ) : templates.length === 0 ? (
           <p className="text-xs text-ink-3">Belum ada template tersimpan.</p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {templates.map((tpl) => {
               const isSelected = selectedTemplate?.id === tpl.id;
               return (
@@ -636,7 +637,7 @@ export default function StudioPage() {
                   onClick={() => applyTemplate(tpl)}
                   aria-pressed={isSelected}
                   className={cn(
-                    'flex flex-col justify-between rounded-xl border p-4 text-left transition-colors',
+                    'min-w-0 flex flex-col justify-between rounded-xl border p-4 text-left transition-colors',
                     isSelected
                       ? 'border-accent bg-accent-soft/50 shadow-xs'
                       : 'border-line bg-surface hover:border-line-strong hover:bg-subtle/40',
@@ -693,7 +694,7 @@ export default function StudioPage() {
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Cari proyek..."
                 aria-label="Cari proyek"
-                className="w-full min-h-10 rounded-lg border border-line-strong bg-surface pl-9 pr-3 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+                className="w-full min-h-10 rounded-lg border border-line-strong bg-surface pl-9 pr-3 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent"
               />
             </div>
 
@@ -703,7 +704,7 @@ export default function StudioPage() {
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 aria-label="Urutkan proyek"
-                className="min-h-10 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-ink focus:border-accent focus:outline-none"
+                className="min-h-10 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-ink focus:border-accent"
               >
                 {SORTS.map((s) => (
                   <option key={s.key} value={s.key}>

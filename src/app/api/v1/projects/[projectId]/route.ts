@@ -4,6 +4,7 @@ import { getProjectById, updateProject, archiveProject, deleteProject, countProj
 import { listDocuments } from '@/lib/db/repositories/documents';
 import { listTagsForProject, replaceProjectTags } from '@/lib/db/repositories/templates';
 import { ValidationError, NotFoundError } from '@/lib/errors';
+import { getPresetForUser } from '@/lib/db/repositories/credentials';
 import { PROJECT_PURPOSES } from '@/lib/db/enums';
 
 
@@ -58,6 +59,10 @@ export const PATCH = withRoute(async (ctx) => {
   const projectPatch: UpdateProjectPatch = { ...restPatch };
   const existing = await getProjectById(projectId, ctx.session.user.id);
   if (!existing) throw new NotFoundError('Project not found');
+
+  if (projectPatch.defaultPresetId && !await getPresetForUser(projectPatch.defaultPresetId, ctx.session.user.id)) {
+    throw new ValidationError('Model preset unavailable');
+  }
 
   // Archive: stamp archived_at. Restore: clear it and land on a real status.
   if (projectPatch.status === 'archived') {

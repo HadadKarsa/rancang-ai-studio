@@ -51,6 +51,9 @@ function MermaidBlock({ code }: { code: string }) {
                   fontFamily: 'Schibsted Grotesk, system-ui, sans-serif',
                 },
         });
+        if (!alive) return;
+        await mermaid.parse(code.trim());
+        if (!alive) return;
         const renderId = `${idRef.current}-${Date.now()}`;
         const { svg: rendered } = await mermaid.render(renderId, code.trim());
         if (alive) setSvg(rendered);

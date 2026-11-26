@@ -289,7 +289,7 @@ export function Rail({ mobileOpen = false, onMobileClose }: RailProps) {
           aria-label="Navigasi studio"
         >
           <div
-            className="fixed inset-0 bg-ink/40 backdrop-blur-[2px]"
+            className="fixed inset-0 bg-scrim backdrop-blur-[2px]"
             onClick={onMobileClose}
             aria-hidden="true"
           />

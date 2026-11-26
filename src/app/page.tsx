@@ -9,7 +9,6 @@ const DOCUMENTS = [
   { n: '04', name: 'API', note: 'Endpoint, struktur payload, autentikasi, dan kode galat.' },
   { n: '05', name: 'Tugas', note: 'Urutan pekerjaan bertahap yang siap langsung dikerjakan.' },
   { n: '06', name: 'Memori', note: 'Paket konteks keputusan dan asumsi untuk agen AI.' },
-  { n: '07', name: 'Wireframe', note: 'Layar HTML interaktif dengan pratinjau desktop hingga ponsel.' },
 ];
 
 const WORKFLOW_STEPS = [
@@ -81,7 +80,7 @@ export default function LandingPage() {
               <span className="text-accent-ink">spesifikasi aplikasi</span> yang utuh.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-ink-2">
-              rancang-ai mewawancarai idemu secara terarah, menyusun tujuh dokumen spesifikasi yang
+              rancang-ai mewawancarai idemu secara terarah, menyusun enam dokumen spesifikasi yang
               saling merujuk, merender diagram arsitektur, dan menyiapkan paket siap pakai untuk tim
               maupun agen pemrograman.
             </p>
@@ -152,7 +151,7 @@ export default function LandingPage() {
               Satu ruang kerja, tanpa bolak-balik halaman.
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-2">
-              Wawancara, penulisan langsung, penyuntingan dokumen, dan wireframe berada dalam satu
+              Wawancara, penulisan langsung, dan penyuntingan dokumen berada dalam satu
               proyek yang sama sehingga konteks tidak pernah terputus.
             </p>
           </div>
@@ -171,11 +170,11 @@ export default function LandingPage() {
         </section>
 
         {/* Seven documents index: horizontal spec list for visual contrast against the 3-col band */}
-        <section aria-labelledby="tujuh-dokumen" className="border-t border-line py-14 lg:py-16">
+        <section aria-labelledby="enam-dokumen" className="border-t border-line py-14 lg:py-16">
           <div className="grid gap-8 lg:grid-cols-12">
             <div className="lg:col-span-4">
-              <h2 id="tujuh-dokumen" className="text-2xl font-semibold tracking-tight text-ink">
-                Tujuh dokumen yang saling merujuk.
+              <h2 id="enam-dokumen" className="text-2xl font-semibold tracking-tight text-ink">
+                Enam dokumen yang saling merujuk.
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-ink-2">
                 Dokumen dibangun secara berurutan. Setiap dokumen membawa keputusan dari dokumen

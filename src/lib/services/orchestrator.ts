@@ -101,6 +101,11 @@ async function prepareBatch(opts: BatchOptions): Promise<BatchContext> {
   };
 }
 
+function providerRateLimited(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 429) return true;
+  return /\b429\b|rate.limit|too many requests/i.test(error instanceof Error ? error.message : String(error));
+}
+
 /** Prompt for one document, fed the documents already written this batch. */
 async function promptFor(
   ctx: BatchContext,
@@ -220,6 +225,7 @@ export async function generateAllDocuments(opts: BatchOptions): Promise<BatchRes
         reasoningEffort: ctx.resolved.reasoningEffort,
       });
       const res = await generateText({
+        maxRetries: 0,
         model: ctx.model, system: prompt.system, prompt: prompt.prompt,
         temperature: ctx.resolved.temperature,
         maxOutputTokens,
@@ -241,6 +247,7 @@ export async function generateAllDocuments(opts: BatchOptions): Promise<BatchRes
     } catch (e) {
       await recordFailure(opts.projectId, doc.id, type, ctx.resolved, e);
       result.failed.push({ type, error: e instanceof Error ? e.message : String(e) });
+      if (providerRateLimited(e)) break;
     }
   }
 
@@ -311,6 +318,7 @@ export async function* generateAllDocumentsStream(
         reasoningEffort: ctx.resolved.reasoningEffort,
       });
       const stream = streamText({
+        maxRetries: 0,
         model: ctx.model, system: prompt.system, prompt: prompt.prompt,
         temperature: ctx.resolved.temperature,
         maxOutputTokens,
@@ -318,15 +326,18 @@ export async function* generateAllDocumentsStream(
         abortSignal: opts.signal,
       });
 
-      for await (const chunk of stream.textStream) {
-        if (!chunk) continue;
+      for await (const part of stream.fullStream) {
+        if (part.type === 'error') throw part.error;
+        if (part.type !== 'text-delta' || !part.text) continue;
+        const chunk = part.text;
         text += chunk;
         yield { event: 'delta', data: { type, text: chunk } };
       }
 
       if (opts.signal?.aborted) aborted = true;
       else {
-        const finishReason = await Promise.resolve(stream.finishReason).catch(() => null);
+        const finishReason = await stream.finishReason;
+        if (finishReason === 'error' || finishReason === 'interrupted') throw new Error('Stream dokumen terputus sebelum selesai.');
         truncated = isTruncated(finishReason);
         usage = await Promise.resolve(stream.usage).catch(() => null);
       }
@@ -338,6 +349,7 @@ export async function* generateAllDocumentsStream(
         const message = e instanceof Error ? e.message : String(e);
         result.failed.push({ type, error: message });
         yield { event: 'error', data: { type, message } };
+        if (providerRateLimited(e)) break;
         continue;
       }
     }

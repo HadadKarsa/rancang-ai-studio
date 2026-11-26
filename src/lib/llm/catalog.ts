@@ -8,8 +8,7 @@ import type { ProviderId } from '@/lib/db/enums';
 export interface ProviderCatalogEntry {
   id: ProviderId;
   label: string;
-  /** Subscription-style sign-in (Ndan v2: one form, either subscription or BYOK). */
-  authStyle: 'api-key' | 'subscription' | 'none';
+  authStyle: 'api-key' | 'none';
   keyPrefix: string;
   /** OpenAI-compatible base URL, when the provider speaks that protocol. */
   defaultBaseUrl: string | null;
@@ -18,19 +17,25 @@ export interface ProviderCatalogEntry {
   docsUrl: string;
 }
 
+export const CONNECTION_PROVIDERS = ['custom', 'openai', 'openrouter', 'groq', 'ollama'] as const;
+
+export function supportsNewConnection(provider: ProviderId): boolean {
+  return CONNECTION_PROVIDERS.some((id) => id === provider);
+}
+
 export const PROVIDER_CATALOG: ProviderCatalogEntry[] = [
   {
-    id: 'openai', label: 'OpenAI', authStyle: 'subscription', keyPrefix: 'sk-',
+    id: 'openai', label: 'OpenAI', authStyle: 'api-key', keyPrefix: 'sk-',
     defaultBaseUrl: 'https://api.openai.com/v1', needsBaseUrl: false,
     suggestedModels: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'], docsUrl: 'https://platform.openai.com/api-keys',
   },
   {
-    id: 'anthropic', label: 'Anthropic', authStyle: 'subscription', keyPrefix: 'sk-ant-',
+    id: 'anthropic', label: 'Anthropic', authStyle: 'api-key', keyPrefix: 'sk-ant-',
     defaultBaseUrl: null, needsBaseUrl: false,
     suggestedModels: ['claude-sonnet-4-5', 'claude-3-7-sonnet', 'claude-3-5-haiku'], docsUrl: 'https://console.anthropic.com/settings/keys',
   },
   {
-    id: 'google', label: 'Google Gemini', authStyle: 'subscription', keyPrefix: 'AIza',
+    id: 'google', label: 'Google Gemini', authStyle: 'api-key', keyPrefix: 'AIza',
     defaultBaseUrl: null, needsBaseUrl: false,
     suggestedModels: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'], docsUrl: 'https://aistudio.google.com/app/apikey',
   },

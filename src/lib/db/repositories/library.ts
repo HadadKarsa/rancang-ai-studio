@@ -1,4 +1,5 @@
 import { execute, query, queryOne } from '../client';
+import { ValidationError } from '@/lib/errors';
 import { newId, nowIso } from '@/lib/ids';
 
 export type LibraryKind = 'document' | 'export' | 'wireframe';
@@ -35,9 +36,9 @@ function mapJoined(r: JoinedRow): LibraryItem {
     id: r.id,
     kind: r.kind,
     title: r.title,
-    projectId: r.project_id,
+    projectId: r.project_name === null ? null : r.project_id,
     projectName: r.project_name,
-    documentId: r.document_id,
+    documentId: r.document_type === null ? null : r.document_id,
     documentType: r.document_type,
     createdAt: r.created_at,
     bytes: r.bytes,
@@ -54,12 +55,23 @@ export interface CreateLibraryInput {
 }
 
 export async function createLibraryItem(input: CreateLibraryInput): Promise<LibraryItem> {
+  let projectId = input.projectId ?? null;
+  if (input.documentId) {
+    const source = await queryOne<{ project_id: string }>(
+      'SELECT d.project_id FROM spec_documents d JOIN projects p ON p.id = d.project_id WHERE d.id = ? AND p.user_id = ?',
+      [input.documentId, input.userId],
+    );
+    if (!source || (projectId && projectId !== source.project_id)) throw new ValidationError('Document unavailable in this project');
+    projectId = source.project_id;
+  } else if (projectId && !await queryOne('SELECT id FROM projects WHERE id = ? AND user_id = ?', [projectId, input.userId])) {
+    throw new ValidationError('Project unavailable');
+  }
   const id = newId('lib');
   const bytes = Buffer.byteLength(input.payload, 'utf8');
   await execute(
     `INSERT INTO library_items (id, user_id, kind, title, project_id, document_id, payload, bytes, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, input.userId, input.kind, input.title, input.projectId ?? null, input.documentId ?? null, input.payload, bytes, nowIso()],
+    [id, input.userId, input.kind, input.title, projectId, input.documentId ?? null, input.payload, bytes, nowIso()],
   );
   const item = await getLibraryItem(id, input.userId);
   if (!item) throw new Error('library insert vanished');
@@ -70,8 +82,8 @@ export async function getLibraryItem(id: string, userId: string): Promise<Librar
   const row = await queryOne<JoinedRow>(
     `SELECT l.*, p.name AS project_name, d.type AS document_type
        FROM library_items l
-       LEFT JOIN projects p ON p.id = l.project_id
-       LEFT JOIN spec_documents d ON d.id = l.document_id
+       LEFT JOIN projects p ON p.id = l.project_id AND p.user_id = l.user_id
+       LEFT JOIN spec_documents d ON d.id = l.document_id AND d.project_id = p.id
       WHERE l.id = ? AND l.user_id = ?`,
     [id, userId],
   );
@@ -97,8 +109,8 @@ export async function listLibraryItems(userId: string, opts: ListLibraryOpts = {
   const rows = await query<JoinedRow>(
     `SELECT l.*, p.name AS project_name, d.type AS document_type
        FROM library_items l
-       LEFT JOIN projects p ON p.id = l.project_id
-       LEFT JOIN spec_documents d ON d.id = l.document_id
+       LEFT JOIN projects p ON p.id = l.project_id AND p.user_id = l.user_id
+       LEFT JOIN spec_documents d ON d.id = l.document_id AND d.project_id = p.id
       WHERE ${where.join(' AND ')}
       ORDER BY l.created_at DESC, l.id DESC
       LIMIT ?`,
