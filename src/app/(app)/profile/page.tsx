@@ -191,8 +191,8 @@ export default function ProfilePage() {
           </div>
           <p className="text-sm leading-relaxed text-ink-2">
             {t(
-              'Kelola nama tampilan, alamat email, dan kata sandi untuk akun Rancang.ai kamu.',
-              'Manage your display name, email address, and password for Rancang.ai.',
+              'Kelola nama tampilan, alamat email, dan kata sandi untuk akun Rencang-Rancang kamu.',
+              'Manage your display name, email address, and password for Rencang-Rancang.',
             )}
           </p>
         </div>

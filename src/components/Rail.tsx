@@ -18,6 +18,7 @@ import {
 import { api } from '@/lib/client/api';
 import { clearByokSession } from '@/lib/client/byokSession';
 import { useLocale } from '@/lib/i18n/LocaleProvider';
+import { BrandMark } from '@/components/BrandMark';
 import { cn } from '@/lib/cn';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
 
@@ -44,7 +45,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/models', label: 'Models', hint: 'Model dan kredensial', icon: SlidersHorizontal },
       { href: '/profile', label: 'Profil', hint: 'Nama, email, dan kata sandi', icon: UserRound },
-      { href: '/docs', label: 'Dokumentasi', hint: 'Panduan memakai rancang-ai', icon: BookOpen },
+      { href: '/docs', label: 'Dokumentasi', hint: 'Panduan memakai Rencang-Rancang', icon: BookOpen },
     ],
   },
 ];
@@ -83,7 +84,7 @@ export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
       items: [
         { href: '/models', label: 'Models', hint: t('Model dan kredensial', 'Models and credentials'), icon: SlidersHorizontal },
         { href: '/profile', label: t('Profil', 'Profile'), hint: t('Nama, email, dan kata sandi', 'Name, email, and password'), icon: UserRound },
-        { href: '/docs', label: t('Dokumentasi', 'Documentation'), hint: t('Panduan memakai rancang-ai', 'How to use rancang-ai'), icon: BookOpen },
+        { href: '/docs', label: t('Dokumentasi', 'Documentation'), hint: t('Panduan memakai Rencang-Rancang', 'How to use Rencang-Rancang'), icon: BookOpen },
       ],
     },
   ];
@@ -144,21 +145,16 @@ export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
         <Link
           href="/studio"
           onClick={closeOnNav}
-          aria-label="rancang-ai studio"
+          aria-label="Rencang-Rancang studio"
           className={cn(
             'flex items-center gap-2.5 rounded-lg px-1 py-1 text-ink transition-colors hover:text-accent-ink',
             isCompact && 'justify-center',
           )}
         >
-          <span
-            aria-hidden="true"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent text-xs font-semibold text-white"
-          >
-            R
-          </span>
+          <BrandMark size={28} />
           {!isCompact && (
             <span className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold tracking-tight text-ink">rancang-ai</span>
+              <span className="text-[13.5px] font-semibold tracking-tight text-ink">Rencang-Rancang</span>
               <span className="font-mono text-[10.5px] text-ink-3">spec studio</span>
             </span>
           )}

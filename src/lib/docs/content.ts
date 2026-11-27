@@ -42,7 +42,7 @@ export interface DocsCatalog {
 const ID_CATALOG: DocsCatalog = {
   pageTitle: 'Dokumentasi',
   pageSubtitle:
-    'Panduan lengkap menggunakan rancang-ai dari pengaturan model hingga menyusun, meninjau, dan menyerahkan enam dokumen spesifikasi teknis ke tim atau agen AI.',
+    'Panduan lengkap menggunakan Rencang-Rancang dari pengaturan model hingga menyusun, meninjau, dan menyerahkan enam dokumen spesifikasi teknis ke tim atau agen AI.',
   searchPlaceholder: 'Cari topik, dokumen, atau langkah...',
   onThisPageLabel: 'Di halaman ini',
   groups: [
@@ -55,13 +55,19 @@ const ID_CATALOG: DocsCatalog = {
     {
       id: 'pengenalan',
       groupId: 'mulai',
-      title: 'Apa itu rancang-ai?',
+      title: 'Apa itu Rencang-Rancang?',
       summary:
-        'Studio spesifikasi perangkat lunak yang mengubah satu gagasan singkat menjadi enam dokumen teknis yang saling merujuk.',
+        'Teman merancang spesifikasi sistem dan aplikasi yang mengubah satu gagasan singkat menjadi enam dokumen teknis yang saling merujuk.',
       paragraphs: [
-        'Menulis spesifikasi dari nol sering terputus antara kebutuhan produk, skema database, dan kontrak API. rancang-ai menyusun keenam dokumen itu secara berurutan di server sehingga setiap dokumen membaca hasil dokumen sebelumnya dan memakai nama entitas, endpoint, dan aturan yang konsisten.',
-        'Semua proyek bisa ditulis dalam Bahasa Indonesia maupun English. Kamu cukup memilih bahasa output dokumen AI pada Studio atau ruang kerja proyek sebelum memulai generasi.',
+        'Nama Rencang-Rancang memadukan dua makna: dalam bahasa Jawa, "rencang" berarti teman atau rekan seperjalanan, sedangkan "rancang" adalah proses menyusun spesifikasi sistem sebelum baris kode pertama ditulis. Filosofi ini menjadi dasar desain produk: sebuah ruang tenang tempat kamu berdiskusi dengan rekan berpikir yang jujur menggali asumsi sebelum proyek dimulai.',
+        'Menulis spesifikasi dari nol sering terputus antara kebutuhan produk, skema database, dan kontrak API. Rencang-Rancang menyusun keenam dokumen itu secara berurutan di server sehingga setiap dokumen membaca hasil dokumen sebelumnya dan memakai nama entitas, endpoint, dan aturan yang konsisten.',
+        'Semua proyek bisa ditulis dalam Bahasa Indonesia maupun English. Kamu cukup memilih bahasa output dokumen AI pada Studio sebelum memulai generasi.',
       ],
+      callout: {
+        tone: 'note',
+        title: 'Filosofi Rencang-Rancang',
+        body: 'Rencang (Bahasa Jawa) berarti teman; rancang berarti merancang. Tujuannya sederhana: menemani developer, founder, dan tim produk menyusun cetak biru aplikasi yang jernih sebelum menulis kode.',
+      },
       bullets: [
         { label: 'Dua alur kerja fleksibel', detail: 'Gunakan wawancara terarah untuk menggali konteks, atau langsung generate jika deskripsi proyek sudah cukup detail.' },
         { label: 'Generasi berjalan di server', detail: 'Kamu bebas membuka dokumen yang sudah selesai, menyegarkan halaman, atau berpindah menu tanpa memutus proses penulisan batch.' },
@@ -77,7 +83,7 @@ const ID_CATALOG: DocsCatalog = {
       steps: [
         {
           title: 'Pastikan model AI siap dipakai',
-          detail: 'Buka halaman Models atau dropdown di kanan atas. Kamu bisa langsung memakai model Bawaan Rancang.ai atau menghubungkan API key milikmu sendiri untuk sesi browser ini.',
+          detail: 'Buka halaman Models atau dropdown di kanan atas. Kamu bisa langsung memakai model Bawaan Rencang-Rancang atau menghubungkan API key milikmu sendiri untuk sesi browser ini.',
         },
         {
           title: 'Tulis ide proyek di Studio',
@@ -120,12 +126,12 @@ const ID_CATALOG: DocsCatalog = {
     {
       id: 'model-keamanan',
       groupId: 'model-akun',
-      title: 'Bawaan Rancang.ai vs API Key Sendiri (BYOK)',
+      title: 'Bawaan Rencang-Rancang vs API Key Sendiri (BYOK)',
       summary: 'Dua cara memakai model AI dengan kejelasan penuh soal penyimpanan API key.',
       table: {
         headers: ['Mode', 'Penyimpanan Kunci', 'Cocok untuk'],
         rows: [
-          ['Bawaan Rancang.ai', 'Terenkripsi AES-256-GCM di server (dikelola Admin, tidak pernah dikirim ke browser).', 'Langsung mulai merancang tanpa menyiapkan API key sendiri.'],
+          ['Bawaan Rencang-Rancang', 'Terenkripsi AES-256-GCM di server (dikelola Admin, tidak pernah dikirim ke browser).', 'Langsung mulai merancang tanpa menyiapkan API key sendiri.'],
           ['API Key Sendiri (BYOK)', 'Hanya di sessionStorage browser, tidak pernah disimpan ke database server.', 'Memakai model/kuota provider pribadi (OpenAI, Kenari, OpenRouter, Ollama, atau endpoint OpenAI-Compatible lain).'],
         ],
       },
@@ -142,8 +148,8 @@ const ID_CATALOG: DocsCatalog = {
       title: 'Peran Admin, Whitelist Model & Profil',
       summary: 'Pemisahan hak akses antara Admin (owner) dan pengguna biasa (member), termasuk pengaturan kata sandi.',
       bullets: [
-        { label: 'Kelola Bawaan Rancang.ai (Admin)', detail: 'Hanya akun berstatus admin yang dapat menambah, menyegarkan, menghapus koneksi bawaan, serta memilih whitelist model yang muncul di dropdown seluruh pengguna.' },
-        { label: 'Akses pengguna biasa (Member)', detail: 'Pengguna melihat daftar model Bawaan Rancang.ai sesuai whitelist admin tanpa nama/endpoint penyedia, atau menghubungkan BYOK sesi milik sendiri.' },
+        { label: 'Kelola Bawaan Rencang-Rancang (Admin)', detail: 'Hanya akun berstatus admin yang dapat menambah, menyegarkan, menghapus koneksi bawaan, serta memilih whitelist model yang muncul di dropdown seluruh pengguna.' },
+        { label: 'Akses pengguna biasa (Member)', detail: 'Pengguna melihat daftar model Bawaan Rencang-Rancang sesuai whitelist admin tanpa nama/endpoint penyedia, atau menghubungkan BYOK sesi milik sendiri.' },
         { label: 'Profil & atur kata sandi nanti', detail: 'Di halaman Profil, pengguna dapat mengubah nama, email, dan kata sandi. Pengguna yang mendaftar lewat Google tanpa kata sandi bisa menyetel kata sandi kapan saja dari Profil agar juga bisa masuk lewat email.' },
       ],
       link: { href: '/profile', label: 'Buka Profil Akun' },
@@ -278,7 +284,7 @@ const ID_CATALOG: DocsCatalog = {
 const EN_CATALOG: DocsCatalog = {
   pageTitle: 'Documentation',
   pageSubtitle:
-    'Complete guide to using rancang-ai from configuring AI models to authoring, reviewing, and handing off six connected specification documents to your team or coding agent.',
+    'Complete guide to using Rencang-Rancang from configuring AI models to authoring, reviewing, and handing off six connected specification documents to your team or coding agent.',
   searchPlaceholder: 'Search topics, documents, or guides...',
   onThisPageLabel: 'On this page',
   groups: [
@@ -291,13 +297,19 @@ const EN_CATALOG: DocsCatalog = {
     {
       id: 'pengenalan',
       groupId: 'mulai',
-      title: 'What is rancang-ai?',
+      title: 'What is Rencang-Rancang?',
       summary:
-        'A software specification studio that turns a brief product idea into six cross-referenced technical documents.',
+        'Your companion for designing software specifications, turning a brief product idea into six cross-referenced technical documents.',
       paragraphs: [
-        'Writing specs from scratch often drifts between product requirements, database schemas, and API contracts. rancang-ai generates all six documents sequentially on the server so each document reads prior outputs and keeps entity names, endpoints, and invariants aligned.',
-        'Every project can be authored in either Indonesian or English. Pick your preferred AI output language right inside Studio or the project workspace before generating.',
+        'The name Rencang-Rancang blends two roots: in Javanese, "rencang" means companion or friend, while "rancang" in Indonesian means designing a plan or architecture. That philosophy shapes the studio: a calm thinking partner that helps you surface assumptions before the first line of code is written.',
+        'Writing specs from scratch often drifts between product requirements, database schemas, and API contracts. Rencang-Rancang generates all six documents sequentially on the server so each document reads prior outputs and keeps entity names, endpoints, and invariants aligned.',
+        'Every project can be authored in either Indonesian or English. Pick your preferred AI output language right inside Studio before generating.',
       ],
+      callout: {
+        tone: 'note',
+        title: 'The Rencang-Rancang philosophy',
+        body: 'Rencang (Javanese) means friend or companion; rancang means designing. The goal is simple: sit beside builders and product teams as a clear-headed partner while drafting technical blueprints.',
+      },
       bullets: [
         { label: 'Two flexible workflows', detail: 'Use the guided interview to uncover constraints, or jump straight to document generation when your brief is already detailed.' },
         { label: 'Server-owned batch generation', detail: 'Click finished documents to read them right away, refresh the page, or switch routes without interrupting the running batch.' },
@@ -313,7 +325,7 @@ const EN_CATALOG: DocsCatalog = {
       steps: [
         {
           title: 'Confirm your AI model is ready',
-          detail: 'Open Models or the top-right model switcher. Use the server-managed Rancang.ai models right away, or connect your own OpenAI-compatible API key for the current browser session.',
+          detail: 'Open Models or the top-right model switcher. Use the server-managed Rencang-Rancang models right away, or connect your own OpenAI-compatible API key for the current browser session.',
         },
         {
           title: 'Create a project in Studio',
@@ -356,12 +368,12 @@ const EN_CATALOG: DocsCatalog = {
     {
       id: 'model-keamanan',
       groupId: 'model-akun',
-      title: 'Managed Rancang.ai vs Session BYOK',
+      title: 'Managed Rencang-Rancang vs Session BYOK',
       summary: 'Two model modes with clear boundaries around where API keys live.',
       table: {
         headers: ['Mode', 'Key Storage', 'Best for'],
         rows: [
-          ['Managed Rancang.ai', 'Encrypted AES-256-GCM on the server (admin-managed, never sent to the browser).', 'Starting immediately with curated models and zero API setup.'],
+          ['Managed Rencang-Rancang', 'Encrypted AES-256-GCM on the server (admin-managed, never sent to the browser).', 'Starting immediately with curated models and zero API setup.'],
           ['Bring Your Own Key (BYOK)', 'Browser sessionStorage only; never written to the server database.', 'Using your own quota across OpenAI, Kenari, OpenRouter, Ollama, or any OpenAI-compatible gateway.'],
         ],
       },
@@ -378,8 +390,8 @@ const EN_CATALOG: DocsCatalog = {
       title: 'Admin Role, Model Whitelist & Profile',
       summary: 'Clear separation between Admin (owner) and regular users (member), plus password-later profile controls.',
       bullets: [
-        { label: 'Admin-managed whitelist', detail: 'Only owner accounts can add, refresh, or remove managed connections and pick the exact whitelist of models exposed in the Rancang.ai model picker.' },
-        { label: 'Clean member experience', detail: 'Members see only the whitelisted model IDs under Managed Rancang.ai (without provider names or private endpoints), or connect their own session BYOK key.' },
+        { label: 'Admin-managed whitelist', detail: 'Only owner accounts can add, refresh, or remove managed connections and pick the exact whitelist of models exposed in the Rencang-Rancang model picker.' },
+        { label: 'Clean member experience', detail: 'Members see only the whitelisted model IDs under Managed Rencang-Rancang (without provider names or private endpoints), or connect their own session BYOK key.' },
         { label: 'Profile & set password later', detail: 'Open Profile to edit your name, email, or password. Users who signed up via Google without a password can set one anytime from Profile while keeping Google sign-in active.' },
       ],
       link: { href: '/profile', label: 'Open Account Profile' },

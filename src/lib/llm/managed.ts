@@ -75,7 +75,7 @@ export function getManagedEnvConfig(): ManagedEnvConfig | null {
 
   const allowlist = models.includes(defaultModelId) ? models : [defaultModelId, ...models];
   return {
-    label: env.MANAGED_LABEL?.trim() || 'Rancang.ai',
+    label: env.MANAGED_LABEL?.trim() || 'Rencang-Rancang',
     apiKey,
     baseUrl,
     models: allowlist,
@@ -101,7 +101,7 @@ async function getOwnerManagedSnapshot() {
   const activeDef = def && def.credentialId && validCredIds.has(def.credentialId) ? def : validPresets[0] ?? null;
 
   // Strict whitelist invariant (v0.2.8): if ANY active managed credential has an explicit
-  // admin whitelist, ONLY whitelisted credentials contribute to Bawaan Rancang.ai.
+  // admin whitelist, ONLY whitelisted credentials contribute to Bawaan Rencang-Rancang.
   // Secondary/legacy unrestricted credentials never leak unfiltered models into the picker.
   const anyWhitelisted = validCreds.some((c) => c.allowedModels !== null && c.allowedModels.length > 0);
   const eligibleCreds = anyWhitelisted
@@ -150,7 +150,7 @@ export async function getManagedPublicConfig(): Promise<ManagedPublicConfig> {
     return {
       enabled: true,
       source: 'owner',
-      label: 'Rancang.ai',
+      label: 'Rencang-Rancang',
       defaultModelId: ownerSnapshot.defaultModelId,
       models: ownerSnapshot.models,
     };
@@ -170,7 +170,7 @@ export async function getManagedPublicConfig(): Promise<ManagedPublicConfig> {
   return {
     enabled: false,
     source: 'none',
-    label: 'Rancang.ai',
+    label: 'Rencang-Rancang',
     defaultModelId: null,
     models: [],
   };
@@ -185,11 +185,11 @@ export function resolveManagedEnvProvider(opts?: {
 }): ResolvedProvider {
   const cfg = getManagedEnvConfig();
   if (!cfg) {
-    throw new ProviderNotConfiguredError('managed', 'Model bawaan Rancang.ai belum dikonfigurasi di server');
+    throw new ProviderNotConfiguredError('managed', 'Model bawaan Rencang-Rancang belum dikonfigurasi di server');
   }
   const chosen = opts?.modelId?.trim() || cfg.defaultModelId;
   if (cfg.models.length > 0 && !cfg.models.includes(chosen)) {
-    throw new ValidationError(`Model "${chosen}" tidak tersedia pada daftar model bawaan Rancang.ai`, {
+    throw new ValidationError(`Model "${chosen}" tidak tersedia pada daftar model bawaan Rencang-Rancang`, {
       modelId: chosen,
       allowed: cfg.models,
     });
@@ -211,7 +211,7 @@ export function resolveManagedEnvProvider(opts?: {
 }
 
 /**
- * Resolves a Managed Rancang.ai provider call for ANY user (owner or member).
+ * Resolves a Managed Rencang-Rancang provider call for ANY user (owner or member).
  * Enforces the admin's configured model whitelist when present.
  */
 export async function resolveManagedProvider(opts?: {
@@ -222,7 +222,7 @@ export async function resolveManagedProvider(opts?: {
   if (snapshot) {
     const chosen = opts?.modelId?.trim() || snapshot.defaultModelId;
     if (snapshot.models.length > 0 && !snapshot.models.includes(chosen)) {
-      throw new ValidationError(`Model "${chosen}" tidak tersedia pada daftar model bawaan Rancang.ai`, {
+      throw new ValidationError(`Model "${chosen}" tidak tersedia pada daftar model bawaan Rencang-Rancang`, {
         modelId: chosen,
       });
     }
@@ -239,7 +239,7 @@ export async function resolveManagedProvider(opts?: {
       ? await getCredentialRowForUser(matchingCred.id, snapshot.ownerId)
       : null;
     if (!credRow) {
-      throw new ProviderNotConfiguredError('managed', 'Koneksi bawaan Rancang.ai tidak ditemukan');
+      throw new ProviderNotConfiguredError('managed', 'Koneksi bawaan Rencang-Rancang tidak ditemukan');
     }
 
     const apiKey = decryptKey({

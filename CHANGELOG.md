@@ -1,6 +1,14 @@
 # Changelog
 
-All notable changes to Rancang.ai Studio are documented in this file, starting from v0.2.4.
+All notable changes to Rencang-Rancang Studio are documented in this file, starting from v0.2.4.
+
+## [v0.2.9] - 2026-11-27
+
+### Changed
+- **Rebranding to Rencang-Rancang:**
+  - Rebranded all user-facing UI surfaces, metadata (`<title>`, description), sidebar, auth pages, managed model labels (`Bawaan Rencang-Rancang`), profile, interview copy, share page, exports, and documentation to **Rencang-Rancang** while keeping internal technical identifiers (DB filename, cookies, HTTP headers, `localStorage` keys) intact for zero breaking changes.
+  - Designed a bespoke geometric SVG logo mark (`BrandMark` + `src/app/icon.svg` favicon): a chamfered specification sheet holding two companion `R` strokes side by side.
+  - Updated the landing page (`/`) with warmer, clearer bilingual (`ID | EN`) copywriting, removed the redundant top-right navbar `Mulai merancang` button, and added a dedicated **Why Rencang-Rancang?** philosophy section (explaining Javanese *rencang* = friend/companion and *rancang* = designing system specs) on both the landing page and `/docs`.
 
 ## [v0.2.8] - 2026-11-27
 

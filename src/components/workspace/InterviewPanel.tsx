@@ -312,11 +312,11 @@ export function InterviewPanel({
         <div className="space-y-5 p-5 sm:p-6" aria-live="polite">
           {messages.length === 0 && !completed && (
             <div className="rounded-xl border border-line bg-canvas p-5 space-y-2">
-              <p className="font-mono text-xs text-ink-3">rancang-ai</p>
+              <p className="font-mono text-xs text-ink-3">Rencang-Rancang</p>
               <h2 className="text-lg font-semibold text-ink">Ceritakan idemu dulu.</h2>
               <p className="text-sm leading-relaxed text-ink-2">
                 Tulis satu paragraf singkat: aplikasi apa yang ingin dibuat, siapa penggunanya, dan
-                masalah utama yang diselesaikan. Setelah itu rancang-ai akan mengajukan pertanyaan
+                masalah utama yang diselesaikan. Setelah itu Rencang-Rancang akan mengajukan pertanyaan
                 lanjutan yang terarah.
               </p>
             </div>
@@ -335,7 +335,7 @@ export function InterviewPanel({
               </div>
             ) : (
               <div key={m.id} className="max-w-2xl space-y-1">
-                <p className="font-mono text-[11px] text-accent-ink">rancang-ai</p>
+                <p className="font-mono text-[11px] text-accent-ink">Rencang-Rancang</p>
                 <p className="text-[15px] font-medium leading-relaxed text-ink">{m.content}</p>
               </div>
             ),
@@ -343,7 +343,7 @@ export function InterviewPanel({
 
           {pending && (
             <div className="max-w-2xl space-y-1">
-              <p className="font-mono text-[11px] text-accent-ink">rancang-ai</p>
+              <p className="font-mono text-[11px] text-accent-ink">Rencang-Rancang</p>
               <p className="inline-flex items-center gap-2 text-sm text-ink-2">
                 <span className="wet-caret" aria-hidden="true" />
                 <span>Menyusun pertanyaan berikutnya...</span>

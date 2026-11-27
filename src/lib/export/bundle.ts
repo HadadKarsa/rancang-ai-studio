@@ -179,7 +179,7 @@ export function renderZip(bundle: ExportBundle): Buffer {
     project.description ?? '',
     '',
     ...(project.purpose ? [`- **Tujuan:** ${PROJECT_PURPOSE_LABEL[project.purpose]}`] : []),
-    `Diekspor ${bundle.generatedAt} dari rancang-ai.`,
+    `Diekspor ${bundle.generatedAt} dari Rencang-Rancang.`,
     '',
     ...(isAgentBundle
       ? [

@@ -3,8 +3,9 @@ import { Providers } from '@/components/Providers';
 import './fresh.css';
 
 export const metadata: Metadata = {
-  title: 'rancang-ai: spec studio',
-  description: 'Ubah satu ide menjadi spesifikasi aplikasi yang lengkap, lewat percakapan.',
+  title: 'Rencang-Rancang: Teman Merancang Spesifikasi Sistem',
+  description:
+    'Teman merancang spesifikasi sistem dan aplikasi. Ubah satu ide singkat menjadi enam dokumen teknis yang saling nyambung.',
 };
 
 const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('rancang.theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`;

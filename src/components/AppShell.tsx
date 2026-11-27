@@ -236,7 +236,7 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
                   )}
 
                   {managed?.enabled && managedModels.length > 0 && (
-                    <optgroup label={t('Bawaan Rancang.ai', 'Managed Rancang.ai')}>
+                    <optgroup label={t('Bawaan Rencang-Rancang', 'Managed Rencang-Rancang')}>
                       {managedModels.map((model) => (
                         <option key={`mgd-${model}`} value={JSON.stringify(['managed', 'server', model])}>
                           {model}

@@ -815,8 +815,8 @@ export default function ModelsPage() {
           </div>
           <p className="text-sm leading-relaxed text-ink-2">
             {t(
-              'Pakai model bawaan Rancang.ai atau hubungkan API key milikmu sendiri untuk sesi browser ini.',
-              'Use Managed Rancang.ai models or connect your own API key for this browser session.',
+              'Pakai model bawaan Rencang-Rancang atau hubungkan API key milikmu sendiri untuk sesi browser ini.',
+              'Use Managed Rencang-Rancang models or connect your own API key for this browser session.',
             )}
           </p>
         </div>
@@ -873,7 +873,7 @@ export default function ModelsPage() {
             />
             <span className="min-w-0">
               <span className="flex items-center gap-2 text-sm font-semibold">
-                <span>{t('Bawaan Rancang.ai', 'Managed Rancang.ai')}</span>
+                <span>{t('Bawaan Rencang-Rancang', 'Managed Rencang-Rancang')}</span>
                 {activeMode === 'managed' && managed?.enabled && (
                   <Badge tone="ready" dot>
                     {t('Aktif', 'Active')}
@@ -928,7 +928,7 @@ export default function ModelsPage() {
           </button>
         </div>
 
-        {/* PANEL 1: Bawaan Rancang.ai */}
+        {/* PANEL 1: Bawaan Rencang-Rancang */}
         {activeMode === 'managed' && (
           <div className="space-y-5">
             {/* Active Managed model selector (visible to all users) */}
@@ -939,7 +939,7 @@ export default function ModelsPage() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <h2 className="text-base font-semibold text-ink">
-                          {t('Model bawaan Rancang.ai', 'Managed Rancang.ai models')}
+                          {t('Model bawaan Rencang-Rancang', 'Managed Rencang-Rancang models')}
                         </h2>
                         <Badge tone="ready" dot>
                           {t(`${managed.models.length} model siap`, `${managed.models.length} models ready`)}
@@ -952,8 +952,8 @@ export default function ModelsPage() {
                               'This list automatically reflects the whitelist selected in the Admin panel below.',
                             )
                           : t(
-                              'Model ini berjalan memakai kredensial server Rancang.ai. Kamu tidak perlu menyiapkan API key sendiri.',
-                              'These models run on Rancang.ai server credentials. No personal API key needed.',
+                              'Model ini berjalan memakai kredensial server Rencang-Rancang. Kamu tidak perlu menyiapkan API key sendiri.',
+                              'These models run on Rencang-Rancang server credentials. No personal API key needed.',
                             )}
                       </p>
                     </div>
@@ -990,7 +990,7 @@ export default function ModelsPage() {
                   <h2 className="text-base font-semibold text-ink">Model bawaan belum dikonfigurasi</h2>
                   <p className="max-w-xl text-sm leading-relaxed text-ink-2">
                     {isOwner
-                      ? 'Tambahkan koneksi OpenAI-Compatible di bagian Admin di bawah agar seluruh pengguna bisa langsung memakai model bawaan Rancang.ai.'
+                      ? 'Tambahkan koneksi OpenAI-Compatible di bagian Admin di bawah agar seluruh pengguna bisa langsung memakai model bawaan Rencang-Rancang.'
                       : 'Admin belum menyiapkan model bawaan di server ini. Gunakan tab API Key Sendiri (BYOK) untuk mulai memakai kunci milikmu.'}
                   </p>
                   {!isOwner && (
@@ -1002,7 +1002,7 @@ export default function ModelsPage() {
               )}
             </div>
 
-            {/* Admin-only management panel for Managed Rancang.ai connections */}
+            {/* Admin-only management panel for Managed Rencang-Rancang connections */}
             {isOwner && (
               <div className="rounded-xl border border-line bg-surface p-5 shadow-panel sm:p-6 space-y-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1014,7 +1014,7 @@ export default function ModelsPage() {
                       <Badge tone="live">Khusus admin</Badge>
                     </div>
                     <p className="text-xs leading-relaxed text-ink-2">
-                      Koneksi yang kamu simpan di sini terenkripsi di server dan otomatis menjadi daftar model Bawaan Rancang.ai untuk seluruh pengguna. Pengguna lain tidak dapat melihat atau mengubah bagian ini.
+                      Koneksi yang kamu simpan di sini terenkripsi di server dan otomatis menjadi daftar model Bawaan Rencang-Rancang untuk seluruh pengguna. Pengguna lain tidak dapat melihat atau mengubah bagian ini.
                     </p>
                   </div>
                   <Button
@@ -1197,8 +1197,8 @@ export default function ModelsPage() {
                                   </p>
                                   <p className="text-[11.5px] text-ink-2">
                                     {t(
-                                      'Hanya model yang dicentang yang muncul di dropdown Bawaan Rancang.ai untuk admin dan pengguna.',
-                                      'Only checked models appear in the Managed Rancang.ai picker for both admin and users.',
+                                      'Hanya model yang dicentang yang muncul di dropdown Bawaan Rencang-Rancang untuk admin dan pengguna.',
+                                      'Only checked models appear in the Managed Rencang-Rancang picker for both admin and users.',
                                     )}
                                   </p>
                                 </div>

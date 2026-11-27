@@ -1,0 +1,44 @@
+import { cn } from '@/lib/cn';
+
+/**
+ * Iconic geometric mark for Rencang-Rancang:
+ * A chamfered specification sheet holding two companion "R" letterforms side by side
+ * (Javanese "rencang" = friend/companion, "rancang" = designing specs).
+ */
+export function BrandMark({
+  className,
+  size = 28,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+      className={cn('shrink-0', className)}
+    >
+      <path
+        d="M5 3H21.5L29 10.5V27C29 28.1046 28.1046 29 27 29H5C3.89543 29 3 28.1046 3 27V5C3 3.89543 3.89543 3 5 3Z"
+        style={{ fill: 'var(--accent, #C85A32)' }}
+      />
+      <path
+        d="M21.5 3V9C21.5 9.82843 22.1716 10.5 23 10.5H29L21.5 3Z"
+        fill="#000000"
+        fillOpacity="0.22"
+      />
+      <path
+        d="M7.75 23.25V12.25H12.25C13.7688 12.25 14.75 13.15 14.75 14.55C14.75 15.85 13.9 16.72 12.6 16.92L15 23.25H12.75L10.6 17.2H9.75V23.25H7.75ZM9.75 15.55H11.95C12.58 15.55 12.95 15.18 12.95 14.58C12.95 14 12.58 13.65 11.95 13.65H9.75V15.55Z"
+        fill="#FFFDF9"
+        fillOpacity="0.76"
+      />
+      <path
+        d="M16.75 23.25V12.25H21.35C22.8688 12.25 23.85 13.15 23.85 14.55C23.85 15.85 23 16.72 21.7 16.92L24.15 23.25H21.85L19.65 17.2H18.75V23.25H16.75ZM18.75 15.55H21.05C21.68 15.55 22.05 15.18 22.05 14.58C22.05 14 21.68 13.65 21.05 13.65H18.75V15.55Z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  );
+}

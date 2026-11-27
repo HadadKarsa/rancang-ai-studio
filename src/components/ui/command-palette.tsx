@@ -127,7 +127,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         id: 'nav-docs',
         group: 'Navigasi',
         label: 'Baca Dokumentasi',
-        hint: 'Panduan penggunaan rancang-ai',
+        hint: 'Panduan penggunaan Rencang-Rancang',
         icon: <BookOpen className="h-4 w-4" aria-hidden="true" />,
         run: () => go('/docs'),
       },

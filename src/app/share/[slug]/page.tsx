@@ -185,7 +185,7 @@ export default function SharePage() {
           >
             R
           </span>
-          <span className="text-sm font-semibold text-ink">rancang-ai</span>
+          <span className="text-sm font-semibold text-ink">Rencang-Rancang</span>
           <Badge tone="neutral">Baca saja</Badge>
         </div>
         <PublicThemeToggle />

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { PublicThemeToggle } from '@/components/PublicThemeToggle';
 import { LanguageToggle } from '@/components/LanguageToggle';
+import { BrandMark } from '@/components/BrandMark';
 import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { APP_VERSION } from '@/lib/version';
 
@@ -35,7 +36,7 @@ export function AuthShowcaseShell({
     <div className="grid min-h-screen w-full bg-canvas text-ink lg:grid-cols-12">
       {/* Left 7 cols: Architectural Drafting Desk & Notched Spec Dossier (Desktop) */}
       <aside
-        aria-label={t('Gambaran rancang-ai', 'rancang-ai overview')}
+        aria-label={t('Gambaran Rencang-Rancang', 'Rencang-Rancang overview')}
         className="relative hidden flex-col justify-between overflow-hidden border-r border-line bg-sidebar p-10 lg:col-span-7 lg:flex xl:p-14"
         style={{
           backgroundImage:
@@ -48,17 +49,9 @@ export function AuthShowcaseShell({
             href="/"
             className="inline-flex items-center gap-2.5 text-ink transition-colors hover:text-accent-ink"
           >
-            <span
-              aria-hidden="true"
-              className="flex h-8 w-8 items-center justify-center bg-accent font-mono text-xs font-semibold text-white"
-              style={{
-                clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)',
-              }}
-            >
-              R
-            </span>
+            <BrandMark size={30} />
             <span className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold tracking-tight text-ink">rancang-ai</span>
+              <span className="text-sm font-semibold tracking-tight text-ink">Rencang-Rancang</span>
               <span className="font-mono text-[10.5px] text-ink-3">spec studio</span>
             </span>
           </Link>
@@ -168,18 +161,10 @@ export function AuthShowcaseShell({
             <Link
               href="/"
               className="inline-flex items-center gap-2 text-ink"
-              aria-label="rancang-ai"
+              aria-label="Rencang-Rancang"
             >
-              <span
-                aria-hidden="true"
-                className="flex h-7 w-7 items-center justify-center bg-accent font-mono text-xs font-semibold text-white"
-                style={{
-                  clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)',
-                }}
-              >
-                R
-              </span>
-              <span className="text-sm font-semibold tracking-tight">rancang-ai</span>
+              <BrandMark size={26} />
+              <span className="text-sm font-semibold tracking-tight">Rencang-Rancang</span>
             </Link>
           </div>
 
@@ -243,7 +228,7 @@ export function AuthShowcaseShell({
             <span>{t('Kembali', 'Back')}</span>
           </Link>
           <span className="font-mono text-[11px] lg:ml-auto">
-            rancang-ai · {APP_VERSION}
+            Rencang-Rancang · {APP_VERSION}
           </span>
         </footer>
       </main>

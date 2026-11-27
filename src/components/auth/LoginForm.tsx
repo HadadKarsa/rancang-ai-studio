@@ -2,9 +2,8 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
-import { clearByokSession } from '@/lib/client/byokSession';
 import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { Button } from '@/components/ui';
 import { AuthShowcaseShell } from './AuthShowcaseShell';
@@ -20,12 +19,10 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
 
 export function LoginForm({
   googleEnabled,
-  authMode = 'cloud',
   initialErrorCode,
   nextPath = '/studio',
 }: {
   googleEnabled: boolean;
-  authMode?: 'local' | 'cloud';
   initialErrorCode?: string | null;
   nextPath?: string;
 }) {
@@ -39,7 +36,6 @@ export function LoginForm({
       : {},
   );
   const [busy, setBusy] = useState(false);
-  const [enteringLocal, setEnteringLocal] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -61,17 +57,6 @@ export function LoginForm({
       }
       setBusy(false);
     }
-  }
-
-  async function enterAsLocalOwner() {
-    setEnteringLocal(true);
-    clearByokSession();
-    try {
-      await api.post('/auth/logout');
-    } catch {
-      /* ignore */
-    }
-    window.location.assign('/profile');
   }
 
   return (
@@ -163,32 +148,6 @@ export function LoginForm({
           {t('Buat akun sekarang', 'Create one now')}
         </Link>
       </p>
-
-      {authMode === 'local' && (
-        <div className="mt-6 rounded-lg border border-line bg-surface/80 p-3.5 space-y-2.5">
-          <div className="flex items-start gap-2 text-xs leading-relaxed text-ink-2">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent-ink" aria-hidden="true" />
-            <span>
-              {t(
-                'Server berjalan dalam mode lokal. Kamu bisa masuk langsung sebagai Admin lokal untuk mengatur profil, kata sandi, dan model bawaan.',
-                'Server is running in local mode. You can enter directly as the local Admin to manage profile, password, and managed models.',
-              )}
-            </span>
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="w-full"
-            disabled={enteringLocal}
-            onClick={() => void enterAsLocalOwner()}
-          >
-            {enteringLocal
-              ? t('Membuka sesi admin...', 'Opening admin session...')
-              : t('Masuk sebagai Admin lokal', 'Enter as local Admin')}
-          </Button>
-        </div>
-      )}
     </AuthShowcaseShell>
   );
 }
