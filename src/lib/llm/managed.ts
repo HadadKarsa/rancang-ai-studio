@@ -100,8 +100,16 @@ async function getOwnerManagedSnapshot() {
   const validPresets = presets.filter((p) => p.credentialId && validCredIds.has(p.credentialId));
   const activeDef = def && def.credentialId && validCredIds.has(def.credentialId) ? def : validPresets[0] ?? null;
 
+  // Strict whitelist invariant (v0.2.8): if ANY active managed credential has an explicit
+  // admin whitelist, ONLY whitelisted credentials contribute to Bawaan Rancang.ai.
+  // Secondary/legacy unrestricted credentials never leak unfiltered models into the picker.
+  const anyWhitelisted = validCreds.some((c) => c.allowedModels !== null && c.allowedModels.length > 0);
+  const eligibleCreds = anyWhitelisted
+    ? validCreds.filter((c) => c.allowedModels !== null && c.allowedModels.length > 0)
+    : validCreds;
+
   const exposedByCred = new Map<string, string[]>();
-  for (const cred of validCreds) {
+  for (const cred of eligibleCreds) {
     const linkedModels = validPresets
       .filter((p) => p.credentialId === cred.id)
       .map((p) => p.modelId);
@@ -109,7 +117,7 @@ async function getOwnerManagedSnapshot() {
   }
 
   const allExposed = Array.from(
-    new Set(validCreds.flatMap((c) => exposedByCred.get(c.id) ?? [])),
+    new Set(eligibleCreds.flatMap((c) => exposedByCred.get(c.id) ?? [])),
   );
 
   // Respect default preset model ONLY if it is inside the active whitelist.
@@ -123,7 +131,7 @@ async function getOwnerManagedSnapshot() {
 
   return {
     ownerId,
-    validCreds,
+    validCreds: eligibleCreds,
     validPresets,
     activeDef,
     exposedByCred,

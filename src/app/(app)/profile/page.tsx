@@ -14,6 +14,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { Badge, Button, useToast } from '@/components/ui';
 
 interface UserProfile {
@@ -37,6 +38,7 @@ const PROVIDER_LABELS: Record<UserProfile['authProvider'], string> = {
 export default function ProfilePage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { t } = useLocale();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -178,17 +180,20 @@ export default function ProfilePage() {
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">
-              Profil Akun
+              {t('Profil Akun', 'Account Profile')}
             </h1>
             {profile?.role === 'owner' && <Badge tone="live">Admin</Badge>}
             {profile && (
               <Badge tone="neutral">
-                Masuk via {PROVIDER_LABELS[profile.authProvider]}
+                {t('Masuk via', 'Signed in via')} {PROVIDER_LABELS[profile.authProvider]}
               </Badge>
             )}
           </div>
           <p className="text-sm leading-relaxed text-ink-2">
-            Kelola nama tampilan, alamat email, dan kata sandi untuk akun Rancang.ai kamu.
+            {t(
+              'Kelola nama tampilan, alamat email, dan kata sandi untuk akun Rancang.ai kamu.',
+              'Manage your display name, email address, and password for Rancang.ai.',
+            )}
           </p>
         </div>
 
@@ -197,7 +202,7 @@ export default function ProfilePage() {
           className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-medium text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Kembali ke Studio
+          {t('Kembali ke Studio', 'Back to Studio')}
         </Link>
       </div>
 
@@ -227,9 +232,12 @@ export default function ProfilePage() {
             <div className="flex items-start gap-3">
               <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-accent-ink" aria-hidden="true" />
               <div className="space-y-0.5">
-                <h2 className="text-base font-semibold text-ink">Identitas akun</h2>
+                <h2 className="text-base font-semibold text-ink">{t('Identitas akun', 'Account identity')}</h2>
                 <p className="text-xs leading-relaxed text-ink-2">
-                  Perubahan nama dan email langsung diterapkan pada sesi aktif dan bilah samping.
+                  {t(
+                    'Perubahan nama dan email langsung diterapkan pada sesi aktif dan bilah samping.',
+                    'Changes to your name and email apply immediately across the active session.',
+                  )}
                 </p>
               </div>
             </div>
@@ -297,17 +305,23 @@ export default function ProfilePage() {
                 <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-accent-ink" aria-hidden="true" />
                 <div className="space-y-0.5">
                   <h2 className="text-base font-semibold text-ink">
-                    {profile.hasPassword ? 'Ubah kata sandi' : 'Atur kata sandi'}
+                    {profile.hasPassword ? t('Ubah kata sandi', 'Change password') : t('Atur kata sandi', 'Set password')}
                   </h2>
                   <p className="text-xs leading-relaxed text-ink-2">
                     {profile.hasPassword
-                      ? 'Masukkan kata sandi saat ini untuk menyetel kata sandi baru.'
-                      : 'Akun ini belum memakai kata sandi. Atur sekarang agar kamu bisa masuk memakai email dan kata sandi kapan saja.'}
+                      ? t(
+                          'Masukkan kata sandi saat ini untuk menyetel kata sandi baru.',
+                          'Verify your current password to set a new one.',
+                        )
+                      : t(
+                          'Akun ini belum memakai kata sandi. Atur sekarang agar kamu bisa masuk memakai email dan kata sandi kapan saja.',
+                          'This account has no password yet. Set one now so you can also sign in with email and password.',
+                        )}
                   </p>
                 </div>
               </div>
               <Badge tone={profile.hasPassword ? 'ready' : 'warn'} dot>
-                {profile.hasPassword ? 'Kata sandi aktif' : 'Belum diatur'}
+                {profile.hasPassword ? t('Kata sandi aktif', 'Password active') : t('Belum diatur', 'Not set')}
               </Badge>
             </div>
 

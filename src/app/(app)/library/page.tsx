@@ -29,6 +29,7 @@ import {
   useToast,
 } from '@/components/ui';
 import { MarkdownRenderer } from '@/components/workspace/MarkdownRenderer';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { cn } from '@/lib/cn';
 
 interface LibraryItem {
@@ -71,6 +72,7 @@ function KindIcon({ kind }: { kind: LibraryItem['kind'] }) {
 
 export default function LibraryPage() {
   const { toast } = useToast();
+  const { t } = useLocale();
 
   const [items, setItems] = useState<LibraryItem[]>([]);
   const projectGroups = useMemo(() => {
@@ -255,17 +257,19 @@ export default function LibraryPage() {
       {state === 'ready' && items.length === 0 && !q && !kind ? (
         <div className="rounded-2xl border border-dashed border-line-strong bg-surface/60 px-6 py-12 text-center">
           <BookMarked className="mx-auto h-7 w-7 text-ink-3" aria-hidden="true" />
-          <h2 className="mt-3 text-base font-semibold text-ink">Library masih kosong</h2>
+          <h2 className="mt-3 text-base font-semibold text-ink">{t('Library masih kosong', 'Library is empty')}</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-ink-2">
-            Buka dokumen di ruang kerja proyek, lalu pilih &ldquo;Simpan ke
-            Library&rdquo; untuk menyimpannya sebagai arsip yang mudah diakses kembali.
+            {t(
+              'Buka dokumen di ruang kerja proyek, lalu pilih "Simpan ke Library" untuk menyimpannya sebagai arsip yang mudah diakses kembali.',
+              'Open any document inside a project workspace and choose "Save to Library" to keep reusable snapshots grouped by project.',
+            )}
           </p>
           <div className="mt-5">
             <Link
               href="/studio"
               className="inline-flex min-h-10 items-center rounded-lg bg-accent px-4 text-sm font-medium text-white hover:bg-accent-hover"
             >
-              Buka Studio
+              {t('Buka Studio', 'Open Studio')}
             </Link>
           </div>
         </div>
@@ -289,18 +293,18 @@ export default function LibraryPage() {
                   type="search"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Cari judul artefak..."
-                  aria-label="Cari di Library"
+                  placeholder={t('Cari judul artefak...', 'Search artifact title...')}
+                  aria-label={t('Cari di Library', 'Search Library')}
                   className="w-full min-h-10 rounded-lg border border-line-strong bg-surface pl-9 pr-3 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
                 />
               </div>
 
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Saring jenis artefak">
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('Saring jenis artefak', 'Filter artifact kind')}>
                 {(
                   [
-                    ['', 'Semua'],
-                    ['document', 'Dokumen'],
-                    ['export', 'Ekspor'],
+                    ['', t('Semua', 'All')],
+                    ['document', t('Dokumen', 'Document')],
+                    ['export', t('Ekspor', 'Export')],
                   ] as const
                 ).map(([v, label]) => (
                   <button

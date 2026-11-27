@@ -36,6 +36,7 @@ import {
 } from '@/lib/client/byokSession';
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger, useToast } from '@/components/ui';
 import { useAppShell } from '@/components/AppShellContext';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { cn } from '@/lib/cn';
 
 type ProviderId = 'openai' | 'anthropic' | 'google' | 'groq' | 'openrouter' | 'ollama' | 'custom';
@@ -319,6 +320,7 @@ function EffortSelect({
 
 export default function ModelsPage() {
   const { toast } = useToast();
+  const { t } = useLocale();
   const { refreshActiveModel } = useAppShell();
 
   const [managed, setManaged] = useState<ManagedPublic | null>(null);
@@ -718,13 +720,13 @@ export default function ModelsPage() {
     );
   }
 
-  async function persistWhitelist(cred: Credential, preset: Preset, nextAllowed: string[] | null) {
+  async function persistWhitelist(cred: Credential, preset: Preset | null, nextAllowed: string[] | null) {
     setSavingWhitelist(true);
     try {
       await api.patch(`/settings/credentials?id=${encodeURIComponent(cred.id)}`, {
         allowedModels: nextAllowed,
       });
-      if (nextAllowed !== null && nextAllowed.length > 0 && !nextAllowed.includes(preset.modelId)) {
+      if (preset && nextAllowed !== null && nextAllowed.length > 0 && !nextAllowed.includes(preset.modelId)) {
         await api.patch(`/settings/presets?id=${encodeURIComponent(preset.id)}`, {
           modelId: nextAllowed[0],
         });
@@ -736,29 +738,60 @@ export default function ModelsPage() {
         tone: 'success',
         title:
           nextAllowed === null
-            ? `Semua model dari ${cred.label} dibuka kembali`
-            : `Whitelist ${cred.label} disimpan (${nextAllowed.length} model)`,
+            ? t(`Whitelist ${cred.label} dihapus`, `${cred.label} whitelist cleared`)
+            : t(`Whitelist ${cred.label} disimpan (${nextAllowed.length} model)`, `${cred.label} whitelist saved (${nextAllowed.length} models)`),
       });
     } catch (err) {
       toast({
         tone: 'error',
-        title: err instanceof ApiError ? err.message : 'Gagal menyimpan whitelist model',
+        title: err instanceof ApiError ? err.message : t('Gagal menyimpan whitelist model', 'Failed to save model whitelist'),
       });
     } finally {
       setSavingWhitelist(false);
     }
   }
 
-  // Group owner's presets by credential for clean display
+  async function removeOrphanCredential(cred: Credential) {
+    setRowBusy(cred.id);
+    try {
+      await api.delete(`/settings/credentials?id=${encodeURIComponent(cred.id)}`);
+      await load();
+      refreshActiveModel();
+      toast({ tone: 'success', title: t(`Koneksi "${cred.label}" dinonaktifkan`, `Connection "${cred.label}" deactivated`) });
+    } catch (err) {
+      toast({ tone: 'error', title: err instanceof ApiError ? err.message : t('Gagal menghapus koneksi', 'Failed to remove connection') });
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  // Group owner's presets by credential AND surface any active credentials without a preset
+  // so legacy/secondary connections are visible to admin and can be whitelisted or removed.
   const managedRows = useMemo(() => {
     const validCredMap = new Map(credentials.map((c) => [c.id, c]));
-    return presets
+    const seenCredIds = new Set<string>();
+    const rows: { key: string; preset: Preset | null; cred: Credential | null }[] = presets
       .filter((p) => !p.credentialId || validCredMap.has(p.credentialId))
-      .map((p) => ({
-        preset: p,
-        cred: p.credentialId ? validCredMap.get(p.credentialId) ?? null : null,
-      }));
+      .map((p) => {
+        if (p.credentialId) seenCredIds.add(p.credentialId);
+        return {
+          key: p.id,
+          preset: p,
+          cred: p.credentialId ? validCredMap.get(p.credentialId) ?? null : null,
+        };
+      });
+    for (const c of credentials) {
+      if (!seenCredIds.has(c.id)) {
+        rows.push({ key: `cred-${c.id}`, preset: null, cred: c });
+      }
+    }
+    return rows;
   }, [presets, credentials]);
+
+  const anyCredentialWhitelisted = useMemo(
+    () => credentials.some((c) => c.allowedModels !== null && c.allowedModels.length > 0),
+    [credentials],
+  );
 
   if (loading) {
     return (
@@ -776,12 +809,15 @@ export default function ModelsPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">
-              Pengaturan Model
+              {t('Pengaturan Model', 'Model Settings')}
             </h1>
             {isOwner && <Badge tone="live">Admin</Badge>}
           </div>
           <p className="text-sm leading-relaxed text-ink-2">
-            Pakai model bawaan Rancang.ai atau hubungkan API key milikmu sendiri untuk sesi browser ini.
+            {t(
+              'Pakai model bawaan Rancang.ai atau hubungkan API key milikmu sendiri untuk sesi browser ini.',
+              'Use Managed Rancang.ai models or connect your own API key for this browser session.',
+            )}
           </p>
         </div>
         <Link
@@ -789,7 +825,7 @@ export default function ModelsPage() {
           className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-medium text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Kembali ke Studio
+          {t('Kembali ke Studio', 'Back to Studio')}
         </Link>
       </div>
 
@@ -837,15 +873,18 @@ export default function ModelsPage() {
             />
             <span className="min-w-0">
               <span className="flex items-center gap-2 text-sm font-semibold">
-                <span>Bawaan Rancang.ai</span>
+                <span>{t('Bawaan Rancang.ai', 'Managed Rancang.ai')}</span>
                 {activeMode === 'managed' && managed?.enabled && (
                   <Badge tone="ready" dot>
-                    Aktif
+                    {t('Aktif', 'Active')}
                   </Badge>
                 )}
               </span>
               <span className="mt-0.5 block text-xs text-ink-3">
-                Langsung pakai pilihan model yang disediakan server tanpa perlu API key sendiri.
+                {t(
+                  'Langsung pakai pilihan model yang disediakan server tanpa perlu API key sendiri.',
+                  'Start immediately with server-managed models without setting up an API key.',
+                )}
               </span>
             </span>
           </button>
@@ -872,15 +911,18 @@ export default function ModelsPage() {
             />
             <span className="min-w-0">
               <span className="flex items-center gap-2 text-sm font-semibold">
-                <span>API Key Sendiri (BYOK)</span>
+                <span>{t('API Key Sendiri (BYOK)', 'Own API Key (BYOK)')}</span>
                 {activeMode === 'byok' && byokActive && (
                   <Badge tone="live" dot>
-                    Sesi aktif
+                    {t('Sesi aktif', 'Session active')}
                   </Badge>
                 )}
               </span>
               <span className="mt-0.5 block text-xs text-ink-3">
-                Endpoint OpenAI-Compatible milikmu, disimpan hanya di sesi browser ini.
+                {t(
+                  'Endpoint OpenAI-Compatible milikmu, disimpan hanya di sesi browser ini.',
+                  'Your OpenAI-compatible endpoint, stored only in this browser session.',
+                )}
               </span>
             </span>
           </button>
@@ -897,16 +939,22 @@ export default function ModelsPage() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <h2 className="text-base font-semibold text-ink">
-                          Model bawaan {managed.label}
+                          {t('Model bawaan Rancang.ai', 'Managed Rancang.ai models')}
                         </h2>
                         <Badge tone="ready" dot>
-                          Siap dipakai
+                          {t(`${managed.models.length} model siap`, `${managed.models.length} models ready`)}
                         </Badge>
                       </div>
                       <p className="text-xs leading-relaxed text-ink-2">
                         {isOwner
-                          ? 'Model ini aktif untuk semua pengguna menggunakan koneksi bawaan yang kamu kelola di bawah.'
-                          : 'Model ini berjalan memakai kredensial server Rancang.ai. Kamu tidak perlu menyiapkan API key sendiri.'}
+                          ? t(
+                              'Daftar di bawah otomatis mengikuti whitelist yang kamu pilih pada bagian Admin.',
+                              'This list automatically reflects the whitelist selected in the Admin panel below.',
+                            )
+                          : t(
+                              'Model ini berjalan memakai kredensial server Rancang.ai. Kamu tidak perlu menyiapkan API key sendiri.',
+                              'These models run on Rancang.ai server credentials. No personal API key needed.',
+                            )}
                       </p>
                     </div>
                   </div>
@@ -982,32 +1030,42 @@ export default function ModelsPage() {
                 {/* Existing admin managed connections */}
                 {managedRows.length > 0 && (
                   <ul className="divide-y divide-line rounded-lg border border-line">
-                    {managedRows.map(({ preset: p, cred: c }) => {
-                      const busy = rowBusy === p.id;
+                    {managedRows.map(({ key, preset: p, cred: c }) => {
+                      const busyId = p?.id ?? c?.id ?? key;
+                      const busy = rowBusy === busyId;
                       const refreshing = c ? refreshingCredId === c.id : false;
+                      const rowName = p?.name ?? c?.label ?? 'Koneksi bawaan';
+                      const defaultModelForRow = p?.modelId ?? c?.allowedModels?.[0] ?? c?.cachedModels?.[0] ?? '';
                       const allCatalog = Array.from(
-                        new Set([p.modelId, ...(c?.cachedModels ?? [])].filter(Boolean)),
+                        new Set([defaultModelForRow, ...(c?.cachedModels ?? [])].filter(Boolean)),
                       ).sort();
                       const options =
                         c && c.allowedModels !== null
                           ? Array.from(new Set(c.allowedModels.filter(Boolean))).sort()
                           : allCatalog;
                       const isEditingWhitelist = c !== null && whitelistCredId === c.id;
+                      const isShadowedByOtherWhitelist =
+                        anyCredentialWhitelisted && c !== null && c.allowedModels === null;
                       const filteredCatalog = whitelistQuery.trim()
                         ? allCatalog.filter((m) =>
                             m.toLowerCase().includes(whitelistQuery.trim().toLowerCase()),
                           )
                         : allCatalog;
                       return (
-                        <li key={p.id} className="space-y-3 p-4">
+                        <li key={key} className="space-y-3 p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 space-y-0.5">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="truncate text-sm font-semibold text-ink">{p.name}</span>
-                                {p.isDefault && <Badge tone="ready">Default bawaan</Badge>}
+                                <span className="truncate text-sm font-semibold text-ink">{rowName}</span>
+                                {p?.isDefault && <Badge tone="ready">{t('Default bawaan', 'Default')}</Badge>}
                                 {c && c.allowedModels !== null && (
                                   <Badge tone="live">
                                     Whitelist {c.allowedModels.length}/{allCatalog.length}
+                                  </Badge>
+                                )}
+                                {isShadowedByOtherWhitelist && (
+                                  <Badge tone="neutral">
+                                    {t('Tidak di-whitelist (disembunyikan)', 'Not whitelisted (hidden)')}
                                   </Badge>
                                 )}
                               </div>
@@ -1016,8 +1074,10 @@ export default function ModelsPage() {
                                 {c ? ` · ····${c.keyLast4}` : ''}
                                 {c
                                   ? c.allowedModels !== null
-                                    ? ` · ${c.allowedModels.length} dari ${allCatalog.length} model dibuka`
-                                    : ` · semua ${allCatalog.length} model terbuka`
+                                    ? ` · ${c.allowedModels.length} / ${allCatalog.length} model`
+                                    : isShadowedByOtherWhitelist
+                                      ? t(' · tidak masuk daftar Bawaan selama whitelist lain aktif', ' · excluded while another whitelist is active')
+                                      : ` · ${allCatalog.length} model`
                                   : ''}
                               </p>
                             </div>
@@ -1027,13 +1087,13 @@ export default function ModelsPage() {
                                   size="sm"
                                   variant={isEditingWhitelist ? 'secondary' : 'ghost'}
                                   disabled={busy || refreshing}
-                                  onClick={() => openWhitelistEditor(c, p.modelId)}
+                                  onClick={() => openWhitelistEditor(c, defaultModelForRow)}
                                 >
                                   <Filter className="h-3.5 w-3.5" aria-hidden="true" />
-                                  {isEditingWhitelist ? 'Tutup whitelist' : 'Atur whitelist'}
+                                  {isEditingWhitelist ? t('Tutup whitelist', 'Close whitelist') : t('Atur whitelist', 'Edit whitelist')}
                                 </Button>
                               )}
-                              {!p.isDefault && (
+                              {p && !p.isDefault && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -1047,15 +1107,21 @@ export default function ModelsPage() {
                                   }
                                 >
                                   <Star className="h-3.5 w-3.5" aria-hidden="true" />
-                                  Jadikan default
+                                  {t('Jadikan default', 'Set default')}
                                 </Button>
                               )}
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                aria-label={`Hapus ${p.name}`}
+                                aria-label={`Hapus ${rowName}`}
                                 disabled={busy}
-                                onClick={() => void removeAdminConnection(p)}
+                                onClick={() =>
+                                  p
+                                    ? void removeAdminConnection(p)
+                                    : c
+                                      ? void removeOrphanCredential(c)
+                                      : undefined
+                                }
                                 className="text-danger-ink hover:bg-danger-soft"
                               >
                                 <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1065,25 +1131,27 @@ export default function ModelsPage() {
 
                           <div className="flex flex-wrap items-center gap-3 border-t border-line/70 pt-3">
                             <div className="flex min-w-0 items-center gap-1.5">
-                              <ModelPicker
-                                label={`Model default ${p.name}`}
-                                value={p.modelId}
-                                options={options}
-                                disabled={busy || refreshing}
-                                onSelect={(next) =>
-                                  void patchAdminPreset(
-                                    p.id,
-                                    { modelId: next },
-                                    `Model default ${p.name} diubah ke ${next}`,
-                                  )
-                                }
-                              />
+                              {p && (
+                                <ModelPicker
+                                  label={`Model default ${p.name}`}
+                                  value={p.modelId}
+                                  options={options}
+                                  disabled={busy || refreshing}
+                                  onSelect={(next) =>
+                                    void patchAdminPreset(
+                                      p.id,
+                                      { modelId: next },
+                                      `Model default ${p.name} diubah ke ${next}`,
+                                    )
+                                  }
+                                />
+                              )}
                               {c && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   disabled={busy || refreshing}
-                                  aria-label={`Segarkan daftar model ${p.name}`}
+                                  aria-label={`Segarkan daftar model ${rowName}`}
                                   onClick={() => void refreshAdminCredential(c)}
                                 >
                                   <RefreshCw
@@ -1091,27 +1159,29 @@ export default function ModelsPage() {
                                     aria-hidden="true"
                                   />
                                   <span className="hidden sm:inline">
-                                    {refreshing ? 'Mengambil...' : 'Segarkan'}
+                                    {refreshing ? t('Mengambil...', 'Fetching...') : t('Segarkan', 'Refresh')}
                                   </span>
                                 </Button>
                               )}
                             </div>
 
-                            <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
-                              <span className="text-[11.5px] font-medium text-ink-3">Reasoning</span>
-                              <EffortSelect
-                                label={p.name}
-                                value={p.reasoningEffort}
-                                busy={busy}
-                                onChange={(next) =>
-                                  void patchAdminPreset(
-                                    p.id,
-                                    { reasoningEffort: next },
-                                    'Reasoning effort diperbarui',
-                                  )
-                                }
-                              />
-                            </div>
+                            {p && (
+                              <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+                                <span className="text-[11.5px] font-medium text-ink-3">Reasoning</span>
+                                <EffortSelect
+                                  label={p.name}
+                                  value={p.reasoningEffort}
+                                  busy={busy}
+                                  onChange={(next) =>
+                                    void patchAdminPreset(
+                                      p.id,
+                                      { reasoningEffort: next },
+                                      'Reasoning effort diperbarui',
+                                    )
+                                  }
+                                />
+                              </div>
+                            )}
                           </div>
 
                           {/* Inline Admin Whitelist Picker */}
@@ -1120,26 +1190,34 @@ export default function ModelsPage() {
                               <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div className="space-y-0.5">
                                   <p className="text-xs font-semibold text-ink">
-                                    Whitelist model untuk pengguna ({whitelistDraft.length} dipilih)
+                                    {t(
+                                      `Whitelist model untuk pengguna (${whitelistDraft.length} dipilih)`,
+                                      `Model whitelist for users (${whitelistDraft.length} selected)`,
+                                    )}
                                   </p>
                                   <p className="text-[11.5px] text-ink-2">
-                                    Hanya model yang dicentang yang muncul di dropdown pengguna pada mode Bawaan Rancang.ai.
+                                    {t(
+                                      'Hanya model yang dicentang yang muncul di dropdown Bawaan Rancang.ai untuk admin dan pengguna.',
+                                      'Only checked models appear in the Managed Rancang.ai picker for both admin and users.',
+                                    )}
                                   </p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => setWhitelistDraft([p.modelId])}
-                                    className="cursor-pointer rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-medium text-ink-2 hover:border-line-strong hover:text-ink"
-                                  >
-                                    Hanya default
-                                  </button>
+                                  {defaultModelForRow && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setWhitelistDraft([defaultModelForRow])}
+                                      className="cursor-pointer rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                                    >
+                                      {t('Hanya default', 'Default only')}
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => setWhitelistDraft([])}
                                     className="cursor-pointer rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-medium text-ink-2 hover:border-line-strong hover:text-ink"
                                   >
-                                    Kosongkan
+                                    {t('Kosongkan', 'Clear')}
                                   </button>
                                   <button
                                     type="button"
@@ -1147,7 +1225,7 @@ export default function ModelsPage() {
                                     onClick={() => void persistWhitelist(c, p, null)}
                                     className="cursor-pointer rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-medium text-accent-ink hover:border-accent/50"
                                   >
-                                    Buka semua ({allCatalog.length})
+                                    {t(`Buka semua (${allCatalog.length})`, `Allow all (${allCatalog.length})`)}
                                   </button>
                                 </div>
                               </div>
@@ -1172,7 +1250,7 @@ export default function ModelsPage() {
                                   ))}
                                   {whitelistDraft.length > 12 && (
                                     <span className="inline-flex items-center rounded-md bg-subtle px-2 py-0.5 font-mono text-[11px] text-ink-2">
-                                      +{whitelistDraft.length - 12} lainnya
+                                      +{whitelistDraft.length - 12} {t('lainnya', 'more')}
                                     </span>
                                   )}
                                 </div>
@@ -1187,8 +1265,8 @@ export default function ModelsPage() {
                                   type="search"
                                   value={whitelistQuery}
                                   onChange={(e) => setWhitelistQuery(e.target.value)}
-                                  placeholder={`Cari dari ${allCatalog.length} model penyedia...`}
-                                  aria-label={`Cari model whitelist ${p.name}`}
+                                  placeholder={t(`Cari dari ${allCatalog.length} model penyedia...`, `Search ${allCatalog.length} provider models...`)}
+                                  aria-label={`Cari model whitelist ${rowName}`}
                                   className="min-h-9 w-full rounded-lg border border-line bg-surface pl-8 pr-3 text-xs text-ink placeholder:text-ink-3 focus:border-accent"
                                 />
                               </div>
@@ -1196,7 +1274,7 @@ export default function ModelsPage() {
                               <ul className="max-h-56 divide-y divide-line/50 overflow-y-auto rounded-lg border border-line bg-surface p-1">
                                 {filteredCatalog.length === 0 ? (
                                   <li className="px-3 py-4 text-center text-xs text-ink-3">
-                                    Tidak ada model yang cocok dengan "{whitelistQuery}".
+                                    {t(`Tidak ada model yang cocok dengan "${whitelistQuery}".`, `No models matched "${whitelistQuery}".`)}
                                   </li>
                                 ) : (
                                   filteredCatalog.map((m) => {
@@ -1211,7 +1289,7 @@ export default function ModelsPage() {
                                             className="h-4 w-4 cursor-pointer accent-accent"
                                           />
                                           <span className="truncate font-mono text-xs text-ink">{m}</span>
-                                          {m === p.modelId && (
+                                          {m === defaultModelForRow && (
                                             <span className="ml-auto shrink-0 rounded bg-ready-soft px-1.5 py-0.5 font-mono text-[10px] text-ready-ink">
                                               default
                                             </span>
@@ -1225,7 +1303,10 @@ export default function ModelsPage() {
 
                               <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                                 <span className="text-[11px] text-ink-3">
-                                  Pilih minimal 1 model, atau klik Buka semua untuk tanpa batasan.
+                                  {t(
+                                    'Pilih minimal 1 model, atau klik Buka semua untuk tanpa batasan.',
+                                    'Select at least 1 model, or click Allow all for unrestricted access.',
+                                  )}
                                 </span>
                                 <div className="flex items-center gap-2">
                                   <Button
@@ -1234,7 +1315,7 @@ export default function ModelsPage() {
                                     disabled={savingWhitelist}
                                     onClick={() => setWhitelistCredId(null)}
                                   >
-                                    Batal
+                                    {t('Batal', 'Cancel')}
                                   </Button>
                                   <Button
                                     size="sm"
@@ -1244,8 +1325,8 @@ export default function ModelsPage() {
                                   >
                                     <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                                     {savingWhitelist
-                                      ? 'Menyimpan...'
-                                      : `Simpan whitelist (${whitelistDraft.length})`}
+                                      ? t('Menyimpan...', 'Saving...')
+                                      : t(`Simpan whitelist (${whitelistDraft.length})`, `Save whitelist (${whitelistDraft.length})`)}
                                   </Button>
                                 </div>
                               </div>

@@ -53,6 +53,7 @@ import {
   useToast,
 } from '@/components/ui';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { cn } from '@/lib/cn';
 import type { DocumentType, WorkspaceDoc, WorkspaceProject } from './types';
 import { DOC_LABEL, CORE_DOC_ORDER, DOC_SUBTITLE, formatTimeAgo } from './types';
@@ -184,6 +185,7 @@ export function DocumentPanel({
   onBackToInterview,
 }: DocumentPanelProps) {
   const { toast } = useToast();
+  const { t } = useLocale();
   const [activeDoc, setActiveDoc] = useState<WorkspaceDoc | null>(null);
   const [content, setContent] = useState<string>('');
   const [versions, setVersions] = useState<DocVersion[]>([]);
@@ -227,6 +229,10 @@ export function DocumentPanel({
   selectedTypeRef.current = selectedType;
   const autoFollowRef = useRef(autoFollowActive);
   autoFollowRef.current = autoFollowActive;
+  const batchDocsRef = useRef(batchDocs);
+  batchDocsRef.current = batchDocs;
+  const docsRef = useRef(docs);
+  docsRef.current = docs;
   const batchStartedAtRef = useRef<number>(0);
   const sseAbortRef = useRef<AbortController | null>(null);
   const lastSseAtRef = useRef<number>(0);
@@ -237,9 +243,14 @@ export function DocumentPanel({
 
   const loadDoc = useCallback(
     async (type: DocumentType, force = false) => {
+      const liveState = batchDocsRef.current[type];
+      const dbState = docsRef.current.find((d) => d.type === type);
+      const isKnownReady = liveState?.status === 'ready' || dbState?.status === 'ready';
+
       if (!force) {
         const cached = cache.current.get(type);
-        if (cached) {
+        // Never serve a stale empty cached document when the doc is already marked ready.
+        if (cached && (!isKnownReady || Boolean(cached.content?.trim()))) {
           setActiveDoc(cached.document);
           setContent(cached.content ?? '');
           setVersions(cached.versions ?? []);
@@ -249,7 +260,15 @@ export function DocumentPanel({
           return;
         }
       }
-      setLoading(true);
+      // Show in-memory completed batch text immediately while fetching DB versions/metadata.
+      if (liveState?.status === 'ready' && liveState.text.trim()) {
+        setContent(liveState.text);
+        setViewingVersion(null);
+        setEditing(false);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       try {
         const r = await api.get<DocResp>(
@@ -960,20 +979,24 @@ export function DocumentPanel({
   const activeWritingDoc = orderedDocs.find((d) => d.status === 'generating');
 
   const latestVersion = versions[0];
+  const liveReadyFallback =
+    !isBatchWritingSelected && !viewingVersion && !content.trim() && selectedLive?.status === 'ready'
+      ? selectedLive.text
+      : '';
   const displayedContent = isBatchWritingSelected
     ? selectedLive?.text ?? ''
-    : viewingVersion?.contentMd ?? content;
+    : viewingVersion?.contentMd ?? (content || liveReadyFallback);
   const editDirty = editing && editDraft !== content;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[256px_1fr] lg:items-start">
       {/* Always-visible 6-document sidebar + batch controls */}
       <aside
-        aria-label="Daftar enam dokumen spesifikasi"
+        aria-label={t('Daftar enam dokumen spesifikasi', 'Six specification documents list')}
         className="min-w-0 rounded-xl border border-line bg-sidebar p-2.5 lg:sticky lg:top-20 space-y-2.5"
       >
         <div className="hidden lg:flex items-center justify-between px-2 pt-0.5">
-          <p className="text-xs font-medium text-ink-3">Enam dokumen</p>
+          <p className="text-xs font-medium text-ink-3">{t('Enam dokumen', 'Six documents')}</p>
           <span className="font-mono text-[11px] text-ink-3">
             {liveReadyCount}/{CORE_DOC_ORDER.length}
           </span>
@@ -989,13 +1012,21 @@ export function DocumentPanel({
                   type="button"
                   aria-current={isSelected ? 'true' : undefined}
                   onClick={() => {
-                    if (batchRunning && activeWritingDoc && d.type !== activeWritingDoc.type) {
+                    if (batchRunning) {
+                      // Synchronously disable auto-follow so SSE/polling never yanks selection back.
+                      autoFollowRef.current = false;
                       setAutoFollowActive(false);
+                    }
+                    if (live?.status === 'ready' || d.status === 'ready') {
+                      const cached = cache.current.get(d.type);
+                      if (cached && !cached.content?.trim()) {
+                        cache.current.delete(d.type);
+                      }
                     }
                     onSelectType(d.type);
                   }}
                   className={cn(
-                    'flex min-h-11 w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-left transition-colors',
+                    'flex min-h-11 w-full cursor-pointer items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-left transition-colors',
                     isSelected
                       ? 'bg-surface text-ink'
                       : 'text-ink-2 hover:bg-hover/70 hover:text-ink',

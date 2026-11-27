@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import { Menu, Search, Sun, Moon, ChevronRight } from 'lucide-react';
 import { Rail } from '@/components/Rail';
 import { AppShellProvider, useAppShell } from '@/components/AppShellContext';
+import { LanguageToggle } from '@/components/LanguageToggle';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { CommandPalette, useToast, useTheme, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
 import { api } from '@/lib/client/api';
 import {
@@ -14,30 +16,9 @@ import {
   getModelSourceMode,
   saveByokSession,
   saveManagedSelection,
-  setModelSourceMode,
   type ByokSessionConfig,
   type ModelSourceMode,
 } from '@/lib/client/byokSession';
-
-interface PresetLite {
-  id: string;
-  name: string;
-  provider: string;
-  modelId: string;
-  credentialId: string | null;
-  reasoningEffort: 'none' | 'low' | 'medium' | 'high' | null;
-  isDefault: boolean;
-}
-
-interface Connection {
-  id: string;
-  provider: string;
-  label: string;
-  isActive: boolean;
-  isValid: boolean | null;
-  cachedModels: string[];
-  allowedModels: string[] | null;
-}
 
 interface ManagedPublic {
   enabled: boolean;
@@ -46,14 +27,6 @@ interface ManagedPublic {
   defaultModelId: string | null;
   models: string[];
 }
-
-const ROUTE_LABELS: Record<string, string> = {
-  '/studio': 'Studio',
-  '/library': 'Library',
-  '/models': 'Models',
-  '/profile': 'Profil',
-  '/docs': 'Dokumentasi',
-};
 
 export interface ShellUser {
   id: string;
@@ -65,6 +38,7 @@ export interface ShellUser {
 function ShellInner({ children, initialUser }: { children: React.ReactNode; initialUser?: ShellUser }) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { t } = useLocale();
   const { projectBreadcrumb, modelRefreshTick, refreshActiveModel } = useAppShell();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
@@ -72,12 +46,8 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
   const isProjectRoute = Boolean(projectId);
 
   const [managed, setManaged] = React.useState<ManagedPublic | null>(null);
-  const [isOwner, setIsOwner] = React.useState(false);
-  const [presets, setPresets] = React.useState<PresetLite[]>([]);
-  const [connections, setConnections] = React.useState<Connection[]>([]);
   const [byok, setByok] = React.useState<ByokSessionConfig | null>(null);
   const [sourceMode, setSourceMode] = React.useState<ModelSourceMode>('managed');
-  const [selectedPresetId, setSelectedPresetId] = React.useState('');
   const [selectedManagedModel, setSelectedManagedModel] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
@@ -92,32 +62,11 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
     setByok(sessionByok);
     setSourceMode(activeMode);
 
-    Promise.all([
-      api
-        .get<{ managed: ManagedPublic; isOwner?: boolean }>('/settings/managed')
-        .catch(() => ({ managed: null, isOwner: false })),
-      api.get<{ presets: PresetLite[] }>('/settings/presets').catch(() => ({ presets: [] })),
-      projectId
-        ? api.get<{ project: { defaultPresetId: string | null } }>(`/projects/${projectId}`).catch(() => null)
-        : Promise.resolve(null),
-      api.get<{ credentials: Connection[] }>('/settings/credentials').catch(() => ({ credentials: [] })),
-    ])
-      .then(([mgd, result, detail, keys]) => {
+    api
+      .get<{ managed: ManagedPublic }>('/settings/managed')
+      .then((mgd) => {
         if (!alive) return;
-        const ownerFlag = Boolean(mgd.isOwner);
-        const validConns = ownerFlag
-          ? keys.credentials.filter((k) => k.isActive && k.isValid !== false)
-          : [];
-        const connectedPresets = ownerFlag
-          ? result.presets.filter((p) => validConns.some((k) => k.id === p.credentialId))
-          : [];
-        setIsOwner(ownerFlag);
         setManaged(mgd.managed);
-        setPresets(connectedPresets);
-        setConnections(validConns);
-        const presetId =
-          detail?.project.defaultPresetId ?? connectedPresets.find((p) => p.isDefault)?.id ?? '';
-        setSelectedPresetId(presetId);
         const managedList = mgd.managed?.models ?? [];
         const preferredManaged =
           managedSel?.modelId && (managedList.length === 0 || managedList.includes(managedSel.modelId))
@@ -128,11 +77,8 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
       })
       .catch(() => {
         if (alive) {
-          setIsOwner(false);
           setManaged(null);
-          setConnections([]);
-          setPresets([]);
-          setSelectedPresetId('');
+          setSelectedManagedModel('');
           setLoaded(true);
         }
       });
@@ -141,33 +87,12 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
     };
   }, [projectId, modelRefreshTick]);
 
-  const pendingLists = React.useRef(new Set<string>());
-  async function loadMissingModels() {
-    for (const connection of connections) {
-      if (connection.cachedModels?.length || pendingLists.current.has(connection.id)) continue;
-      pendingLists.current.add(connection.id);
-      try {
-        const result = await api.post<{ models: string[] }>('/providers/test', {
-          credentialId: connection.id,
-          provider: connection.provider,
-        });
-        setConnections((current) =>
-          current.map((c) => (c.id === connection.id ? { ...c, cachedModels: result.models } : c)),
-        );
-      } catch {
-        toast({ tone: 'error', title: `Gagal memuat model dari ${connection.label}` });
-      } finally {
-        pendingLists.current.delete(connection.id);
-      }
-    }
-  }
-
   async function chooseModel(raw: string) {
     if (!raw) return;
     setBusy(true);
     try {
-      const parsed = JSON.parse(raw) as ['byok' | 'managed' | 'account', string, string];
-      const [kind, groupId, modelId] = parsed;
+      const parsed = JSON.parse(raw) as ['byok' | 'managed', string, string];
+      const [kind, , modelId] = parsed;
 
       if (kind === 'byok') {
         const current = getByokSession();
@@ -177,46 +102,18 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
         setByok(updated);
         setSourceMode('byok');
         refreshActiveModel();
-        toast({ tone: 'success', title: `Model sesi BYOK: ${modelId}` });
+        toast({ tone: 'success', title: t(`Model sesi BYOK: ${modelId}`, `Session BYOK model: ${modelId}`) });
         return;
       }
 
-      if (kind === 'managed') {
-        const prevSel = getManagedSelection();
-        saveManagedSelection({ modelId, reasoningEffort: prevSel?.reasoningEffort ?? null });
-        setSourceMode('managed');
-        setSelectedManagedModel(modelId);
-        refreshActiveModel();
-        toast({ tone: 'success', title: `Model bawaan aktif: ${modelId}` });
-        return;
-      }
-
-      // Existing account connection fallback
-      const connection = connections.find((c) => c.id === groupId);
-      if (!connection) return;
-      setModelSourceMode('managed');
-      const saved = presets.find((p) => p.credentialId === groupId && p.modelId === modelId);
-      const preset =
-        saved ??
-        (
-          await api.post<{ preset: PresetLite }>('/settings/presets', {
-            provider: connection.provider,
-            credentialId: groupId,
-            modelId,
-            name: modelId.slice(0, 80),
-          })
-        ).preset;
-      const id = preset.id;
-      if (projectId) await api.patch(`/projects/${projectId}`, { defaultPresetId: id });
-      else await api.patch(`/settings/presets?id=${encodeURIComponent(id)}`, { isDefault: true });
-      saveManagedSelection({ modelId, reasoningEffort: preset.reasoningEffort ?? null });
+      const prevSel = getManagedSelection();
+      saveManagedSelection({ modelId, reasoningEffort: prevSel?.reasoningEffort ?? null });
       setSourceMode('managed');
-      setSelectedPresetId(id);
       setSelectedManagedModel(modelId);
       refreshActiveModel();
-      toast({ tone: 'success', title: 'Model untuk generasi berikutnya diperbarui' });
+      toast({ tone: 'success', title: t(`Model bawaan aktif: ${modelId}`, `Managed model active: ${modelId}`) });
     } catch {
-      toast({ tone: 'error', title: 'Gagal mengganti model. Coba lagi.' });
+      toast({ tone: 'error', title: t('Gagal mengganti model. Coba lagi.', 'Failed to switch model. Try again.') });
     } finally {
       setBusy(false);
     }
@@ -227,25 +124,36 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
     return Array.from(new Set([byok.modelId, ...(byok.models ?? [])].filter(Boolean))).sort();
   }, [byok]);
 
-  const activePreset = presets.find((p) => p.id === selectedPresetId);
-  const showOwnerConnections = isOwner && connections.length > 0;
+  const managedModels = React.useMemo(() => {
+    if (!managed?.enabled) return [];
+    return Array.from(new Set(managed.models.filter(Boolean)));
+  }, [managed]);
+
   const currentValue = React.useMemo(() => {
     if (sourceMode === 'byok' && byok?.modelId) {
       return JSON.stringify(['byok', 'session', byok.modelId]);
     }
-    if (showOwnerConnections && activePreset?.credentialId && activePreset.modelId) {
-      return JSON.stringify(['account', activePreset.credentialId, activePreset.modelId]);
-    }
-    if (selectedManagedModel && managed?.enabled) {
+    if (selectedManagedModel && managed?.enabled && managedModels.includes(selectedManagedModel)) {
       return JSON.stringify(['managed', 'server', selectedManagedModel]);
     }
+    if (managed?.enabled && managedModels[0]) {
+      return JSON.stringify(['managed', 'server', managedModels[0]]);
+    }
     return '';
-  }, [sourceMode, byok, showOwnerConnections, managed, selectedManagedModel, activePreset]);
+  }, [sourceMode, byok, managed, managedModels, selectedManagedModel]);
 
-  const hasAnyModel = Boolean(byok?.modelId || managed?.enabled || connections.length > 0);
+  const hasAnyModel = Boolean(byok?.modelId || (managed?.enabled && managedModels.length > 0));
+
+  const routeLabels: Record<string, string> = {
+    '/studio': 'Studio',
+    '/library': 'Library',
+    '/models': 'Models',
+    '/profile': t('Profil', 'Profile'),
+    '/docs': t('Dokumentasi', 'Documentation'),
+  };
   const sectionLabel = isProjectRoute
     ? 'Studio'
-    : ROUTE_LABELS[pathname] ?? ROUTE_LABELS[`/${pathname.split('/')[1] ?? ''}`] ?? 'Studio';
+    : routeLabels[pathname] ?? routeLabels[`/${pathname.split('/')[1] ?? ''}`] ?? 'Studio';
 
   return (
     <div className="flex min-h-screen w-full bg-canvas text-ink">
@@ -256,13 +164,13 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-13 shrink-0 items-center justify-between gap-3 border-b border-line bg-canvas/95 px-4 backdrop-blur-xs sm:px-6">
+        <header className="sticky top-0 z-30 flex h-13 shrink-0 items-center justify-between gap-2 border-b border-line bg-canvas/95 px-4 backdrop-blur-xs sm:gap-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
-              aria-label="Buka menu navigasi"
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-sm font-medium text-ink md:hidden hover:bg-subtle"
+              aria-label={t('Buka menu navigasi', 'Open navigation menu')}
+              className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-sm font-medium text-ink md:hidden hover:bg-subtle"
             >
               <Menu className="h-4 w-4" aria-hidden="true" />
               <span>Menu</span>
@@ -279,7 +187,7 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
                   </Link>
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden="true" />
                   <span className="truncate font-medium text-ink">
-                    {projectBreadcrumb ?? 'Proyek'}
+                    {projectBreadcrumb ?? t('Proyek', 'Project')}
                   </span>
                 </>
               ) : (
@@ -288,38 +196,37 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
             </nav>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {loaded && !hasAnyModel ? (
               <Link
                 href="/models"
                 className="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3 text-xs font-medium text-ink hover:border-line-strong hover:bg-subtle"
               >
-                Atur model
+                {t('Atur model', 'Set model')}
               </Link>
             ) : (
               <div className="flex items-center gap-1.5">
                 {sourceMode === 'byok' && byok && (
                   <span
-                    title="Menggunakan API key sesi browser"
+                    title={t('Menggunakan API key sesi browser', 'Using browser session API key')}
                     className="hidden sm:inline-flex items-center rounded-md bg-accent-soft px-1.5 py-0.5 font-mono text-[10.5px] font-medium text-accent-ink"
                   >
                     BYOK
                   </span>
                 )}
                 <select
-                  aria-label="Model untuk generasi berikutnya"
+                  aria-label={t('Model untuk generasi berikutnya', 'Model for next generation')}
                   value={currentValue}
                   disabled={!loaded || busy}
-                  onFocus={() => void loadMissingModels()}
                   onChange={(e) => void chooseModel(e.target.value)}
-                  className="min-h-11 max-w-[36vw] cursor-pointer rounded-lg border border-line bg-surface px-2.5 font-mono text-xs text-ink transition-colors hover:border-line-strong focus:border-accent sm:min-h-9 sm:max-w-64"
+                  className="min-h-11 max-w-[34vw] cursor-pointer rounded-lg border border-line bg-surface px-2.5 font-mono text-xs text-ink transition-colors hover:border-line-strong focus:border-accent sm:min-h-9 sm:max-w-60"
                 >
                   <option value="" disabled>
-                    {loaded ? 'Pilih model' : 'Memuat...'}
+                    {loaded ? t('Pilih model', 'Select model') : t('Memuat...', 'Loading...')}
                   </option>
 
                   {byok && byokModels.length > 0 && (
-                    <optgroup label={`BYOK sesi (${byok.label})`}>
+                    <optgroup label={t('BYOK sesi', 'Session BYOK')}>
                       {byokModels.map((model) => (
                         <option key={`byok-${model}`} value={JSON.stringify(['byok', 'session', model])}>
                           {model}
@@ -328,37 +235,15 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
                     </optgroup>
                   )}
 
-                  {!showOwnerConnections && managed?.enabled && managed.models.length > 0 && (
-                    <optgroup label={`Bawaan ${managed.label}`}>
-                      {managed.models.map((model) => (
+                  {managed?.enabled && managedModels.length > 0 && (
+                    <optgroup label={t('Bawaan Rancang.ai', 'Managed Rancang.ai')}>
+                      {managedModels.map((model) => (
                         <option key={`mgd-${model}`} value={JSON.stringify(['managed', 'server', model])}>
                           {model}
                         </option>
                       ))}
                     </optgroup>
                   )}
-
-                  {showOwnerConnections &&
-                    connections.map((c) => {
-                      const baseList =
-                        c.allowedModels !== null
-                          ? c.allowedModels
-                          : [
-                              ...(c.cachedModels ?? []),
-                              ...presets.filter((p) => p.credentialId === c.id).map((p) => p.modelId),
-                            ];
-                      const list = Array.from(new Set(baseList.filter(Boolean))).sort();
-                      if (list.length === 0) return null;
-                      return (
-                        <optgroup key={c.id} label={`Bawaan (${c.label || c.provider})`}>
-                          {list.map((model) => (
-                            <option key={`${c.id}-${model}`} value={JSON.stringify(['account', c.id, model])}>
-                              {model}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
                 </select>
               </div>
             )}
@@ -366,23 +251,29 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
-              aria-label="Buka palet perintah (Ctrl+K)"
-              className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-xs text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+              aria-label={t('Buka palet perintah (Ctrl+K)', 'Open command palette (Ctrl+K)')}
+              className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-xs text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
             >
               <Search className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
-              <span className="hidden sm:inline">Cari</span>
-              <kbd className="hidden md:inline-flex items-center rounded border border-line bg-subtle px-1.5 py-0.5 font-mono text-[10.5px] text-ink-3">
+              <span className="hidden md:inline">{t('Cari', 'Search')}</span>
+              <kbd className="hidden lg:inline-flex items-center rounded border border-line bg-subtle px-1.5 py-0.5 font-mono text-[10.5px] text-ink-3">
                 ⌘K
               </kbd>
             </button>
+
+            <LanguageToggle />
 
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
                   onClick={toggleTheme}
-                  aria-label={theme === 'dark' ? 'Beralih ke mode terang' : 'Beralih ke mode gelap'}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+                  aria-label={
+                    theme === 'dark'
+                      ? t('Beralih ke mode terang', 'Switch to light mode')
+                      : t('Beralih ke mode gelap', 'Switch to dark mode')
+                  }
+                  className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
                 >
                   {theme === 'dark' ? (
                     <Sun className="h-4 w-4" aria-hidden="true" />
@@ -392,7 +283,9 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
                 </button>
               </TooltipTrigger>
               <TooltipContent>
-                {theme === 'dark' ? 'Mode terang' : 'Mode gelap tenang'}
+                {theme === 'dark'
+                  ? t('Mode terang', 'Light mode')
+                  : t('Mode gelap tenang', 'Deep Slate dark mode')}
               </TooltipContent>
             </Tooltip>
           </div>

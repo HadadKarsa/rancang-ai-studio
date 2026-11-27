@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -30,6 +30,7 @@ import {
   useToast,
 } from '@/components/ui';
 import { useAppShell } from '@/components/AppShellContext';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { InterviewPanel } from './InterviewPanel';
 import { DocumentPanel } from './DocumentPanel';
 import { ShareDialog } from './ShareDialog';
@@ -79,6 +80,7 @@ export function ProjectWorkspace() {
   const projectId = params.projectId;
   const { setProjectBreadcrumb } = useAppShell();
   const { toast } = useToast();
+  const { t } = useLocale();
 
   const [project, setProject] = useState<WorkspaceProject | null>(null);
   const [savingPurpose, setSavingPurpose] = useState(false);
@@ -90,8 +92,12 @@ export function ProjectWorkspace() {
   const initialDocParam = searchParams.get('doc');
   const initialAutoStart = searchParams.get('autostart') === '1';
 
+  // Snapshot initial query params in refs so subsequent history.replaceState updates
+  // (which Next.js 15 reflects into useSearchParams) NEVER recreate loadProject or unmount DocumentPanel.
+  const initialDocParamRef = useRef<string | null>(initialDocParam);
+  const modeInitializedRef = useRef<boolean>(Boolean(initialModeParam));
+
   const [mode, setMode] = useState<WorkspaceMode>(initialModeParam ?? 'documents');
-  const [modeInitialized, setModeInitialized] = useState(Boolean(initialModeParam));
   const [selectedDoc, setSelectedDoc] = useState<DocumentType>(
     isValidDocType(initialDocParam) ? initialDocParam : 'prd',
   );
@@ -109,7 +115,7 @@ export function ProjectWorkspace() {
         window.sessionStorage.removeItem(key);
         setInitialPrompt(seeded);
         setMode('interview');
-        setModeInitialized(true);
+        modeInitializedRef.current = true;
       }
     } catch {
       /* ignore */
@@ -145,11 +151,11 @@ export function ProjectWorkspace() {
         setDocs(ordered);
         setProjectBreadcrumb(res.project.name);
 
-        if (!modeInitialized) {
+        if (!modeInitializedRef.current) {
           const readyCount = ordered.filter((d) => d.status === 'ready').length;
           if (res.project.status === 'generating' || readyCount > 0) {
             setMode('documents');
-            if (!isValidDocType(initialDocParam)) {
+            if (!isValidDocType(initialDocParamRef.current)) {
               const firstGenerating = ordered.find((d) => d.status === 'generating');
               const firstReady = ordered.find((d) => d.status === 'ready');
               if (firstGenerating) setSelectedDoc(firstGenerating.type);
@@ -158,7 +164,7 @@ export function ProjectWorkspace() {
           } else {
             setMode('interview');
           }
-          setModeInitialized(true);
+          modeInitializedRef.current = true;
         }
 
         setState('ready');
@@ -169,7 +175,7 @@ export function ProjectWorkspace() {
         }
       }
     },
-    [projectId, setProjectBreadcrumb, modeInitialized, initialDocParam],
+    [projectId, setProjectBreadcrumb],
   );
 
   useEffect(() => {
@@ -463,11 +469,11 @@ export function ProjectWorkspace() {
           <TabsList className="w-full sm:w-auto">
             <TabsTrigger value="interview" className="group">
               <StepNumber n={1} />
-              <span>Wawancara</span>
+              <span>{t('Wawancara', 'Interview')}</span>
             </TabsTrigger>
             <TabsTrigger value="documents" className="group">
               <StepNumber n={2} />
-              <span>Dokumen</span>
+              <span>{t('Dokumen', 'Documents')}</span>
               <span className="ml-0.5 hidden font-mono text-[11px] text-ink-3 sm:inline">
                 {readyCount}/{docs.length || 6}
               </span>

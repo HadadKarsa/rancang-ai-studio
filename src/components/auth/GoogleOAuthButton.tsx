@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 
 export function GoogleOAuthButton({
   nextPath = '/studio',
@@ -7,6 +10,7 @@ export function GoogleOAuthButton({
   nextPath?: string;
   label?: string;
 }) {
+  const { t } = useLocale();
   const href =
     nextPath && nextPath !== '/studio'
       ? `/api/v1/auth/google?next=${encodeURIComponent(nextPath)}`
@@ -42,7 +46,7 @@ export function GoogleOAuthButton({
 
       <div className="relative flex items-center py-0.5" aria-hidden="true">
         <div className="flex-1 border-t border-line" />
-        <span className="px-3 text-xs text-ink-3">atau dengan email</span>
+        <span className="px-3 text-xs text-ink-3">{t('atau dengan email', 'or continue with email')}</span>
         <div className="flex-1 border-t border-line" />
       </div>
     </div>

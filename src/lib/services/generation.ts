@@ -1,7 +1,7 @@
 import { streamText, type ToolSet } from 'ai';
 import { buildModel, buildProviderOptions } from '@/lib/llm/registry';
 import { resolveProvider } from '@/lib/llm/credentials';
-import type { RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
+import type { OutputLanguage, RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 import { buildDocumentPrompt, type GenerationInput } from '@/lib/llm/prompts';
 import { assertProjectOwnership, loadTranscript } from './interview';
 import { getProjectById } from '@/lib/db/repositories/projects';
@@ -31,6 +31,8 @@ export interface StreamDocumentParams {
   ephemeralKey?: string;
   /** Session-only BYOK or Managed runtime override (v0.2.5). */
   runtimeOverride?: RuntimeModelOverride;
+  /** Optional generated output language (v0.2.8). */
+  outputLanguage?: OutputLanguage;
   abortSignal?: AbortSignal;
 }
 
@@ -79,6 +81,7 @@ export async function streamDocumentGeneration(params: StreamDocumentParams): Pr
     baselineAssumptions: template?.baselineAssumptions ?? [],
     injectedAssets: assets.filter((a) => a.contentText).map((a) => ({ name: a.name, content: a.contentText as string })),
     userInstruction: params.instructions ?? undefined,
+    outputLanguage: params.outputLanguage,
   };
   if (params.instructions) {
     const current = await getCurrentVersion(doc.id);

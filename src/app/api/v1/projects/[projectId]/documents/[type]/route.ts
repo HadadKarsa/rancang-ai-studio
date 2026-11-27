@@ -5,7 +5,7 @@ import { assertProjectOwnership } from '@/lib/services/interview';
 import { getDocumentByType, listDocuments, listVersions, getCurrentVersion, setDocumentLock, createVersionSnapshot, setDocumentStatus } from '@/lib/db/repositories/documents';
 import { ValidationError, NotFoundError, DocumentNotFoundError, DocumentLockedError } from '@/lib/errors';
 import { isDocumentType } from '@/lib/documents/types';
-import { parseRuntimeModelOverride } from '@/lib/llm/runtimeOverride';
+import { parseOutputLanguage, parseRuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 
 
 const generateSchema = z.object({
@@ -34,6 +34,7 @@ export const POST = withRoute(async (ctx) => {
   }
 
   const runtimeOverride = parseRuntimeModelOverride(ctx.req);
+  const outputLanguage = parseOutputLanguage(ctx.req);
   const result = await streamDocumentGeneration({
     userId: ctx.session.user.id,
     projectId,
@@ -42,6 +43,7 @@ export const POST = withRoute(async (ctx) => {
     instructions: input.instructions,
     ephemeralKey: input.apiKey,
     runtimeOverride,
+    outputLanguage,
     abortSignal: ctx.req.signal,
   });
 

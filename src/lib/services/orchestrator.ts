@@ -1,6 +1,6 @@
 import { assertProjectOwnership, loadTranscript } from './interview';
 import { resolveProvider } from '@/lib/llm/credentials';
-import type { RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
+import type { OutputLanguage, RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 import { buildModel, buildProviderOptions } from '@/lib/llm/registry';
 import { generateText, streamText } from 'ai';
 import { getProjectById } from '@/lib/db/repositories/projects';
@@ -38,6 +38,8 @@ export interface BatchOptions {
   ephemeralKey?: string;
   /** Session-only BYOK or Managed runtime override (v0.2.5). */
   runtimeOverride?: RuntimeModelOverride;
+  /** Optional user-selected output language for generated specs (v0.2.8). */
+  outputLanguage?: OutputLanguage;
   /** Stop after N documents (used by tests). */
   limit?: number;
   /** Skip wireframe. The default already does; kept for older callers. */
@@ -76,6 +78,7 @@ interface BatchContext {
   transcript: GenerationInput['interviewTranscript'];
   baselineAssumptions: string[];
   assets: { name: string; content: string }[];
+  outputLanguage?: OutputLanguage;
 }
 
 async function prepareBatch(opts: BatchOptions): Promise<BatchContext> {
@@ -105,6 +108,7 @@ async function prepareBatch(opts: BatchOptions): Promise<BatchContext> {
     transcript: await loadTranscriptForProject(opts.projectId),
     baselineAssumptions: template?.baselineAssumptions ?? [],
     assets: assets.filter((a) => a.contentText).map((a) => ({ name: a.name, content: a.contentText as string })),
+    outputLanguage: opts.outputLanguage,
   };
 }
 
@@ -135,6 +139,7 @@ async function promptFor(
     interviewTranscript: ctx.transcript,
     baselineAssumptions: ctx.baselineAssumptions,
     injectedAssets: [...ctx.assets, ...priorContext],
+    outputLanguage: ctx.outputLanguage,
   });
 }
 

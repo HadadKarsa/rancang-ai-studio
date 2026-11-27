@@ -21,6 +21,7 @@ import {
 } from '@/lib/db/repositories/credentials';
 import { encryptKey } from '@/lib/crypto/keys';
 import { getManagedPublicConfig, resolveManagedProvider } from '@/lib/llm/managed';
+import { buildDocumentPrompt, buildInterviewPrompt } from '@/lib/llm/prompts';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../migrations');
 
@@ -133,5 +134,89 @@ describe('v0.2.7 Profile password-later & Admin managed model whitelist', () => 
     await updateCredentialAllowedModels(cred.id, owner.id, null);
     const restoredPublic = await getManagedPublicConfig();
     expect(restoredPublic.models).toContain('claude-opus-5-5');
+  });
+
+  it('prevents secondary unrestricted credentials from leaking models once any credential has a whitelist', async () => {
+    const owner = await createUser({
+      email: 'owner2@rancang.local',
+      name: 'Admin 2',
+      authProvider: 'local',
+      role: 'owner',
+    });
+
+    const enc1 = encryptKey('sk-primary-key-1111');
+    const primary = await createCredential({
+      userId: owner.id,
+      provider: 'custom',
+      label: 'Primary',
+      encryptedKeyB64: enc1.encryptedKeyB64,
+      keyIvB64: enc1.keyIvB64,
+      keyTagB64: enc1.keyTagB64,
+      keyLast4: '1111',
+      baseUrl: 'https://api.kenari.id/v1',
+      cachedModels: ['deepseek-v4-1-flash', 'glm-5-3-flash', 'expensive-model'],
+      allowedModels: ['deepseek-v4-1-flash', 'glm-5-3-flash'],
+    });
+    await createPreset({
+      userId: owner.id,
+      name: 'Primary',
+      provider: 'custom',
+      credentialId: primary.id,
+      modelId: 'deepseek-v4-1-flash',
+      isDefault: true,
+    });
+
+    // Legacy secondary active credential with allowedModels = null
+    const enc2 = encryptKey('sk-legacy-key-2222');
+    await createCredential({
+      userId: owner.id,
+      provider: 'custom',
+      label: 'Legacy Secondary',
+      encryptedKeyB64: enc2.encryptedKeyB64,
+      keyIvB64: enc2.keyIvB64,
+      keyTagB64: enc2.keyTagB64,
+      keyLast4: '2222',
+      baseUrl: 'https://api.openai.com/v1',
+      cachedModels: ['gpt-6-2-astra', 'unwanted-model-77'],
+      allowedModels: null,
+    });
+
+    const publicCfg = await getManagedPublicConfig();
+    expect(publicCfg.models).toEqual(['deepseek-v4-1-flash', 'glm-5-3-flash']);
+    expect(publicCfg.models).not.toContain('gpt-6-2-astra');
+    expect(publicCfg.models).not.toContain('unwanted-model-77');
+  });
+
+  it('injects Indonesian or English output language directives into document and interview prompts', () => {
+    const docEn = buildDocumentPrompt('prd', {
+      projectName: 'Clinic Booking',
+      projectDescription: 'Patient scheduling app',
+      interviewTranscript: [],
+      baselineAssumptions: [],
+      injectedAssets: [],
+      outputLanguage: 'en',
+    });
+    expect(docEn.prompt).toContain('OUTPUT LANGUAGE: Write the entire document');
+    expect(docEn.prompt).toContain('professional English');
+
+    const docId = buildDocumentPrompt('prd', {
+      projectName: 'Klinik',
+      projectDescription: 'Jadwal pasien',
+      interviewTranscript: [],
+      baselineAssumptions: [],
+      injectedAssets: [],
+      outputLanguage: 'id',
+    });
+    expect(docId.prompt).toContain('Bahasa Indonesia');
+
+    const ivEn = buildInterviewPrompt({
+      projectName: 'Clinic Booking',
+      baselineAssumptions: [],
+      transcript: [],
+      questionIndex: 1,
+      maxQuestions: 5,
+      outputLanguage: 'en',
+    });
+    expect(ivEn.system).toContain('natural English');
   });
 });

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
 import { clearByokSession } from '@/lib/client/byokSession';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { Button } from '@/components/ui';
 import { AuthShowcaseShell } from './AuthShowcaseShell';
 import { GoogleOAuthButton } from './GoogleOAuthButton';
@@ -28,6 +29,7 @@ export function LoginForm({
   initialErrorCode?: string | null;
   nextPath?: string;
 }) {
+  const { t } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -75,9 +77,12 @@ export function LoginForm({
   return (
     <AuthShowcaseShell
       mode="login"
-      eyebrow="Akses Studio"
-      title="Masuk ke akunmu"
-      subtitle="Buka proyek spesifikasi, pustaka dokumen, dan pengaturan modelmu."
+      eyebrow={t('Akses Studio', 'Studio Access')}
+      title={t('Masuk ke akunmu', 'Sign in to your account')}
+      subtitle={t(
+        'Buka proyek spesifikasi, pustaka dokumen, dan pengaturan modelmu.',
+        'Access your specification projects, document library, and model settings.',
+      )}
     >
       {errors.form && (
         <div
@@ -90,7 +95,10 @@ export function LoginForm({
 
       {googleEnabled && (
         <div className="mb-5">
-          <GoogleOAuthButton nextPath={nextPath} label="Masuk dengan Google" />
+          <GoogleOAuthButton
+            nextPath={nextPath}
+            label={t('Masuk dengan Google', 'Sign in with Google')}
+          />
         </div>
       )}
 
@@ -105,7 +113,7 @@ export function LoginForm({
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="nama@perusahaan.com"
+            placeholder={t('nama@perusahaan.com', 'name@company.com')}
             aria-invalid={Boolean(errors.email)}
             className="min-h-11 w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 transition-colors focus:border-accent focus:outline-none"
           />
@@ -114,7 +122,7 @@ export function LoginForm({
 
         <div className="space-y-1.5">
           <label htmlFor="password" className="block text-xs font-medium text-ink-2">
-            Kata sandi
+            {t('Kata sandi', 'Password')}
           </label>
           <div className="flex gap-2">
             <input
@@ -123,14 +131,14 @@ export function LoginForm({
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Masukkan kata sandi"
+              placeholder={t('Masukkan kata sandi', 'Enter your password')}
               aria-invalid={Boolean(errors.password)}
               className="min-h-11 min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 transition-colors focus:border-accent focus:outline-none"
             />
             <Button
               type="button"
               variant="secondary"
-              aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+              aria-label={showPassword ? t('Sembunyikan kata sandi', 'Hide password') : t('Tampilkan kata sandi', 'Show password')}
               aria-pressed={showPassword}
               onClick={() => setShowPassword((v) => !v)}
             >
@@ -145,14 +153,14 @@ export function LoginForm({
         </div>
 
         <Button type="submit" variant="primary" size="lg" className="mt-2 w-full" disabled={busy}>
-          {busy ? 'Memeriksa...' : 'Masuk ke Studio'}
+          {busy ? t('Memeriksa...', 'Checking...') : t('Masuk ke Studio', 'Sign in to Studio')}
         </Button>
       </form>
 
       <p className="mt-6 text-sm text-ink-2">
-        Belum punya akun?{' '}
+        {t('Belum punya akun?', "Don't have an account?")}{' '}
         <Link href="/register" className="font-medium text-accent-ink underline underline-offset-4">
-          Buat akun sekarang
+          {t('Buat akun sekarang', 'Create one now')}
         </Link>
       </p>
 
@@ -161,7 +169,10 @@ export function LoginForm({
           <div className="flex items-start gap-2 text-xs leading-relaxed text-ink-2">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent-ink" aria-hidden="true" />
             <span>
-              Server berjalan dalam <strong className="font-medium text-ink">mode lokal</strong>. Kamu bisa masuk langsung sebagai Admin lokal untuk mengatur profil, kata sandi, dan model bawaan.
+              {t(
+                'Server berjalan dalam mode lokal. Kamu bisa masuk langsung sebagai Admin lokal untuk mengatur profil, kata sandi, dan model bawaan.',
+                'Server is running in local mode. You can enter directly as the local Admin to manage profile, password, and managed models.',
+              )}
             </span>
           </div>
           <Button
@@ -172,7 +183,9 @@ export function LoginForm({
             disabled={enteringLocal}
             onClick={() => void enterAsLocalOwner()}
           >
-            {enteringLocal ? 'Membuka sesi admin...' : 'Masuk sebagai Admin lokal'}
+            {enteringLocal
+              ? t('Membuka sesi admin...', 'Opening admin session...')
+              : t('Masuk sebagai Admin lokal', 'Enter as local Admin')}
           </Button>
         </div>
       )}

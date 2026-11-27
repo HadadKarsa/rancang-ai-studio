@@ -2,6 +2,18 @@
 
 All notable changes to Rancang.ai Studio are documented in this file, starting from v0.2.4.
 
+## [v0.2.8] - 2026-11-27
+
+### Added
+- **Global Interface Language Toggle (`ID | EN`, default `ID`):** Added `LocaleProvider` and `LanguageToggle` across the application top bar (`AppShell`), landing page (`/`), and auth pages (`/login`, `/register`) with `localStorage` persistence and live translation across navigation, Studio, Workspace, Library, Models, Profile, Auth, and Documentation.
+- **AI Output Language Selector (`Indonesia | English`):** Users can now choose whether AI interviews and generated specification documents are written in Indonesian or English directly in the Studio composer, transmitted via `X-Rancang-Output-Lang` and enforced in document/interview prompts.
+- **Professional Documentation Revamp (`/docs`):** Rebuilt the documentation page into a 3-column reader (grouped sidebar navigation, readable prose with structured steps/tables/callouts/copyable AI agent starter prompt and prev/next navigation, plus sticky right-hand "On this page" TOC with scroll-spy), instant search filter, and full `ID | EN` bilingual coverage while preserving all `#panduan-*` deep links.
+
+### Fixed
+- **Strict Managed Model Whitelist Enforcement:** Fixed an issue where secondary or legacy active credentials with `allowed_models_json = NULL` leaked unfiltered models into Bawaan Rancang.ai even after the admin whitelisted models on their primary connection. Also surfaced all active owner credentials inside the Admin panel so legacy connections can be whitelisted or removed cleanly.
+- **Hide Provider Names in Managed Model Picker:** Unified the top-bar switcher and Managed Rancang.ai card to display only whitelisted model IDs under **Bawaan Rancang.ai** without exposing internal provider or connection names to admin or member pickers.
+- **Clicking Completed Documents During Live Batch Generation:** Fixed a race condition where `autoFollow` yanked selection back to the currently-writing document and stale empty document caches blocked opening finished documents while a batch was still running.
+
 ## [v0.2.7] - 2026-11-27
 
 ### Added

@@ -2,7 +2,7 @@ import { generateText, streamText, type LanguageModel } from 'ai';
 import { buildInterviewPrompt, parseInterviewTurn, buildDocumentPrompt, type GenerationInput, type InterviewTurn } from '@/lib/llm/prompts';
 import { buildModel, buildProviderOptions } from '@/lib/llm/registry';
 import { resolveProvider, type ResolvedProvider } from '@/lib/llm/credentials';
-import type { RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
+import type { OutputLanguage, RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 import { INTERVIEW_MAX_STEPS, INTERVIEW_MIN_STEPS, type DocumentType } from '@/lib/db/enums';
 import { appendMessage, completeSession, countUserMessages, getSessionById, listMessages, updateSessionProgress } from '@/lib/db/repositories/interviews';
 import { getProjectById } from '@/lib/db/repositories/projects';
@@ -26,6 +26,7 @@ export async function startInterviewTurn(input: {
   userId: string;
   sessionId: string;
   runtimeOverride?: RuntimeModelOverride;
+  outputLanguage?: OutputLanguage;
 }): Promise<InterviewTurn> {
   const session = await getSessionById(input.sessionId);
   if (!session) throw new NotFoundError('Session not found');
@@ -65,6 +66,7 @@ export async function startInterviewTurn(input: {
       transcript: transcript.map((m) => ({ role: m.role, content: m.content })),
       questionIndex,
       maxQuestions,
+      outputLanguage: input.outputLanguage,
     });
     // Thinking tokens come out of the same budget as the JSON answer, so a
     // reasoning preset needs headroom or the turn truncates mid-object. A

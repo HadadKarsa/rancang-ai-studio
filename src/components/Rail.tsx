@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/client/api';
 import { clearByokSession } from '@/lib/client/byokSession';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { cn } from '@/lib/cn';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
 
@@ -65,8 +66,27 @@ export interface RailProps {
 
 export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
   const pathname = usePathname();
+  const { t } = useLocale();
   const [signingOut, setSigningOut] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+
+  const navGroups: NavGroup[] = [
+    {
+      label: t('Ruang kerja', 'Workspace'),
+      items: [
+        { href: '/studio', label: 'Studio', hint: t('Proyek dan wawancara', 'Projects and interviews'), icon: FolderKanban },
+        { href: '/library', label: 'Library', hint: t('Artefak yang disimpan', 'Saved artifacts'), icon: BookMarked },
+      ],
+    },
+    {
+      label: t('Konfigurasi', 'Settings'),
+      items: [
+        { href: '/models', label: 'Models', hint: t('Model dan kredensial', 'Models and credentials'), icon: SlidersHorizontal },
+        { href: '/profile', label: t('Profil', 'Profile'), hint: t('Nama, email, dan kata sandi', 'Name, email, and password'), icon: UserRound },
+        { href: '/docs', label: t('Dokumentasi', 'Documentation'), hint: t('Panduan memakai rancang-ai', 'How to use rancang-ai'), icon: BookOpen },
+      ],
+    },
+  ];
 
   useEffect(() => {
     try {
@@ -191,7 +211,7 @@ export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
         aria-label="Navigasi utama"
         className="flex-1 overflow-y-auto px-3 py-5 space-y-6"
       >
-        {NAV_GROUPS.map((group) => (
+        {navGroups.map((group) => (
           <div key={group.label}>
             {!isCompact && (
               <p className="mb-2 px-2.5 text-[11.5px] font-medium text-ink-3">{group.label}</p>
@@ -291,7 +311,7 @@ export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
           )}
         >
           <LogOut className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
-          {!isCompact && <span>{signingOut ? 'Keluar...' : 'Keluar'}</span>}
+          {!isCompact && <span>{signingOut ? t('Keluar...', 'Signing out...') : t('Keluar', 'Sign out')}</span>}
         </button>
       </footer>
     </div>

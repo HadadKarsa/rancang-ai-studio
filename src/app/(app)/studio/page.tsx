@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
 import { isByokSessionReady } from '@/lib/client/byokSession';
+import { AiOutputLangPicker } from '@/components/LanguageToggle';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import type { ProjectPurpose } from '@/lib/db/enums';
 import { PROJECT_PURPOSE_LABEL as PURPOSE_LABEL } from '@/lib/export/agentInstructions';
 import {
@@ -164,6 +166,7 @@ function deriveProjectName(idea: string, fallbackTemplate?: string): string {
 export default function StudioPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { t } = useLocale();
 
   // Quick-Start Composer state
   const [idea, setIdea] = useState('');
@@ -431,16 +434,18 @@ export default function StudioPage() {
             id="studio-heading"
             className="text-[26px] font-semibold leading-[1.18] tracking-[-0.025em] text-ink sm:text-[30px]"
           >
-            Mulai spesifikasi baru
+            {t('Mulai spesifikasi baru', 'Start a new specification')}
           </h1>
           <p className="max-w-2xl text-[14.5px] leading-relaxed text-ink-2">
-            Tulis satu kalimat tentang aplikasi yang ingin kamu bangun, atau pilih template di
-            bawah sebagai titik awal.{' '}
+            {t(
+              'Tulis satu kalimat tentang aplikasi yang ingin kamu bangun, atau pilih template di bawah sebagai titik awal.',
+              'Describe the app you want to build in a sentence, or pick a template below as a starting point.',
+            )}{' '}
             <Link
               href="/docs#panduan-prd"
               className="font-medium text-accent-ink underline decoration-accent/40 underline-offset-4 hover:decoration-accent"
             >
-              Pelajari PRD dan lima dokumen pendukung.
+              {t('Pelajari PRD dan lima dokumen pendukung.', 'Learn about PRD and the five core documents.')}
             </Link>
           </p>
         </div>
@@ -614,7 +619,8 @@ export default function StudioPage() {
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line/70 pt-4">
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-3">
+              <AiOutputLangPicker />
               <Button
                 size="sm"
                 variant="ghost"
@@ -622,7 +628,11 @@ export default function StudioPage() {
                 aria-expanded={showOptions}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{showOptions ? 'Sembunyikan warna' : 'Warna kartu'}</span>
+                <span>
+                  {showOptions
+                    ? t('Sembunyikan warna', 'Hide color')
+                    : t('Warna kartu', 'Card color')}
+                </span>
               </Button>
               <span className="hidden sm:inline font-mono text-[11px] text-ink-3">
                 Ctrl/Cmd+Enter untuk mulai

@@ -11,8 +11,30 @@ import type { ReasoningEffort } from '@/lib/db/enums';
 const BYOK_KEY = 'rancang.byok.session.v1';
 const MANAGED_KEY = 'rancang.managed.selection.v1';
 const MODE_KEY = 'rancang.model.mode.v1';
+const OUTPUT_LANG_KEY = 'rancang.output.lang.v1';
 
 export type ModelSourceMode = 'managed' | 'byok';
+export type AiOutputLanguage = 'id' | 'en';
+
+export function getAiOutputLanguage(): AiOutputLanguage {
+  if (typeof window === 'undefined') return 'id';
+  try {
+    const raw = window.localStorage.getItem(OUTPUT_LANG_KEY);
+    if (raw === 'en') return 'en';
+  } catch {
+    /* ignore */
+  }
+  return 'id';
+}
+
+export function setAiOutputLanguage(lang: AiOutputLanguage): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(OUTPUT_LANG_KEY, lang);
+  } catch {
+    /* ignore */
+  }
+}
 
 export interface ByokSessionConfig {
   label: string;
@@ -130,6 +152,7 @@ export function saveManagedSelection(sel: ManagedSelection): void {
  * Routine read/project/library requests never transmit BYOK keys.
  */
 export function getRuntimeModelHeaders(): Record<string, string> {
+  const outputLang = getAiOutputLanguage();
   const mode = getModelSourceMode();
   if (mode === 'byok') {
     const byok = getByokSession();
@@ -139,6 +162,7 @@ export function getRuntimeModelHeaders(): Record<string, string> {
         'X-Rancang-Byok-Key': byok.apiKey.trim(),
         'X-Rancang-Byok-Base-Url': byok.baseUrl.trim(),
         'X-Rancang-Model-Id': byok.modelId.trim(),
+        'X-Rancang-Output-Lang': outputLang,
       };
       if (byok.reasoningEffort) {
         headers['X-Rancang-Reasoning-Effort'] = byok.reasoningEffort;
@@ -152,6 +176,7 @@ export function getRuntimeModelHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'X-Rancang-Model-Mode': 'managed',
       'X-Rancang-Model-Id': managed.modelId.trim(),
+      'X-Rancang-Output-Lang': outputLang,
     };
     if (managed.reasoningEffort) {
       headers['X-Rancang-Reasoning-Effort'] = managed.reasoningEffort;
@@ -159,5 +184,5 @@ export function getRuntimeModelHeaders(): Record<string, string> {
     return headers;
   }
 
-  return {};
+  return { 'X-Rancang-Output-Lang': outputLang };
 }

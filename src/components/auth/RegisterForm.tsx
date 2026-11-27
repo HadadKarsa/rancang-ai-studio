@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Eye, EyeOff } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 import { Button } from '@/components/ui';
 import { AuthShowcaseShell } from './AuthShowcaseShell';
 import { GoogleOAuthButton } from './GoogleOAuthButton';
@@ -22,6 +23,7 @@ export function RegisterForm({
   googleEnabled: boolean;
   nextPath?: string;
 }) {
+  const { t } = useLocale();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,9 +59,12 @@ export function RegisterForm({
   return (
     <AuthShowcaseShell
       mode="register"
-      eyebrow="Akun Baru"
-      title="Mulai ruang kerjamu"
-      subtitle="Buat akun untuk menyimpan proyek spesifikasi dan memilih model bawaan atau BYOK sesi."
+      eyebrow={t('Akun Baru', 'New Account')}
+      title={t('Mulai ruang kerjamu', 'Create your workspace')}
+      subtitle={t(
+        'Buat akun untuk menyimpan proyek spesifikasi dan memilih model bawaan atau BYOK sesi.',
+        'Create an account to save specification projects and use managed or session BYOK models.',
+      )}
     >
       {errors.form && (
         <div
@@ -72,14 +77,17 @@ export function RegisterForm({
 
       {googleEnabled && (
         <div className="mb-5">
-          <GoogleOAuthButton nextPath={nextPath} label="Daftar dengan Google" />
+          <GoogleOAuthButton
+            nextPath={nextPath}
+            label={t('Daftar dengan Google', 'Sign up with Google')}
+          />
         </div>
       )}
 
       <form onSubmit={submit} noValidate className="space-y-4">
         <div className="space-y-1.5">
           <label htmlFor="name" className="block text-xs font-medium text-ink-2">
-            Nama lengkap
+            {t('Nama lengkap', 'Full name')}
           </label>
           <input
             id="name"
@@ -87,7 +95,7 @@ export function RegisterForm({
             autoComplete="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Nama lengkapmu"
+            placeholder={t('Nama lengkapmu', 'Your full name')}
             aria-invalid={Boolean(errors.name)}
             className="min-h-11 w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 transition-colors focus:border-accent focus:outline-none"
           />
@@ -104,7 +112,7 @@ export function RegisterForm({
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="nama@perusahaan.com"
+            placeholder={t('nama@perusahaan.com', 'name@company.com')}
             aria-invalid={Boolean(errors.email)}
             className="min-h-11 w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 transition-colors focus:border-accent focus:outline-none"
           />
@@ -113,7 +121,7 @@ export function RegisterForm({
 
         <div className="space-y-1.5">
           <label htmlFor="password" className="block text-xs font-medium text-ink-2">
-            Kata sandi
+            {t('Kata sandi', 'Password')}
           </label>
           <div className="flex gap-2">
             <input
@@ -122,14 +130,14 @@ export function RegisterForm({
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Minimal 8 karakter"
+              placeholder={t('Minimal 8 karakter', 'At least 8 characters')}
               aria-invalid={Boolean(errors.password)}
               className="min-h-11 min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 transition-colors focus:border-accent focus:outline-none"
             />
             <Button
               type="button"
               variant="secondary"
-              aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+              aria-label={showPassword ? t('Sembunyikan kata sandi', 'Hide password') : t('Tampilkan kata sandi', 'Show password')}
               aria-pressed={showPassword}
               onClick={() => setShowPassword((v) => !v)}
             >
@@ -167,20 +175,23 @@ export function RegisterForm({
             <p className="text-xs text-danger-ink">{errors.password}</p>
           ) : (
             <p className="text-xs text-ink-3">
-              Minimal 8 karakter. Akun langsung aktif setelah mendaftar.
+              {t(
+                'Minimal 8 karakter. Akun langsung aktif setelah mendaftar.',
+                'At least 8 characters. Your account activates immediately.',
+              )}
             </p>
           )}
         </div>
 
         <Button type="submit" variant="primary" size="lg" className="mt-2 w-full" disabled={busy}>
-          {busy ? 'Membuat akun...' : 'Buat akun'}
+          {busy ? t('Membuat akun...', 'Creating account...') : t('Buat akun', 'Create account')}
         </Button>
       </form>
 
       <p className="mt-6 text-sm text-ink-2">
-        Sudah punya akun?{' '}
+        {t('Sudah punya akun?', 'Already have an account?')}{' '}
         <Link href="/login" className="font-medium text-accent-ink underline underline-offset-4">
-          Masuk di sini
+          {t('Masuk di sini', 'Sign in here')}
         </Link>
       </p>
     </AuthShowcaseShell>

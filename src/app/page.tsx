@@ -1,35 +1,50 @@
+'use client';
+
 import { APP_VERSION } from '@/lib/version';
 import Link from 'next/link';
 import { PublicThemeToggle } from '@/components/PublicThemeToggle';
-
-const DOCUMENTS = [
-  { n: '01', name: 'PRD', note: 'Masalah, pengguna, dan lingkup yang disepakati.' },
-  { n: '02', name: 'Arsitektur', note: 'Susunan komponen sistem dan diagram alur Mermaid.' },
-  { n: '03', name: 'Database', note: 'Tabel, relasi, ERD, dan aturan integritas.' },
-  { n: '04', name: 'API', note: 'Endpoint, struktur payload, autentikasi, dan kode galat.' },
-  { n: '05', name: 'Tugas', note: 'Urutan pekerjaan bertahap yang siap langsung dikerjakan.' },
-  { n: '06', name: 'Memori', note: 'Paket konteks keputusan dan asumsi untuk agen AI.' },
-];
-
-const WORKFLOW_STEPS = [
-  {
-    n: '01',
-    title: 'Tulis satu kalimat ide, atau pilih template',
-    body: 'Mulai langsung dari Quick-Start Composer di Studio. Tidak ada formulir panjang; rancang-ai bertanya satu per satu sesuai konteks aplikasimu.',
-  },
-  {
-    n: '02',
-    title: 'Tonton enam dokumen ditulis berurutan',
-    body: 'Setiap dokumen merujuk dokumen sebelumnya sehingga kontrak API cocok dengan skema database, lengkap dengan diagram Mermaid.',
-  },
-  {
-    n: '03',
-    title: 'Sunting, revisi, lalu ekspor untuk tim atau agen',
-    body: 'Sunting langsung di studio dengan riwayat versi, tulis ulang dengan instruksi revisi, salin paket untuk AI Agent, atau unduh ZIP dan tautan bagikan.',
-  },
-];
+import { LanguageToggle } from '@/components/LanguageToggle';
+import { useLocale } from '@/lib/i18n/LocaleProvider';
 
 export default function LandingPage() {
+  const { t } = useLocale();
+
+  const documents = [
+    { n: '01', name: 'PRD', note: t('Masalah, pengguna, dan lingkup yang disepakati.', 'Problem statement, users, and agreed v1 scope.') },
+    { n: '02', name: t('Arsitektur', 'Architecture'), note: t('Susunan komponen sistem dan diagram alur Mermaid.', 'System component layout and Mermaid flow diagrams.') },
+    { n: '03', name: 'Database', note: t('Tabel, relasi, ERD, dan aturan integritas.', 'Tables, relationships, ERD, and integrity rules.') },
+    { n: '04', name: 'API', note: t('Endpoint, struktur payload, autentikasi, dan kode galat.', 'Endpoints, payloads, auth contracts, and error codes.') },
+    { n: '05', name: t('Tugas', 'Tasks'), note: t('Urutan pekerjaan bertahap yang siap langsung dikerjakan.', 'Phased implementation checklist ready for execution.') },
+    { n: '06', name: t('Memori', 'Memory'), note: t('Paket konteks keputusan dan asumsi untuk agen AI.', 'Decision log and context pack for AI coding agents.') },
+  ];
+
+  const workflowSteps = [
+    {
+      n: '01',
+      title: t('Tulis satu kalimat ide, atau pilih template', 'Write one concise idea, or pick a template'),
+      body: t(
+        'Mulai langsung dari Quick-Start Composer di Studio. Pilih wawancara singkat atau langsung generate jika detail proyekmu sudah matang.',
+        'Start directly in the Studio Composer. Choose a guided interview or jump straight into generation when your brief is already detailed.',
+      ),
+    },
+    {
+      n: '02',
+      title: t('Tonton enam dokumen ditulis berurutan', 'Watch six documents generate in sequence'),
+      body: t(
+        'Setiap dokumen merujuk dokumen sebelumnya sehingga kontrak API cocok dengan skema database, lengkap dengan diagram Mermaid dalam bahasa Indonesia atau English.',
+        'Each document reads prior outputs so API contracts align with database schemas, complete with Mermaid diagrams in Indonesian or English.',
+      ),
+    },
+    {
+      n: '03',
+      title: t('Sunting, revisi, lalu ekspor untuk tim atau agen', 'Edit, revise, then export for teams or agents'),
+      body: t(
+        'Sunting langsung di studio dengan riwayat versi, tulis ulang dengan instruksi revisi, salin paket untuk AI Agent, atau unduh ZIP dan tautan bagikan.',
+        'Edit inline with full version history, run targeted AI revisions, copy agent-ready prompts, or export ZIP bundles and read-only share links.',
+      ),
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-canvas text-ink">
       <header className="sticky top-0 z-20 border-b border-line bg-canvas/95 backdrop-blur-xs">
@@ -47,25 +62,26 @@ export default function LandingPage() {
             </span>
           </Link>
 
-          <nav aria-label="Navigasi publik" className="flex items-center gap-2 sm:gap-3">
+          <nav aria-label={t('Navigasi publik', 'Public navigation')} className="flex items-center gap-2 sm:gap-2.5">
             <Link
               href="/docs"
               className="hidden sm:inline-flex min-h-10 items-center px-2.5 text-sm text-ink-2 transition-colors hover:text-ink"
             >
-              Dokumentasi
+              {t('Dokumentasi', 'Docs')}
             </Link>
             <Link
               href="/login"
               className="inline-flex min-h-10 items-center rounded-lg px-3 text-sm font-medium text-ink-2 transition-colors hover:bg-subtle hover:text-ink"
             >
-              Masuk
+              {t('Masuk', 'Sign in')}
             </Link>
+            <LanguageToggle />
             <PublicThemeToggle />
             <Link
               href="/register"
               className="inline-flex min-h-10 items-center rounded-lg bg-accent px-4 text-sm font-medium text-white shadow-xs transition-colors hover:bg-accent-hover"
             >
-              Mulai merancang
+              {t('Mulai merancang', 'Start designing')}
             </Link>
           </nav>
         </div>
@@ -76,32 +92,39 @@ export default function LandingPage() {
         <section className="grid gap-10 py-14 lg:grid-cols-12 lg:items-center lg:gap-12 lg:py-20">
           <div className="lg:col-span-6">
             <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-[40px] sm:leading-[1.15]">
-              Satu percakapan menjadi{' '}
-              <span className="text-accent-ink">spesifikasi aplikasi</span> yang utuh.
+              {t('Satu percakapan menjadi ', 'One conversation into a complete ')}
+              <span className="text-accent-ink">
+                {t('spesifikasi aplikasi', 'application specification')}
+              </span>
+              {t(' yang utuh.', '.')}
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-ink-2">
-              rancang-ai mewawancarai idemu secara terarah, menyusun enam dokumen spesifikasi yang
-              saling merujuk, merender diagram arsitektur, dan menyiapkan paket siap pakai untuk tim
-              maupun agen pemrograman.
+              {t(
+                'rancang-ai mewawancarai idemu secara terarah, menyusun enam dokumen spesifikasi yang saling merujuk, merender diagram arsitektur, dan menyiapkan paket siap pakai untuk tim maupun agen pemrograman.',
+                'rancang-ai interviews your product idea, drafts six cross-referenced technical specs, renders Mermaid architecture diagrams, and packages everything cleanly for engineering teams and AI coding agents.',
+              )}
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link
                 href="/register"
                 className="inline-flex min-h-11 items-center rounded-xl bg-accent px-5 text-sm font-medium text-white shadow-xs transition-colors hover:bg-accent-hover"
               >
-                Mulai merancang
+                {t('Mulai merancang', 'Start designing')}
               </Link>
               <Link
                 href="/login"
                 className="inline-flex min-h-11 items-center rounded-xl border border-line-strong bg-surface px-5 text-sm font-medium text-ink transition-colors hover:bg-subtle"
               >
-                Sudah punya akun? Masuk
+                {t('Sudah punya akun? Masuk', 'Already have an account? Sign in')}
               </Link>
             </div>
             <p className="mt-5 font-mono text-xs text-ink-3">
-              Bawa kunci API sendiri · Bahasa Indonesia · Ekspor MD, ZIP, dan JSON ·{' '}
+              {t(
+                'Bawaan server atau BYOK sesi · Indonesia & English · Ekspor MD & ZIP · ',
+                'Managed or Session BYOK · Indonesian & English · Export MD & ZIP · ',
+              )}
               <Link href="/docs" className="text-ink-2 underline underline-offset-4 hover:text-ink">
-                Lihat panduan
+                {t('Lihat panduan', 'Read the docs')}
               </Link>
             </p>
           </div>
@@ -111,35 +134,48 @@ export default function LandingPage() {
               <span className="font-mono text-xs text-ink-2">01_PRD.md · catatan-kebun</span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent-ink">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
-                Menulis langsung
+                {t('Menulis langsung', 'Live writing')}
               </span>
             </div>
             <div className="space-y-4 p-5 sm:p-6 text-sm leading-relaxed text-ink">
               <div>
-                <h2 className="text-[15px] font-semibold text-ink">Ringkasan produk</h2>
+                <h2 className="text-[15px] font-semibold text-ink">
+                  {t('Ringkasan produk', 'Product summary')}
+                </h2>
                 <p className="mt-1 text-ink-2">
-                  Pencatat tanam untuk pekebun rumahan: satu halaman per bedeng, jadwal siram
-                  berbasis usia tanaman, dan riwayat panen yang bisa dibandingkan antar musim.
+                  {t(
+                    'Pencatat tanam untuk pekebun rumahan: satu halaman per bedeng, jadwal siram berbasis usia tanaman, dan riwayat panen yang bisa dibandingkan antar musim.',
+                    'Planting log for home gardeners: one page per bed, watering schedules based on crop age, and harvest history compared across seasons.',
+                  )}
                 </p>
               </div>
               <div>
-                <h2 className="text-[15px] font-semibold text-ink">Masalah utama</h2>
+                <h2 className="text-[15px] font-semibold text-ink">
+                  {t('Masalah utama', 'Core problem')}
+                </h2>
                 <p className="mt-1 text-ink-2">
-                  Catatan tanam tersebar di buku tulis, obrolan, dan ingatan. Pekebun kesulitan
-                  melacak bedeng mana yang terakhir dipupuk atau kapan benih disemai.
+                  {t(
+                    'Catatan tanam tersebar di buku tulis, obrolan, dan ingatan. Pekebun kesulitan melacak bedeng mana yang terakhir dipupuk atau kapan benih disemai.',
+                    'Planting notes sit scattered across notebooks and chats, making it hard to track which bed was fertilized last or when seeds were sown.',
+                  )}
                 </p>
               </div>
               <div>
-                <h2 className="text-[15px] font-semibold text-ink">Batas lingkup v1</h2>
+                <h2 className="text-[15px] font-semibold text-ink">
+                  {t('Batas lingkup v1', 'v1 scope boundaries')}
+                </h2>
                 <p className="mt-1 text-ink-2">
-                  Tidak mencakup marketplace bibit, integrasi sensor IoT, dan akun bersama
+                  {t(
+                    'Tidak mencakup marketplace bibit, integrasi sensor IoT, dan akun bersama',
+                    'Excludes seed marketplaces, IoT sensor integrations, and shared multi-user accounts',
+                  )}
                   <span className="wet-caret ml-1" aria-hidden="true" />
                 </p>
               </div>
             </div>
             <figcaption className="flex items-center justify-between border-t border-line bg-sidebar/40 px-5 py-2.5 font-mono text-xs text-ink-3">
               <span>v1 · manual + streaming</span>
-              <span>1.482 kata</span>
+              <span>{t('1.482 kata', '1,482 words')}</span>
             </figcaption>
           </figure>
         </section>
@@ -148,15 +184,17 @@ export default function LandingPage() {
         <section aria-labelledby="alur-kerja" className="border-t border-line py-14 lg:py-16">
           <div className="max-w-xl">
             <h2 id="alur-kerja" className="text-2xl font-semibold tracking-tight text-ink">
-              Satu ruang kerja, tanpa bolak-balik halaman.
+              {t('Satu ruang kerja, tanpa bolak-balik halaman.', 'One unified workspace, zero context switching.')}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-2">
-              Wawancara, penulisan langsung, dan penyuntingan dokumen berada dalam satu
-              proyek yang sama sehingga konteks tidak pernah terputus.
+              {t(
+                'Wawancara, penulisan langsung, dan penyuntingan dokumen berada dalam satu proyek yang sama sehingga konteks tidak pernah terputus.',
+                'Interviewing, live generation, and document editing live in the same workspace so decisions stay intact from start to export.',
+              )}
             </p>
           </div>
           <ol className="mt-8 grid gap-5 md:grid-cols-3">
-            {WORKFLOW_STEPS.map((step) => (
+            {workflowSteps.map((step) => (
               <li
                 key={step.n}
                 className="rounded-xl border border-line bg-surface p-5 shadow-panel"
@@ -169,20 +207,22 @@ export default function LandingPage() {
           </ol>
         </section>
 
-        {/* Seven documents index: horizontal spec list for visual contrast against the 3-col band */}
+        {/* Six documents index */}
         <section aria-labelledby="enam-dokumen" className="border-t border-line py-14 lg:py-16">
           <div className="grid gap-8 lg:grid-cols-12">
             <div className="lg:col-span-4">
               <h2 id="enam-dokumen" className="text-2xl font-semibold tracking-tight text-ink">
-                Enam dokumen yang saling merujuk.
+                {t('Enam dokumen yang saling merujuk.', 'Six cross-referenced documents.')}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-ink-2">
-                Dokumen dibangun secara berurutan. Setiap dokumen membawa keputusan dari dokumen
-                sebelumnya agar tidak saling bertentangan saat mulai menulis kode.
+                {t(
+                  'Dokumen dibangun secara berurutan. Setiap dokumen membawa keputusan dari dokumen sebelumnya agar tidak saling bertentangan saat mulai menulis kode.',
+                  'Documents are generated in dependency order, carrying forward every schema, route, and constraint so nothing contradicts when coding begins.',
+                )}
               </p>
             </div>
             <ul className="lg:col-span-8 divide-y divide-line rounded-xl border border-line bg-surface">
-              {DOCUMENTS.map((doc) => (
+              {documents.map((doc) => (
                 <li
                   key={doc.n}
                   className="grid grid-cols-[40px_1fr] sm:grid-cols-[44px_140px_1fr] items-baseline gap-2 px-5 py-3.5 text-sm"
@@ -201,10 +241,13 @@ export default function LandingPage() {
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="max-w-lg">
               <h2 className="text-2xl font-semibold tracking-tight text-ink">
-                Mulai dari satu kalimat tentang idemu.
+                {t('Mulai dari satu kalimat tentang idemu.', 'Start with one sentence about your idea.')}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-ink-2">
-                Sisanya kita rancang bersama hingga menjadi spesifikasi yang siap dikerjakan.
+                {t(
+                  'Sisanya kita rancang bersama hingga menjadi spesifikasi yang siap dikerjakan.',
+                  'We shape the rest together into an engineering-ready specification bundle.',
+                )}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -212,13 +255,13 @@ export default function LandingPage() {
                 href="/register"
                 className="inline-flex min-h-11 items-center rounded-xl bg-accent px-5 text-sm font-medium text-white shadow-xs transition-colors hover:bg-accent-hover"
               >
-                Mulai merancang
+                {t('Mulai merancang', 'Start designing')}
               </Link>
               <Link
                 href="/login"
                 className="inline-flex min-h-11 items-center rounded-xl border border-line-strong bg-surface px-5 text-sm font-medium text-ink transition-colors hover:bg-subtle"
               >
-                Masuk
+                {t('Masuk', 'Sign in')}
               </Link>
             </div>
           </div>
@@ -230,7 +273,7 @@ export default function LandingPage() {
           <span>rancang-ai · spec studio</span>
           <nav aria-label="Footer" className="flex items-center gap-4">
             <Link href="/docs" className="hover:text-ink transition-colors">
-              Dokumentasi
+              {t('Dokumentasi', 'Documentation')}
             </Link>
             <span>{APP_VERSION}</span>
           </nav>

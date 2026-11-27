@@ -17,6 +17,18 @@ export interface GenerationInput {
   /** Regeneration only. */
   currentContent?: string;
   userInstruction?: string;
+  /** Optional user-selected output language (v0.2.8). */
+  outputLanguage?: 'id' | 'en';
+}
+
+function outputLanguageBlock(lang?: 'id' | 'en'): string {
+  if (lang === 'en') {
+    return '\nOUTPUT LANGUAGE: Write the entire document (section headings, prose, tables, Mermaid node labels, and open questions) in clear, natural professional English.\n';
+  }
+  if (lang === 'id') {
+    return '\nOUTPUT LANGUAGE: Write the entire document (section headings, prose, tables, Mermaid node labels, and open questions) in clear, natural professional Indonesian (Bahasa Indonesia), keeping standard technical terms (API, endpoint, JWT, SQL, HTTP status codes, code identifiers) accurate.\n';
+  }
+  return '';
 }
 
 const HUMANIZE_PREAMBLE = `You write like a senior human product person, not like a template.
@@ -170,7 +182,9 @@ const BUILDERS: Record<DocumentType, (input: GenerationInput) => string> = {
 
 export function buildDocumentPrompt(type: DocumentType, input: GenerationInput): { system: string; prompt: string } {
   const base = BUILDERS[type](input);
-  const prompt = input.userInstruction !== undefined ? `${base}\n${REGEN_INSTRUCTION(input)}` : base;
+  const langSuffix = outputLanguageBlock(input.outputLanguage);
+  const withLang = langSuffix ? `${base}\n${langSuffix}` : base;
+  const prompt = input.userInstruction !== undefined ? `${withLang}\n${REGEN_INSTRUCTION(input)}` : withLang;
   return { system: SYSTEM, prompt };
 }
 
@@ -184,18 +198,25 @@ export function buildInterviewPrompt(input: {
   transcript: GenerationInput['interviewTranscript'];
   questionIndex: number;
   maxQuestions: number;
+  outputLanguage?: 'id' | 'en';
 }): { system: string; prompt: string } {
   const purpose = input.projectPurpose ? PURPOSE_DIRECTIVE[input.projectPurpose] : null;
   const purposeGuidance = purpose
     ? `\nPURPOSE GUIDANCE (${purpose.label}):\nFocus your questions on ${purpose.interviewFocus}.`
     : '';
+  const langGuidance =
+    input.outputLanguage === 'en'
+      ? '\nLANGUAGE: Ask the question and write suggestions in clear, natural English.'
+      : input.outputLanguage === 'id'
+        ? '\nLANGUAGE: Ask the question and write suggestions in clear, natural Indonesian (Bahasa Indonesia).'
+        : '';
 
   return {
     system: `You run a warm, sharp product interview. One question at a time. Adaptive: aim for ${input.maxQuestions} questions total (never more), wrap up early when you have enough.
-You speak like a thoughtful human collaborator — no corporate filler, no restating answers back verbatim.${purposeGuidance}
+You speak like a thoughtful human collaborator, without corporate filler or restating answers verbatim.${purposeGuidance}${langGuidance}
 Every reply is STRICT JSON, no markdown fence:
 {"question": "...", "suggestions": ["...", "..."], "isComplete": false, "reasoning": "one line, why you ask this"}
-"suggestions" holds 2–3 short candidate answers the user might tap. Set "isComplete": true only when the picture is genuinely enough to spec the product.`,
+"suggestions" holds 2-3 short candidate answers the user might tap. Set "isComplete": true only when the picture is genuinely enough to spec the product.`,
     prompt: `PROJECT: ${input.projectName}
 ${input.projectDescription?.trim() ? `DESCRIPTION: ${input.projectDescription.trim()}\n` : ''}
 BASELINE ASSUMPTIONS:

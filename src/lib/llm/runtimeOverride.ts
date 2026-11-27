@@ -12,6 +12,16 @@ export const HEADER_BYOK_KEY = 'x-rancang-byok-key';
 export const HEADER_BYOK_BASE_URL = 'x-rancang-byok-base-url';
 export const HEADER_MODEL_ID = 'x-rancang-model-id';
 export const HEADER_REASONING_EFFORT = 'x-rancang-reasoning-effort';
+export const HEADER_OUTPUT_LANG = 'x-rancang-output-lang';
+
+export type OutputLanguage = 'id' | 'en';
+
+export function parseOutputLanguage(req: Request): OutputLanguage | undefined {
+  const raw = req.headers.get(HEADER_OUTPUT_LANG)?.trim().toLowerCase();
+  if (raw === 'en') return 'en';
+  if (raw === 'id') return 'id';
+  return undefined;
+}
 
 export interface RuntimeModelOverride {
   mode: 'byok' | 'managed';

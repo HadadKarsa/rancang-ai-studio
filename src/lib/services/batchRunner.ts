@@ -5,7 +5,7 @@ import {
   type BatchStreamEvent,
 } from './orchestrator';
 import type { DocumentType } from '@/lib/db/enums';
-import type { RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
+import type { OutputLanguage, RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 import { updateProject } from '@/lib/db/repositories/projects';
 
 /**
@@ -58,6 +58,7 @@ export interface BatchState {
   presetId?: string | null;
   ephemeralKey?: string;
   runtimeOverride?: RuntimeModelOverride;
+  outputLanguage?: OutputLanguage;
   order: DocumentType[];
   docs: Map<DocumentType, BatchDocState>;
   startedAt: number;
@@ -77,6 +78,7 @@ export interface StartBatchOptions {
   presetId?: string | null;
   ephemeralKey?: string;
   runtimeOverride?: RuntimeModelOverride;
+  outputLanguage?: OutputLanguage;
 }
 
 /**
@@ -185,10 +187,10 @@ function emit(state: BatchState, ev: BatchStreamEvent): void {
 }
 
 async function runBatch(state: BatchState): Promise<void> {
-  const { projectId, userId, types, presetId, ephemeralKey, runtimeOverride } = state;
+  const { projectId, userId, types, presetId, ephemeralKey, runtimeOverride, outputLanguage } = state;
   try {
     const gen = generateAllDocumentsStream({
-      userId, projectId, types, presetId, ephemeralKey, runtimeOverride,
+      userId, projectId, types, presetId, ephemeralKey, runtimeOverride, outputLanguage,
       signal: state.abort.signal,
       stopMessage: state.stopMessage,
     });
@@ -242,6 +244,7 @@ export function startBatch(opts: StartBatchOptions): 'started' | 'already-runnin
     presetId: opts.presetId ?? null,
     ephemeralKey: opts.ephemeralKey,
     runtimeOverride: opts.runtimeOverride,
+    outputLanguage: opts.outputLanguage,
     order,
     docs: new Map(),
     startedAt: Date.now(),
