@@ -2,6 +2,20 @@
 
 All notable changes to Rancang.ai Studio are documented in this file, starting from v0.2.4.
 
+## [v0.2.7] - 2026-11-27
+
+### Added
+- **User Profile & Password-Later Settings (`/profile`):**
+  - Added `GET`/`PATCH /api/v1/account/profile` and `POST /api/v1/account/password` plus the `/profile` page linked from the sidebar and footer account block.
+  - Users can update their display name and email address with uniqueness validation and live sidebar refresh.
+  - Accounts without a password yet (such as Google OAuth signups or the seeded local owner) can set a password directly from `/profile` without requiring a current password while preserving `authProvider`; accounts with an existing password verify their current password before changing it.
+- **Admin Managed Model Whitelist (migration `005_managed_model_whitelist.sql`):**
+  - Added nullable `provider_credentials.allowed_models_json` column and owner-only `PATCH /api/v1/settings/credentials?id=...` endpoint.
+  - Admins can now search and pick an explicit whitelist of allowed model IDs per managed connection directly inside `/models`, automatically filtering the Bawaan Rancang.ai model picker and enforcing the whitelist on runtime calls for all users.
+
+### Changed
+- **Rewritten Login & Register UI (`/login`, `/register`):** Replaced the generic centered card with an asymmetric architectural drafting-desk split layout featuring a notched spec dossier (`01 PRD` to `06 Memori`), 1-click mode switcher (`Masuk` / `Daftar`), password length indicator on registration, and mobile-first fold priority in both light and Deep Slate Dusk themes.
+
 ## [v0.2.6] - 2026-11-27
 
 ### Added

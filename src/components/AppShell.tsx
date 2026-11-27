@@ -36,6 +36,7 @@ interface Connection {
   isActive: boolean;
   isValid: boolean | null;
   cachedModels: string[];
+  allowedModels: string[] | null;
 }
 
 interface ManagedPublic {
@@ -50,6 +51,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/studio': 'Studio',
   '/library': 'Library',
   '/models': 'Models',
+  '/profile': 'Profil',
   '/docs': 'Dokumentasi',
 };
 
@@ -338,12 +340,14 @@ function ShellInner({ children, initialUser }: { children: React.ReactNode; init
 
                   {showOwnerConnections &&
                     connections.map((c) => {
-                      const list = Array.from(
-                        new Set([
-                          ...(c.cachedModels ?? []),
-                          ...presets.filter((p) => p.credentialId === c.id).map((p) => p.modelId),
-                        ]),
-                      ).sort();
+                      const baseList =
+                        c.allowedModels !== null
+                          ? c.allowedModels
+                          : [
+                              ...(c.cachedModels ?? []),
+                              ...presets.filter((p) => p.credentialId === c.id).map((p) => p.modelId),
+                            ];
+                      const list = Array.from(new Set(baseList.filter(Boolean))).sort();
                       if (list.length === 0) return null;
                       return (
                         <optgroup key={c.id} label={`Bawaan (${c.label || c.provider})`}>

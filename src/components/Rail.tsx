@@ -2,13 +2,14 @@
 
 import { APP_VERSION } from '@/lib/version';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import {
   FolderKanban,
   BookMarked,
   SlidersHorizontal,
   BookOpen,
+  UserRound,
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
@@ -41,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Konfigurasi',
     items: [
       { href: '/models', label: 'Models', hint: 'Model dan kredensial', icon: SlidersHorizontal },
+      { href: '/profile', label: 'Profil', hint: 'Nama, email, dan kata sandi', icon: UserRound },
       { href: '/docs', label: 'Dokumentasi', hint: 'Panduan memakai rancang-ai', icon: BookOpen },
     ],
   },
@@ -63,7 +65,6 @@ export interface RailProps {
 
 export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -104,8 +105,7 @@ export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
     } catch {
       /* cookie cleared server-side either way */
     }
-    router.push('/login');
-    router.refresh();
+    window.location.assign('/login');
   }
 
   const isOn = (href: string) => {
@@ -254,7 +254,11 @@ export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
 
       <footer className="shrink-0 border-t border-line p-2.5">
         {!isCompact && (
-          <div className="mb-2 space-y-1 px-2.5">
+          <Link
+            href="/profile"
+            onClick={closeOnNav}
+            className="mb-1.5 block rounded-lg px-2.5 py-1.5 transition-colors hover:bg-hover/70"
+          >
             {user && (
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-xs font-medium text-ink" title={user.email}>
@@ -267,13 +271,13 @@ export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
                 )}
               </div>
             )}
-            <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-ink-3">
+            <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] font-mono text-ink-3">
               <span className="truncate" title={user?.email}>
                 {user?.email ?? 'local'}
               </span>
               <span className="shrink-0">{APP_VERSION}</span>
             </div>
-          </div>
+          </Link>
         )}
         <button
           type="button"

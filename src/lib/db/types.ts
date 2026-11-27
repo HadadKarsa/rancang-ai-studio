@@ -96,19 +96,34 @@ export interface ProviderCredentialRow {
   id: string; user_id: string; provider: ProviderId; label: string;
   encrypted_key_b64: string; key_iv_b64: string; key_tag_b64: string; key_last4: string;
   base_url: string | null; is_active: 0 | 1; is_valid: 0 | 1 | null;
-  last_validated_at: string | null; cached_models_json: string | null; created_at: string; updated_at: string;
+  last_validated_at: string | null; cached_models_json: string | null;
+  allowed_models_json?: string | null; created_at: string; updated_at: string;
 }
-/** Serialized to clients — never contains key material. */
+/** Serialized to clients - never contains key material. */
 export interface ProviderCredentialPublic {
   id: string; provider: ProviderId; label: string; keyLast4: string;
   baseUrl: string | null; isActive: boolean; isValid: boolean | null;
-  lastValidatedAt: string | null; cachedModels: string[]; createdAt: string;
+  lastValidatedAt: string | null; cachedModels: string[];
+  /** Null means all cached models are exposed; string[] is an explicit admin whitelist (v0.2.7). */
+  allowedModels: string[] | null; createdAt: string;
 }
 export function mapCredentialPublic(r: ProviderCredentialRow): ProviderCredentialPublic {
-  return { id: r.id, provider: r.provider, label: r.label, keyLast4: r.key_last4, baseUrl: r.base_url, isActive: r.is_active === 1, isValid: r.is_valid === null ? null : r.is_valid === 1, lastValidatedAt: r.last_validated_at, cachedModels: parseCachedModels(r.cached_models_json), createdAt: r.created_at };
+  return {
+    id: r.id,
+    provider: r.provider,
+    label: r.label,
+    keyLast4: r.key_last4,
+    baseUrl: r.base_url,
+    isActive: r.is_active === 1,
+    isValid: r.is_valid === null ? null : r.is_valid === 1,
+    lastValidatedAt: r.last_validated_at,
+    cachedModels: parseCachedModels(r.cached_models_json),
+    allowedModels: parseNullableModelList(r.allowed_models_json),
+    createdAt: r.created_at,
+  };
 }
 
-/** A malformed or absent cache is an empty list, never a throw — the column is advisory. */
+/** A malformed or absent cache is an empty list, never a throw - the column is advisory. */
 export function parseCachedModels(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
@@ -116,6 +131,17 @@ export function parseCachedModels(raw: string | null | undefined): string[] {
     return Array.isArray(parsed) ? parsed.filter((m): m is string => typeof m === 'string') : [];
   } catch {
     return [];
+  }
+}
+
+/** Parses an optional whitelist JSON array; NULL/undefined stays null (meaning unrestricted). */
+export function parseNullableModelList(raw: string | null | undefined): string[] | null {
+  if (raw === null || raw === undefined) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((m): m is string => typeof m === 'string') : null;
+  } catch {
+    return null;
   }
 }
 

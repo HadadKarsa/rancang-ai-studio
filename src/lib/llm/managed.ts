@@ -9,6 +9,7 @@ import { getPrimaryOwnerUserId } from '@/lib/db/repositories/users';
 import { decryptKey } from '@/lib/crypto/keys';
 import { ProviderNotConfiguredError, ValidationError } from '@/lib/errors';
 import type { ReasoningEffort } from '@/lib/db/enums';
+import type { ProviderCredentialPublic } from '@/lib/db/types';
 import type { ResolvedProvider } from './credentials';
 
 export interface ManagedEnvConfig {
@@ -37,6 +38,23 @@ function parseModelList(raw: string | undefined): string[] {
         .map((m) => m.trim())
         .filter((m) => m.length > 0),
     ),
+  );
+}
+
+/**
+ * Effective exposed models for an admin-managed credential:
+ * - If admin configured an explicit whitelist (`allowedModels !== null`), ONLY those models are exposed.
+ * - Otherwise all cached models (plus linked preset model) are exposed.
+ */
+export function getExposedModelsForCredential(
+  cred: ProviderCredentialPublic,
+  presetModelIds: string[] = [],
+): string[] {
+  if (cred.allowedModels !== null) {
+    return Array.from(new Set(cred.allowedModels.map((m) => m.trim()).filter(Boolean)));
+  }
+  return Array.from(
+    new Set([...presetModelIds, ...(cred.cachedModels ?? [])].map((m) => m.trim()).filter(Boolean)),
   );
 }
 
@@ -82,15 +100,25 @@ async function getOwnerManagedSnapshot() {
   const validPresets = presets.filter((p) => p.credentialId && validCredIds.has(p.credentialId));
   const activeDef = def && def.credentialId && validCredIds.has(def.credentialId) ? def : validPresets[0] ?? null;
 
-  const models = Array.from(
-    new Set([
-      ...(activeDef ? [activeDef.modelId] : []),
-      ...validPresets.map((p) => p.modelId),
-      ...validCreds.flatMap((c) => c.cachedModels ?? []),
-    ]),
-  ).filter((m) => m.length > 0);
+  const exposedByCred = new Map<string, string[]>();
+  for (const cred of validCreds) {
+    const linkedModels = validPresets
+      .filter((p) => p.credentialId === cred.id)
+      .map((p) => p.modelId);
+    exposedByCred.set(cred.id, getExposedModelsForCredential(cred, linkedModels));
+  }
 
-  const defaultModelId = activeDef?.modelId ?? models[0] ?? null;
+  const allExposed = Array.from(
+    new Set(validCreds.flatMap((c) => exposedByCred.get(c.id) ?? [])),
+  );
+
+  // Respect default preset model ONLY if it is inside the active whitelist.
+  const defModelAllowed = activeDef && allExposed.includes(activeDef.modelId) ? activeDef.modelId : null;
+  const orderedModels = defModelAllowed
+    ? [defModelAllowed, ...allExposed.filter((m) => m !== defModelAllowed)]
+    : allExposed;
+
+  const defaultModelId = orderedModels[0] ?? null;
   if (!defaultModelId) return null;
 
   return {
@@ -98,14 +126,15 @@ async function getOwnerManagedSnapshot() {
     validCreds,
     validPresets,
     activeDef,
+    exposedByCred,
     defaultModelId,
-    models,
+    models: orderedModels,
   };
 }
 
 /**
  * Public metadata safe to return to any authenticated browser: never includes keys or URLs.
- * Owner's UI-saved active connections take priority; MANAGED_* env vars act as fallback.
+ * Owner's UI-saved active connections (and optional whitelist) take priority; MANAGED_* env acts as fallback.
  */
 export async function getManagedPublicConfig(): Promise<ManagedPublicConfig> {
   const ownerSnapshot = await getOwnerManagedSnapshot();
@@ -175,7 +204,7 @@ export function resolveManagedEnvProvider(opts?: {
 
 /**
  * Resolves a Managed Rancang.ai provider call for ANY user (owner or member).
- * Uses the admin/owner's UI-saved connections first, falling back to MANAGED_* env vars.
+ * Enforces the admin's configured model whitelist when present.
  */
 export async function resolveManagedProvider(opts?: {
   modelId?: string;
@@ -190,19 +219,13 @@ export async function resolveManagedProvider(opts?: {
       });
     }
 
-    // Prefer a matching owner preset, then a credential whose cached list includes the model, then default/first.
-    const matchingPreset =
-      snapshot.validPresets.find((p) => p.modelId === chosen) ??
-      (snapshot.activeDef && snapshot.activeDef.modelId === chosen ? snapshot.activeDef : null);
     const matchingCred =
-      (matchingPreset?.credentialId
-        ? snapshot.validCreds.find((c) => c.id === matchingPreset.credentialId)
-        : null) ??
-      snapshot.validCreds.find((c) => c.cachedModels?.includes(chosen)) ??
-      (snapshot.activeDef?.credentialId
-        ? snapshot.validCreds.find((c) => c.id === snapshot.activeDef?.credentialId)
-        : null) ??
+      snapshot.validCreds.find((c) => (snapshot.exposedByCred.get(c.id) ?? []).includes(chosen)) ??
       snapshot.validCreds[0];
+    const matchingPreset =
+      snapshot.validPresets.find((p) => p.credentialId === matchingCred?.id && p.modelId === chosen) ??
+      snapshot.validPresets.find((p) => p.credentialId === matchingCred?.id) ??
+      snapshot.activeDef;
 
     const credRow = matchingCred
       ? await getCredentialRowForUser(matchingCred.id, snapshot.ownerId)
@@ -217,21 +240,20 @@ export async function resolveManagedProvider(opts?: {
       keyTagB64: credRow.key_tag_b64,
     });
 
-    const basePreset = matchingPreset ?? snapshot.activeDef;
     const effort =
-      opts?.reasoningEffort !== undefined ? opts.reasoningEffort : (basePreset?.reasoningEffort ?? null);
+      opts?.reasoningEffort !== undefined ? opts.reasoningEffort : (matchingPreset?.reasoningEffort ?? null);
 
     return {
       provider: credRow.provider,
       modelId: chosen,
       apiKey,
       baseUrl: credRow.base_url ?? null,
-      presetBaseUrl: basePreset?.baseUrl ?? null,
-      temperature: basePreset?.temperature ?? 0.7,
-      maxTokens: basePreset?.maxTokens ?? 8192,
-      topP: basePreset?.topP ?? 1.0,
-      systemPersona: basePreset?.systemPersona ?? null,
-      presetId: basePreset?.id ?? null,
+      presetBaseUrl: matchingPreset?.baseUrl ?? null,
+      temperature: matchingPreset?.temperature ?? 0.7,
+      maxTokens: matchingPreset?.maxTokens ?? 8192,
+      topP: matchingPreset?.topP ?? 1.0,
+      systemPersona: matchingPreset?.systemPersona ?? null,
+      presetId: matchingPreset?.id ?? null,
       credentialId: credRow.id,
       reasoningEffort: effort,
     };

@@ -77,5 +77,6 @@ export function sessionCookie(value: string, maxAgeSeconds = SESSION_TTL_DAYS * 
 
 /** Set-Cookie value that clears the session cookie. */
 export function clearedSessionCookie(): string {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  const secure = getEnv().APP_URL.startsWith('https');
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`;
 }

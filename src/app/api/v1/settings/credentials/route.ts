@@ -1,7 +1,13 @@
 import { z } from 'zod';
 import { withRoute, parseJson } from '@/lib/api/middleware';
-import { createCredential, listCredentialsForUser, deleteCredential, deactivateCredential, updateCredentialValidation } from '@/lib/db/repositories/credentials';
-import { encryptKey, decryptKey } from '@/lib/crypto/keys';
+import {
+  createCredential,
+  listCredentialsForUser,
+  deleteCredential,
+  deactivateCredential,
+  updateCredentialAllowedModels,
+} from '@/lib/db/repositories/credentials';
+import { encryptKey } from '@/lib/crypto/keys';
 import { testProviderConnection } from '@/lib/llm/registry';
 import { normalizeModelList } from '@/lib/llm/credentialBinding';
 import { CONNECTION_PROVIDERS } from '@/lib/llm/catalog';
@@ -15,8 +21,14 @@ const createSchema = z.object({
   baseUrl: z.string().url().max(300).nullable().optional(),
   /** Model ids the client already knows; the test call below fills this in when it runs. */
   cachedModels: z.array(z.string().max(200)).max(500).nullable().optional(),
+  /** Optional admin whitelist of allowed model ids; null exposes all cached models (v0.2.7). */
+  allowedModels: z.array(z.string().min(1).max(200)).max(500).nullable().optional(),
   /** Validate against the provider before storing. Default true. */
   test: z.boolean().optional(),
+});
+
+const patchSchema = z.object({
+  allowedModels: z.array(z.string().min(1).max(200)).max(500).nullable(),
 });
 
 export const GET = withRoute(async (ctx) => {
@@ -58,9 +70,37 @@ export const POST = withRoute(async (ctx) => {
     // A client-supplied list is only trusted when the test did not run; it is
     // still normalized so a junk entry cannot reach the column.
     cachedModels: testedModels ?? (input.cachedModels ? normalizeModelList(input.cachedModels) : null),
+    allowedModels: input.allowedModels ? normalizeModelList(input.allowedModels) : null,
   });
   return Response.json({ credential }, { status: 201 });
 }, { bucket: 'provider_test', idempotent: true });
+
+export const PATCH = withRoute(async (ctx) => {
+  if (ctx.session.user.role !== 'owner') {
+    throw new ForbiddenError('Hanya admin yang dapat mengatur whitelist model bawaan');
+  }
+  const url = new URL(ctx.req.url);
+  const credentialId = url.searchParams.get('id');
+  if (!credentialId) throw new ValidationError('Missing ?id=');
+
+  const row = await getCredentialRowForUser(credentialId, ctx.session.user.id);
+  if (!row) throw new NotFoundError('Credential not found');
+
+  const body = await parseJson<unknown>(ctx.req);
+  const parsed = patchSchema.safeParse(body);
+  if (!parsed.success) throw new ValidationError('Payload whitelist tidak valid', parsed.error.flatten());
+
+  let normalized: string[] | null = null;
+  if (parsed.data.allowedModels !== null) {
+    normalized = normalizeModelList(parsed.data.allowedModels);
+    if (normalized.length === 0) {
+      throw new ValidationError('Pilih minimal 1 model untuk whitelist atau izinkan semua model');
+    }
+  }
+
+  const credential = await updateCredentialAllowedModels(credentialId, ctx.session.user.id, normalized);
+  return Response.json({ credential });
+}, { bucket: 'write' });
 
 const deleteSchema = z.object({
   mode: z.enum(['soft', 'hard']).optional(),

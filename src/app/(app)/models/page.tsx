@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  Filter,
   KeyRound,
   Plug,
   Plus,
@@ -19,6 +20,7 @@ import {
   ShieldCheck,
   Star,
   Trash2,
+  X,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
 import {
@@ -56,6 +58,7 @@ interface Credential {
   isActive: boolean;
   isValid: boolean | null;
   cachedModels: string[];
+  allowedModels: string[] | null;
   createdAt: string;
 }
 
@@ -358,6 +361,12 @@ export default function ModelsPage() {
   const [adminTest, setAdminTest] = useState<TestResult | null>(null);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [refreshingCredId, setRefreshingCredId] = useState<string | null>(null);
+
+  // Admin whitelist editor state (v0.2.7)
+  const [whitelistCredId, setWhitelistCredId] = useState<string | null>(null);
+  const [whitelistDraft, setWhitelistDraft] = useState<string[]>([]);
+  const [whitelistQuery, setWhitelistQuery] = useState('');
+  const [savingWhitelist, setSavingWhitelist] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -687,6 +696,59 @@ export default function ModelsPage() {
     }
   }
 
+  function openWhitelistEditor(cred: Credential, fallbackModelId: string) {
+    if (whitelistCredId === cred.id) {
+      setWhitelistCredId(null);
+      return;
+    }
+    const seed =
+      cred.allowedModels !== null
+        ? cred.allowedModels
+        : cred.cachedModels.length > 0
+          ? cred.cachedModels
+          : [fallbackModelId].filter(Boolean);
+    setWhitelistDraft(Array.from(new Set(seed)));
+    setWhitelistQuery('');
+    setWhitelistCredId(cred.id);
+  }
+
+  function toggleWhitelistModel(modelId: string) {
+    setWhitelistDraft((prev) =>
+      prev.includes(modelId) ? prev.filter((m) => m !== modelId) : [...prev, modelId],
+    );
+  }
+
+  async function persistWhitelist(cred: Credential, preset: Preset, nextAllowed: string[] | null) {
+    setSavingWhitelist(true);
+    try {
+      await api.patch(`/settings/credentials?id=${encodeURIComponent(cred.id)}`, {
+        allowedModels: nextAllowed,
+      });
+      if (nextAllowed !== null && nextAllowed.length > 0 && !nextAllowed.includes(preset.modelId)) {
+        await api.patch(`/settings/presets?id=${encodeURIComponent(preset.id)}`, {
+          modelId: nextAllowed[0],
+        });
+      }
+      setWhitelistCredId(null);
+      await load();
+      refreshActiveModel();
+      toast({
+        tone: 'success',
+        title:
+          nextAllowed === null
+            ? `Semua model dari ${cred.label} dibuka kembali`
+            : `Whitelist ${cred.label} disimpan (${nextAllowed.length} model)`,
+      });
+    } catch (err) {
+      toast({
+        tone: 'error',
+        title: err instanceof ApiError ? err.message : 'Gagal menyimpan whitelist model',
+      });
+    } finally {
+      setSavingWhitelist(false);
+    }
+  }
+
   // Group owner's presets by credential for clean display
   const managedRows = useMemo(() => {
     const validCredMap = new Map(credentials.map((c) => [c.id, c]));
@@ -923,9 +985,19 @@ export default function ModelsPage() {
                     {managedRows.map(({ preset: p, cred: c }) => {
                       const busy = rowBusy === p.id;
                       const refreshing = c ? refreshingCredId === c.id : false;
-                      const options = Array.from(
+                      const allCatalog = Array.from(
                         new Set([p.modelId, ...(c?.cachedModels ?? [])].filter(Boolean)),
                       ).sort();
+                      const options =
+                        c && c.allowedModels !== null
+                          ? Array.from(new Set(c.allowedModels.filter(Boolean))).sort()
+                          : allCatalog;
+                      const isEditingWhitelist = c !== null && whitelistCredId === c.id;
+                      const filteredCatalog = whitelistQuery.trim()
+                        ? allCatalog.filter((m) =>
+                            m.toLowerCase().includes(whitelistQuery.trim().toLowerCase()),
+                          )
+                        : allCatalog;
                       return (
                         <li key={p.id} className="space-y-3 p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -933,14 +1005,34 @@ export default function ModelsPage() {
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="truncate text-sm font-semibold text-ink">{p.name}</span>
                                 {p.isDefault && <Badge tone="ready">Default bawaan</Badge>}
+                                {c && c.allowedModels !== null && (
+                                  <Badge tone="live">
+                                    Whitelist {c.allowedModels.length}/{allCatalog.length}
+                                  </Badge>
+                                )}
                               </div>
                               <p className="truncate font-mono text-[11.5px] text-ink-3">
                                 {c?.baseUrl || 'Endpoint bawaan'}
                                 {c ? ` · ····${c.keyLast4}` : ''}
-                                {c?.cachedModels?.length ? ` · ${c.cachedModels.length} model` : ''}
+                                {c
+                                  ? c.allowedModels !== null
+                                    ? ` · ${c.allowedModels.length} dari ${allCatalog.length} model dibuka`
+                                    : ` · semua ${allCatalog.length} model terbuka`
+                                  : ''}
                               </p>
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {c && allCatalog.length > 0 && (
+                                <Button
+                                  size="sm"
+                                  variant={isEditingWhitelist ? 'secondary' : 'ghost'}
+                                  disabled={busy || refreshing}
+                                  onClick={() => openWhitelistEditor(c, p.modelId)}
+                                >
+                                  <Filter className="h-3.5 w-3.5" aria-hidden="true" />
+                                  {isEditingWhitelist ? 'Tutup whitelist' : 'Atur whitelist'}
+                                </Button>
+                              )}
                               {!p.isDefault && (
                                 <Button
                                   size="sm"
@@ -1021,6 +1113,144 @@ export default function ModelsPage() {
                               />
                             </div>
                           </div>
+
+                          {/* Inline Admin Whitelist Picker */}
+                          {isEditingWhitelist && c && (
+                            <div className="rounded-lg border border-line-strong/70 bg-canvas/60 p-4 space-y-3.5">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="space-y-0.5">
+                                  <p className="text-xs font-semibold text-ink">
+                                    Whitelist model untuk pengguna ({whitelistDraft.length} dipilih)
+                                  </p>
+                                  <p className="text-[11.5px] text-ink-2">
+                                    Hanya model yang dicentang yang muncul di dropdown pengguna pada mode Bawaan Rancang.ai.
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setWhitelistDraft([p.modelId])}
+                                    className="cursor-pointer rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                                  >
+                                    Hanya default
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setWhitelistDraft([])}
+                                    className="cursor-pointer rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+                                  >
+                                    Kosongkan
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={savingWhitelist}
+                                    onClick={() => void persistWhitelist(c, p, null)}
+                                    className="cursor-pointer rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-medium text-accent-ink hover:border-accent/50"
+                                  >
+                                    Buka semua ({allCatalog.length})
+                                  </button>
+                                </div>
+                              </div>
+
+                              {whitelistDraft.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {whitelistDraft.slice(0, 12).map((id) => (
+                                    <span
+                                      key={id}
+                                      className="inline-flex items-center gap-1 rounded-md border border-accent/25 bg-accent-soft px-2 py-0.5 font-mono text-[11px] text-accent-ink"
+                                    >
+                                      <span className="max-w-44 truncate">{id}</span>
+                                      <button
+                                        type="button"
+                                        aria-label={`Hapus ${id} dari whitelist`}
+                                        onClick={() => toggleWhitelistModel(id)}
+                                        className="cursor-pointer rounded hover:bg-accent/15"
+                                      >
+                                        <X className="h-3 w-3" aria-hidden="true" />
+                                      </button>
+                                    </span>
+                                  ))}
+                                  {whitelistDraft.length > 12 && (
+                                    <span className="inline-flex items-center rounded-md bg-subtle px-2 py-0.5 font-mono text-[11px] text-ink-2">
+                                      +{whitelistDraft.length - 12} lainnya
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="relative">
+                                <Search
+                                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3"
+                                  aria-hidden="true"
+                                />
+                                <input
+                                  type="search"
+                                  value={whitelistQuery}
+                                  onChange={(e) => setWhitelistQuery(e.target.value)}
+                                  placeholder={`Cari dari ${allCatalog.length} model penyedia...`}
+                                  aria-label={`Cari model whitelist ${p.name}`}
+                                  className="min-h-9 w-full rounded-lg border border-line bg-surface pl-8 pr-3 text-xs text-ink placeholder:text-ink-3 focus:border-accent"
+                                />
+                              </div>
+
+                              <ul className="max-h-56 divide-y divide-line/50 overflow-y-auto rounded-lg border border-line bg-surface p-1">
+                                {filteredCatalog.length === 0 ? (
+                                  <li className="px-3 py-4 text-center text-xs text-ink-3">
+                                    Tidak ada model yang cocok dengan "{whitelistQuery}".
+                                  </li>
+                                ) : (
+                                  filteredCatalog.map((m) => {
+                                    const checked = whitelistDraft.includes(m);
+                                    return (
+                                      <li key={m}>
+                                        <label className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 hover:bg-subtle/70">
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => toggleWhitelistModel(m)}
+                                            className="h-4 w-4 cursor-pointer accent-accent"
+                                          />
+                                          <span className="truncate font-mono text-xs text-ink">{m}</span>
+                                          {m === p.modelId && (
+                                            <span className="ml-auto shrink-0 rounded bg-ready-soft px-1.5 py-0.5 font-mono text-[10px] text-ready-ink">
+                                              default
+                                            </span>
+                                          )}
+                                        </label>
+                                      </li>
+                                    );
+                                  })
+                                )}
+                              </ul>
+
+                              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                                <span className="text-[11px] text-ink-3">
+                                  Pilih minimal 1 model, atau klik Buka semua untuk tanpa batasan.
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={savingWhitelist}
+                                    onClick={() => setWhitelistCredId(null)}
+                                  >
+                                    Batal
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="primary"
+                                    disabled={savingWhitelist || whitelistDraft.length === 0}
+                                    onClick={() => void persistWhitelist(c, p, whitelistDraft)}
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                    {savingWhitelist
+                                      ? 'Menyimpan...'
+                                      : `Simpan whitelist (${whitelistDraft.length})`}
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </li>
                       );
                     })}

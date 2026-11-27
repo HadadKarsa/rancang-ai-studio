@@ -134,3 +134,28 @@ export async function getPasswordHash(userId: string): Promise<string | null> {
 export async function setPasswordHash(userId: string, hash: string): Promise<void> {
   await execute('UPDATE users SET password_hash = ?, auth_provider = ?, updated_at = ? WHERE id = ?', [hash, 'email', nowIso(), userId]);
 }
+
+/** Update only the password hash while preserving auth_provider (e.g. Google/local user setting password later). */
+export async function updateUserPasswordHash(userId: string, hash: string): Promise<void> {
+  await execute('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [hash, nowIso(), userId]);
+}
+
+export async function hasUserPassword(userId: string): Promise<boolean> {
+  const hash = await getPasswordHash(userId);
+  return Boolean(hash && hash.length > 0);
+}
+
+export async function updateUserProfile(
+  userId: string,
+  input: { name: string; email: string },
+): Promise<User> {
+  const normalized = input.email.trim().toLowerCase();
+  const cleanName = input.name.trim();
+  await execute(
+    'UPDATE users SET name = ?, email = ?, updated_at = ? WHERE id = ?',
+    [cleanName, normalized, nowIso(), userId],
+  );
+  const updated = await getUserById(userId);
+  if (!updated) throw new Error('user update vanished');
+  return updated;
+}

@@ -17,6 +17,8 @@ export interface SaveCredentialInput {
   baseUrl?: string | null;
   /** Model ids already known for this key; the settings POST fills it from its test call. */
   cachedModels?: string[] | null;
+  /** Optional admin whitelist of allowed model ids; null exposes all cached models (v0.2.7). */
+  allowedModels?: string[] | null;
 }
 
 export async function createCredential(input: SaveCredentialInput): Promise<ProviderCredentialPublic> {
@@ -24,9 +26,23 @@ export async function createCredential(input: SaveCredentialInput): Promise<Prov
   const now = nowIso();
   await execute(
     `INSERT INTO provider_credentials
-       (id, user_id, provider, label, encrypted_key_b64, key_iv_b64, key_tag_b64, key_last4, base_url, is_active, cached_models_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-    [id, input.userId, input.provider, input.label, input.encryptedKeyB64, input.keyIvB64, input.keyTagB64, input.keyLast4, input.baseUrl ?? null, serializeCachedModels(input.cachedModels), now, now],
+       (id, user_id, provider, label, encrypted_key_b64, key_iv_b64, key_tag_b64, key_last4, base_url, is_active, cached_models_json, allowed_models_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+    [
+      id,
+      input.userId,
+      input.provider,
+      input.label,
+      input.encryptedKeyB64,
+      input.keyIvB64,
+      input.keyTagB64,
+      input.keyLast4,
+      input.baseUrl ?? null,
+      serializeCachedModels(input.cachedModels),
+      serializeCachedModels(input.allowedModels),
+      now,
+      now,
+    ],
   );
   const row = await getCredentialRowById(id);
   if (!row) throw new Error('credential insert vanished');
@@ -75,6 +91,20 @@ export async function updateCredentialCachedModels(id: string, userId: string, m
     'UPDATE provider_credentials SET cached_models_json = ?, updated_at = ? WHERE id = ? AND user_id = ?',
     [serializeCachedModels(models), nowIso(), id, userId],
   );
+}
+
+/** Update the admin whitelist of allowed models for a managed credential (null = allow all). */
+export async function updateCredentialAllowedModels(
+  id: string,
+  userId: string,
+  allowedModels: string[] | null,
+): Promise<ProviderCredentialPublic | null> {
+  await execute(
+    'UPDATE provider_credentials SET allowed_models_json = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+    [allowedModels === null ? null : JSON.stringify(allowedModels), nowIso(), id, userId],
+  );
+  const row = await getCredentialRowForUser(id, userId);
+  return row ? mapCredentialPublic(row) : null;
 }
 
 function serializeCachedModels(models: string[] | null | undefined): string | null {
