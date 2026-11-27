@@ -5,6 +5,7 @@ import {
   type BatchStreamEvent,
 } from './orchestrator';
 import type { DocumentType } from '@/lib/db/enums';
+import type { RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 import { updateProject } from '@/lib/db/repositories/projects';
 
 /**
@@ -56,6 +57,7 @@ export interface BatchState {
   types?: DocumentType[];
   presetId?: string | null;
   ephemeralKey?: string;
+  runtimeOverride?: RuntimeModelOverride;
   order: DocumentType[];
   docs: Map<DocumentType, BatchDocState>;
   startedAt: number;
@@ -74,6 +76,7 @@ export interface StartBatchOptions {
   types?: DocumentType[];
   presetId?: string | null;
   ephemeralKey?: string;
+  runtimeOverride?: RuntimeModelOverride;
 }
 
 /**
@@ -182,10 +185,10 @@ function emit(state: BatchState, ev: BatchStreamEvent): void {
 }
 
 async function runBatch(state: BatchState): Promise<void> {
-  const { projectId, userId, types, presetId, ephemeralKey } = state;
+  const { projectId, userId, types, presetId, ephemeralKey, runtimeOverride } = state;
   try {
     const gen = generateAllDocumentsStream({
-      userId, projectId, types, presetId, ephemeralKey,
+      userId, projectId, types, presetId, ephemeralKey, runtimeOverride,
       signal: state.abort.signal,
       stopMessage: state.stopMessage,
     });
@@ -238,6 +241,7 @@ export function startBatch(opts: StartBatchOptions): 'started' | 'already-runnin
     types: opts.types,
     presetId: opts.presetId ?? null,
     ephemeralKey: opts.ephemeralKey,
+    runtimeOverride: opts.runtimeOverride,
     order,
     docs: new Map(),
     startedAt: Date.now(),

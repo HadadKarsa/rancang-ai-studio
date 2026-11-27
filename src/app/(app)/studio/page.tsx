@@ -21,6 +21,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
+import { isByokSessionReady } from '@/lib/client/byokSession';
 import type { ProjectPurpose } from '@/lib/db/enums';
 import { PROJECT_PURPOSE_LABEL as PURPOSE_LABEL } from '@/lib/export/agentInstructions';
 import {
@@ -219,13 +220,21 @@ export default function StudioPage() {
 
   useEffect(() => {
     let alive = true;
-    api
-      .get<{ presets: { isDefault: boolean }[] }>('/settings/presets')
-      .then((res) => {
-        if (alive) setHasModel((res.presets ?? []).length > 0);
+    Promise.all([
+      api.get<{ presets: { isDefault: boolean }[] }>('/settings/presets').catch(() => ({ presets: [] })),
+      api
+        .get<{ managed: { enabled: boolean } }>('/settings/managed')
+        .catch(() => ({ managed: { enabled: false } })),
+    ])
+      .then(([pre, mgd]) => {
+        if (!alive) return;
+        const ready =
+          isByokSessionReady() ||
+          mgd.managed?.enabled === true ||
+          (pre.presets ?? []).length > 0;
+        setHasModel(ready);
       })
       .catch(() => {
-        // Unknown, not "missing": stay silent rather than warn wrongly.
         if (alive) setHasModel(null);
       });
     return () => {

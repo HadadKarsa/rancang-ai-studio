@@ -1,6 +1,7 @@
 import { streamText, type ToolSet } from 'ai';
 import { buildModel, buildProviderOptions } from '@/lib/llm/registry';
 import { resolveProvider } from '@/lib/llm/credentials';
+import type { RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 import { buildDocumentPrompt, type GenerationInput } from '@/lib/llm/prompts';
 import { assertProjectOwnership, loadTranscript } from './interview';
 import { getProjectById } from '@/lib/db/repositories/projects';
@@ -28,6 +29,8 @@ export interface StreamDocumentParams {
   instructions?: string | null;
   /** Session-only key (never persisted). */
   ephemeralKey?: string;
+  /** Session-only BYOK or Managed runtime override (v0.2.5). */
+  runtimeOverride?: RuntimeModelOverride;
   abortSignal?: AbortSignal;
 }
 
@@ -58,6 +61,7 @@ export async function streamDocumentGeneration(params: StreamDocumentParams): Pr
     userId: params.userId,
     presetId: params.presetId ?? project.defaultPresetId,
     ephemeralKey: params.ephemeralKey,
+    runtimeOverride: params.runtimeOverride,
     fallbackProvider: 'custom',
     fallbackModelId: 'deepseek-chat',
   });

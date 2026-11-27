@@ -5,7 +5,7 @@ import { encryptKey, decryptKey } from '@/lib/crypto/keys';
 import { testProviderConnection } from '@/lib/llm/registry';
 import { normalizeModelList } from '@/lib/llm/credentialBinding';
 import { CONNECTION_PROVIDERS } from '@/lib/llm/catalog';
-import { ValidationError, NotFoundError, ProviderKeyInvalidError } from '@/lib/errors';
+import { ValidationError, NotFoundError, ProviderKeyInvalidError, ForbiddenError } from '@/lib/errors';
 import { getCredentialRowForUser } from '@/lib/db/repositories/credentials';
 
 const createSchema = z.object({
@@ -20,11 +20,17 @@ const createSchema = z.object({
 });
 
 export const GET = withRoute(async (ctx) => {
+  if (ctx.session.user.role !== 'owner') {
+    return Response.json({ credentials: [] });
+  }
   const credentials = await listCredentialsForUser(ctx.session.user.id);
   return Response.json({ credentials });
 }, { bucket: 'read' });
 
 export const POST = withRoute(async (ctx) => {
+  if (ctx.session.user.role !== 'owner') {
+    throw new ForbiddenError('Hanya admin yang dapat mengelola koneksi bawaan server');
+  }
   const body = await parseJson<unknown>(ctx.req);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) throw new ValidationError('Invalid credential payload', parsed.error.flatten());
@@ -61,6 +67,9 @@ const deleteSchema = z.object({
 });
 
 export const DELETE = withRoute(async (ctx) => {
+  if (ctx.session.user.role !== 'owner') {
+    throw new ForbiddenError('Hanya admin yang dapat mengelola koneksi bawaan server');
+  }
   const url = new URL(ctx.req.url);
   const credentialId = url.searchParams.get('id');
   if (!credentialId) throw new ValidationError('Missing ?id=');

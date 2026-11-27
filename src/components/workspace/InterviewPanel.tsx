@@ -12,6 +12,7 @@ import {
   FastForward,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
+import { getRuntimeModelHeaders } from '@/lib/client/byokSession';
 import { Badge, Button, useToast } from '@/components/ui';
 import type { WorkspaceProject } from './types';
 
@@ -155,10 +156,14 @@ export function InterviewPanel({
           s = created.session;
           setSession(s);
         }
-        const res = await api.put<AnswerResp>(`/projects/${project.id}/interview`, {
-          content,
-          next: true,
-        });
+        const res = await api.put<AnswerResp>(
+          `/projects/${project.id}/interview`,
+          {
+            content,
+            next: true,
+          },
+          getRuntimeModelHeaders(),
+        );
         if (res.nextTurn) {
           const at = new Date().toISOString();
           setMessages((m) => [

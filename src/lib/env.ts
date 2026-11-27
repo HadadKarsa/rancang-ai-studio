@@ -15,6 +15,12 @@ const schema = z.object({
   LOCAL_USER_NAME: z.string().default('Local Owner'),
   RATE_LIMIT_RPM: z.coerce.number().default(60),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  /** Optional server-managed default OpenAI-compatible provider for Rancang.ai users (v0.2.5). */
+  MANAGED_API_KEY: z.string().optional(),
+  MANAGED_BASE_URL: z.string().optional(),
+  MANAGED_MODELS: z.string().optional(),
+  MANAGED_DEFAULT_MODEL: z.string().optional(),
+  MANAGED_LABEL: z.string().optional(),
 });
 
 let _env: z.infer<typeof schema> | null = null;

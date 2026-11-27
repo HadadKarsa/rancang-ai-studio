@@ -8,6 +8,16 @@ import { Rail } from '@/components/Rail';
 import { AppShellProvider, useAppShell } from '@/components/AppShellContext';
 import { CommandPalette, useToast, useTheme, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
 import { api } from '@/lib/client/api';
+import {
+  getByokSession,
+  getManagedSelection,
+  getModelSourceMode,
+  saveByokSession,
+  saveManagedSelection,
+  setModelSourceMode,
+  type ByokSessionConfig,
+  type ModelSourceMode,
+} from '@/lib/client/byokSession';
 
 interface PresetLite {
   id: string;
@@ -28,6 +38,14 @@ interface Connection {
   cachedModels: string[];
 }
 
+interface ManagedPublic {
+  enabled: boolean;
+  source: 'owner' | 'env' | 'none';
+  label: string;
+  defaultModelId: string | null;
+  models: string[];
+}
+
 const ROUTE_LABELS: Record<string, string> = {
   '/studio': 'Studio',
   '/library': 'Library',
@@ -38,37 +56,80 @@ const ROUTE_LABELS: Record<string, string> = {
 function ShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
-  const { projectBreadcrumb, modelRefreshTick } = useAppShell();
+  const { projectBreadcrumb, modelRefreshTick, refreshActiveModel } = useAppShell();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const projectId = pathname.match(/^\/projects\/([^/]+)/)?.[1];
   const isProjectRoute = Boolean(projectId);
+
+  const [managed, setManaged] = React.useState<ManagedPublic | null>(null);
+  const [isOwner, setIsOwner] = React.useState(false);
   const [presets, setPresets] = React.useState<PresetLite[]>([]);
   const [connections, setConnections] = React.useState<Connection[]>([]);
-  const [selected, setSelected] = React.useState('');
+  const [byok, setByok] = React.useState<ByokSessionConfig | null>(null);
+  const [sourceMode, setSourceMode] = React.useState<ModelSourceMode>('managed');
+  const [selectedPresetId, setSelectedPresetId] = React.useState('');
+  const [selectedManagedModel, setSelectedManagedModel] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
-  const { refreshActiveModel } = useAppShell();
   const { toast } = useToast();
 
   React.useEffect(() => {
     let alive = true;
     setLoaded(false);
+    const sessionByok = getByokSession();
+    const activeMode = getModelSourceMode();
+    const managedSel = getManagedSelection();
+    setByok(sessionByok);
+    setSourceMode(activeMode);
+
     Promise.all([
-      api.get<{ presets: PresetLite[] }>('/settings/presets'),
-      projectId ? api.get<{ project: { defaultPresetId: string | null } }>(`/projects/${projectId}`) : null,
-      api.get<{ credentials: Connection[] }>('/settings/credentials'),
-    ]).then(([result, detail, keys]) => {
-      if (!alive) return;
-      const connected = result.presets.filter(p => keys.credentials.some(k => k.id === p.credentialId && k.isActive && k.isValid !== false));
-      setPresets(connected);
-      setConnections(keys.credentials.filter(k => k.isActive && k.isValid !== false));
-      setSelected(detail?.project.defaultPresetId ?? result.presets.find(p => p.isDefault)?.id ?? '');
-      setLoaded(true);
-    }).catch(() => {
-      if (alive) { setConnections([]); setPresets([]); setSelected(''); setLoaded(true); }
-    });
-    return () => { alive = false; };
+      api
+        .get<{ managed: ManagedPublic; isOwner?: boolean }>('/settings/managed')
+        .catch(() => ({ managed: null, isOwner: false })),
+      api.get<{ presets: PresetLite[] }>('/settings/presets').catch(() => ({ presets: [] })),
+      projectId
+        ? api.get<{ project: { defaultPresetId: string | null } }>(`/projects/${projectId}`).catch(() => null)
+        : Promise.resolve(null),
+      api.get<{ credentials: Connection[] }>('/settings/credentials').catch(() => ({ credentials: [] })),
+    ])
+      .then(([mgd, result, detail, keys]) => {
+        if (!alive) return;
+        const ownerFlag = Boolean(mgd.isOwner);
+        const validConns = ownerFlag
+          ? keys.credentials.filter((k) => k.isActive && k.isValid !== false)
+          : [];
+        const connectedPresets = ownerFlag
+          ? result.presets.filter((p) => validConns.some((k) => k.id === p.credentialId))
+          : [];
+        setIsOwner(ownerFlag);
+        setManaged(mgd.managed);
+        setPresets(connectedPresets);
+        setConnections(validConns);
+        const presetId =
+          detail?.project.defaultPresetId ?? connectedPresets.find((p) => p.isDefault)?.id ?? '';
+        setSelectedPresetId(presetId);
+        const managedList = mgd.managed?.models ?? [];
+        const preferredManaged =
+          managedSel?.modelId && (managedList.length === 0 || managedList.includes(managedSel.modelId))
+            ? managedSel.modelId
+            : mgd.managed?.defaultModelId || managedList[0] || '';
+        setSelectedManagedModel(preferredManaged);
+        setLoaded(true);
+      })
+      .catch(() => {
+        if (alive) {
+          setIsOwner(false);
+          setManaged(null);
+          setConnections([]);
+          setPresets([]);
+          setSelectedPresetId('');
+          setLoaded(true);
+        }
+      });
+    return () => {
+      alive = false;
+    };
   }, [projectId, modelRefreshTick]);
 
   const pendingLists = React.useRef(new Set<string>());
@@ -78,9 +139,12 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       pendingLists.current.add(connection.id);
       try {
         const result = await api.post<{ models: string[] }>('/providers/test', {
-          credentialId: connection.id, provider: connection.provider,
+          credentialId: connection.id,
+          provider: connection.provider,
         });
-        setConnections(current => current.map(c => c.id === connection.id ? { ...c, cachedModels: result.models } : c));
+        setConnections((current) =>
+          current.map((c) => (c.id === connection.id ? { ...c, cachedModels: result.models } : c)),
+        );
       } catch {
         toast({ tone: 'error', title: `Gagal memuat model dari ${connection.label}` });
       } finally {
@@ -89,20 +153,57 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function chooseModel(value: string) {
+  async function chooseModel(raw: string) {
+    if (!raw) return;
     setBusy(true);
     try {
-      const [credentialId, modelId] = JSON.parse(value) as [string, string];
-      const connection = connections.find(c => c.id === credentialId);
+      const parsed = JSON.parse(raw) as ['byok' | 'managed' | 'account', string, string];
+      const [kind, groupId, modelId] = parsed;
+
+      if (kind === 'byok') {
+        const current = getByokSession();
+        if (!current) return;
+        const updated: ByokSessionConfig = { ...current, modelId };
+        saveByokSession(updated);
+        setByok(updated);
+        setSourceMode('byok');
+        refreshActiveModel();
+        toast({ tone: 'success', title: `Model sesi BYOK: ${modelId}` });
+        return;
+      }
+
+      if (kind === 'managed') {
+        const prevSel = getManagedSelection();
+        saveManagedSelection({ modelId, reasoningEffort: prevSel?.reasoningEffort ?? null });
+        setSourceMode('managed');
+        setSelectedManagedModel(modelId);
+        refreshActiveModel();
+        toast({ tone: 'success', title: `Model bawaan aktif: ${modelId}` });
+        return;
+      }
+
+      // Existing account connection fallback
+      const connection = connections.find((c) => c.id === groupId);
       if (!connection) return;
-      const saved = presets.find(p => p.credentialId === credentialId && p.modelId === modelId);
-      const preset = saved ?? (await api.post<{ preset: PresetLite }>('/settings/presets', {
-        provider: connection.provider, credentialId, modelId, name: modelId.slice(0, 80),
-      })).preset;
+      setModelSourceMode('managed');
+      const saved = presets.find((p) => p.credentialId === groupId && p.modelId === modelId);
+      const preset =
+        saved ??
+        (
+          await api.post<{ preset: PresetLite }>('/settings/presets', {
+            provider: connection.provider,
+            credentialId: groupId,
+            modelId,
+            name: modelId.slice(0, 80),
+          })
+        ).preset;
       const id = preset.id;
       if (projectId) await api.patch(`/projects/${projectId}`, { defaultPresetId: id });
       else await api.patch(`/settings/presets?id=${encodeURIComponent(id)}`, { isDefault: true });
-      setSelected(id);
+      saveManagedSelection({ modelId, reasoningEffort: preset.reasoningEffort ?? null });
+      setSourceMode('managed');
+      setSelectedPresetId(id);
+      setSelectedManagedModel(modelId);
       refreshActiveModel();
       toast({ tone: 'success', title: 'Model untuk generasi berikutnya diperbarui' });
     } catch {
@@ -112,7 +213,27 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const active = presets.find(p => p.id === selected);
+  const byokModels = React.useMemo(() => {
+    if (!byok) return [];
+    return Array.from(new Set([byok.modelId, ...(byok.models ?? [])].filter(Boolean))).sort();
+  }, [byok]);
+
+  const activePreset = presets.find((p) => p.id === selectedPresetId);
+  const showOwnerConnections = isOwner && connections.length > 0;
+  const currentValue = React.useMemo(() => {
+    if (sourceMode === 'byok' && byok?.modelId) {
+      return JSON.stringify(['byok', 'session', byok.modelId]);
+    }
+    if (showOwnerConnections && activePreset?.credentialId && activePreset.modelId) {
+      return JSON.stringify(['account', activePreset.credentialId, activePreset.modelId]);
+    }
+    if (selectedManagedModel && managed?.enabled) {
+      return JSON.stringify(['managed', 'server', selectedManagedModel]);
+    }
+    return '';
+  }, [sourceMode, byok, showOwnerConnections, managed, selectedManagedModel, activePreset]);
+
+  const hasAnyModel = Boolean(byok?.modelId || managed?.enabled || connections.length > 0);
   const sectionLabel = isProjectRoute
     ? 'Studio'
     : ROUTE_LABELS[pathname] ?? ROUTE_LABELS[`/${pathname.split('/')[1] ?? ''}`] ?? 'Studio';
@@ -155,26 +276,76 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            {loaded && !connections.length ? (
-              <Link href="/models" className="rounded-lg border border-line px-2 py-2 text-xs">Hubungkan model</Link>
-            ) : (
-              <select
-                aria-label="Model untuk generasi berikutnya"
-                value={active ? JSON.stringify([active.credentialId, active.modelId]) : ''}
-                disabled={!loaded || busy}
-                onFocus={() => void loadMissingModels()}
-                onChange={e => void chooseModel(e.target.value)}
-                className="min-h-11 max-w-[30vw] cursor-pointer rounded-lg border border-line-strong bg-surface px-2 font-mono text-xs text-ink sm:min-h-9 sm:max-w-64"
+            {loaded && !hasAnyModel ? (
+              <Link
+                href="/models"
+                className="inline-flex min-h-9 items-center rounded-lg border border-line bg-surface px-3 text-xs font-medium text-ink hover:border-line-strong hover:bg-subtle"
               >
-                <option value="" disabled>{loaded ? 'Pilih model' : 'Memuat…'}</option>
-                {connections.map(c => (
-                  <optgroup key={c.id} label={c.label || c.provider}>
-                    {Array.from(new Set([...(c.cachedModels ?? []), ...presets.filter(p => p.credentialId === c.id).map(p => p.modelId)])).sort().map(model => (
-                      <option key={model} value={JSON.stringify([c.id, model])}>{model}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+                Atur model
+              </Link>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                {sourceMode === 'byok' && byok && (
+                  <span
+                    title="Menggunakan API key sesi browser"
+                    className="hidden sm:inline-flex items-center rounded-md bg-accent-soft px-1.5 py-0.5 font-mono text-[10.5px] font-medium text-accent-ink"
+                  >
+                    BYOK
+                  </span>
+                )}
+                <select
+                  aria-label="Model untuk generasi berikutnya"
+                  value={currentValue}
+                  disabled={!loaded || busy}
+                  onFocus={() => void loadMissingModels()}
+                  onChange={(e) => void chooseModel(e.target.value)}
+                  className="min-h-11 max-w-[36vw] cursor-pointer rounded-lg border border-line bg-surface px-2.5 font-mono text-xs text-ink transition-colors hover:border-line-strong focus:border-accent sm:min-h-9 sm:max-w-64"
+                >
+                  <option value="" disabled>
+                    {loaded ? 'Pilih model' : 'Memuat...'}
+                  </option>
+
+                  {byok && byokModels.length > 0 && (
+                    <optgroup label={`BYOK sesi (${byok.label})`}>
+                      {byokModels.map((model) => (
+                        <option key={`byok-${model}`} value={JSON.stringify(['byok', 'session', model])}>
+                          {model}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {!showOwnerConnections && managed?.enabled && managed.models.length > 0 && (
+                    <optgroup label={`Bawaan ${managed.label}`}>
+                      {managed.models.map((model) => (
+                        <option key={`mgd-${model}`} value={JSON.stringify(['managed', 'server', model])}>
+                          {model}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {showOwnerConnections &&
+                    connections.map((c) => {
+                      const list = Array.from(
+                        new Set([
+                          ...(c.cachedModels ?? []),
+                          ...presets.filter((p) => p.credentialId === c.id).map((p) => p.modelId),
+                        ]),
+                      ).sort();
+                      if (list.length === 0) return null;
+                      return (
+                        <optgroup key={c.id} label={`Bawaan (${c.label || c.provider})`}>
+                          {list.map((model) => (
+                            <option key={`${c.id}-${model}`} value={JSON.stringify(['account', c.id, model])}>
+                              {model}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                </select>
+              </div>
             )}
 
             <button

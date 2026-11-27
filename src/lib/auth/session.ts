@@ -13,7 +13,7 @@ import { UnauthorizedError } from './errors';
  * - AUTH_MODE=cloud with no cookie: no session (fail closed).
  */
 export interface AppSession {
-  user: { id: string; email: string; name: string };
+  user: { id: string; email: string; name: string; role: 'owner' | 'member' };
 }
 
 export const SESSION_COOKIE = 'rancang_session';
@@ -36,14 +36,28 @@ export async function getSession(): Promise<AppSession | null> {
     if (row) {
       const user = await getUserById(row.user_id);
       if (user) {
-        return { user: { id: user.id, email: user.email, name: user.name ?? user.email } };
+        return {
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name ?? user.email,
+            role: user.role === 'owner' ? 'owner' : 'member',
+          },
+        };
       }
     }
   }
 
   if (env.AUTH_MODE === 'local') {
     const user = await getOrCreateLocalUser(env.LOCAL_USER_EMAIL, env.LOCAL_USER_NAME);
-    return { user: { id: user.id, email: user.email, name: user.name ?? 'Local Owner' } };
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name ?? 'Local Owner',
+        role: user.role === 'owner' ? 'owner' : 'member',
+      },
+    };
   }
 
   return null;

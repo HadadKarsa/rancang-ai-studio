@@ -1,7 +1,9 @@
 import { getActiveCredentialForProvider, getPresetForUser, getDefaultPreset } from '@/lib/db/repositories/credentials';
 import { decryptKey } from '@/lib/crypto/keys';
-import { ProviderNotConfiguredError } from '@/lib/errors';
+import { ProviderNotConfiguredError, ValidationError } from '@/lib/errors';
 import type { ProviderId, ReasoningEffort } from '@/lib/db/enums';
+import type { RuntimeModelOverride } from './runtimeOverride';
+import { getManagedPublicConfig, resolveManagedProvider } from './managed';
 
 /**
  * Credential resolution (T-302). Ephemeral (session-only) keys bypass the DB.
@@ -38,12 +40,42 @@ export async function resolveProvider(input: {
   userId: string;
   presetId?: string | null;
   ephemeralKey?: string;
+  /** Session-only BYOK or Managed runtime override from request headers (v0.2.5). */
+  runtimeOverride?: RuntimeModelOverride;
   /** Fallbacks when no preset resolves. */
   fallbackProvider?: ProviderId;
   fallbackModelId?: string;
   fallbackTemperature?: number;
   fallbackMaxTokens?: number;
 }): Promise<ResolvedProvider> {
+  if (input.runtimeOverride?.mode === 'byok') {
+    const { apiKey, baseUrl, modelId, reasoningEffort } = input.runtimeOverride;
+    if (!apiKey || !baseUrl || !modelId) {
+      throw new ValidationError('Konfigurasi BYOK sesi tidak lengkap');
+    }
+    return {
+      provider: 'custom',
+      modelId,
+      apiKey,
+      baseUrl,
+      presetBaseUrl: null,
+      temperature: input.fallbackTemperature ?? 0.7,
+      maxTokens: input.fallbackMaxTokens ?? 8192,
+      topP: 1.0,
+      systemPersona: null,
+      presetId: null,
+      credentialId: null,
+      reasoningEffort: reasoningEffort ?? null,
+    };
+  }
+
+  if (input.runtimeOverride?.mode === 'managed') {
+    return resolveManagedProvider({
+      modelId: input.runtimeOverride.modelId,
+      reasoningEffort: input.runtimeOverride.reasoningEffort,
+    });
+  }
+
   const preset = input.presetId
     ? await getPresetForUser(input.presetId, input.userId)
     : await getDefaultPreset(input.userId);
@@ -81,6 +113,14 @@ export async function resolveProvider(input: {
       credentialId: preset.credentialId,
       reasoningEffort: preset.reasoningEffort,
     };
+  }
+
+  const managedPublic = await getManagedPublicConfig();
+  if (managedPublic.enabled) {
+    return resolveManagedProvider({
+      modelId: input.runtimeOverride?.modelId,
+      reasoningEffort: input.runtimeOverride?.reasoningEffort,
+    });
   }
 
   const provider = input.fallbackProvider;

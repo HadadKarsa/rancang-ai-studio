@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
+import { getRuntimeModelHeaders } from '@/lib/client/byokSession';
 import {
   AGENT_PLACEMENT_HINT,
   AGENT_USAGE_HINT,
@@ -527,7 +528,7 @@ export function DocumentPanel({
         const res = await fetch(`/api/v1/projects/${project.id}/documents/generate-all`, {
           method: 'POST',
           credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getRuntimeModelHeaders() },
           body: JSON.stringify(isFull ? {} : { types: list }),
         });
         if (!res.ok && res.status !== 409) {
@@ -734,7 +735,7 @@ export function DocumentPanel({
       const res = await fetch(`/api/v1/projects/${project.id}/documents/${selectedType}`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getRuntimeModelHeaders() },
         body: JSON.stringify(payload),
       });
       if (!res.ok || !res.body) {

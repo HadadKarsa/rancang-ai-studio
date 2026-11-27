@@ -12,6 +12,14 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   return row ? mapUser(row) : null;
 }
 
+/** Primary admin/owner account whose saved credentials back Managed Rancang.ai models. */
+export async function getPrimaryOwnerUserId(): Promise<string | null> {
+  const row = await queryOne<{ id: string }>(
+    "SELECT id FROM users WHERE role = 'owner' ORDER BY created_at ASC LIMIT 1",
+  );
+  return row?.id ?? null;
+}
+
 export async function createUser(input: { email: string; name?: string; authProvider?: 'local' | 'github' | 'google' | 'email'; role?: 'owner' | 'member' }): Promise<User> {
   const id = newId('usr');
   const now = nowIso();

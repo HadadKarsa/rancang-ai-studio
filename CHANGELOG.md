@@ -2,6 +2,20 @@
 
 All notable changes to Rancang.ai Studio are documented in this file, starting from v0.2.4.
 
+## [v0.2.5] - 2026-11-27
+
+### Added
+- **Two-mode model settings (Admin-managed vs Session-Only BYOK):** Users can now choose between **Bawaan Rancang.ai** (server-managed OpenAI-compatible models) or **API Key Sendiri (BYOK)** stored strictly in browser `sessionStorage`.
+- **Owner UI management for Managed Rancang.ai:** Admin accounts (`role = 'owner'`) can add, test, refresh model lists, set defaults, and remove OpenAI-compatible managed connections directly from `/models` (encrypted AES-256-GCM in SQLite), automatically powering Bawaan Rancang.ai for all users without editing `.env`. `MANAGED_*` env vars remain supported as a fallback.
+- **Role-scoped API guards:** Exposed `user.role` in session state and enforced `owner`-only permissions (`403 Forbidden` for `member`) on credential and preset mutations (`/api/v1/settings/credentials`, `/api/v1/settings/presets`), while `GET /api/v1/settings/managed` returns only public model metadata and `isOwner` (`Cache-Control: no-store`, zero key/URL leaks).
+- **Least-exposure session BYOK headers:** Added runtime model header parsing (`X-Rancang-Model-Mode`, `X-Rancang-Byok-Key`, `X-Rancang-Byok-Base-Url`, `X-Rancang-Model-Id`, `X-Rancang-Reasoning-Effort`) attached exclusively to LLM execution endpoints (`/interview`, `/documents/generate-all`, `/documents/[type]`) and never persisted to SQLite.
+- **Transparent BYOK security guidance & Base URL shortcuts:** Added factual security explanation directly inside `/models` (recommending scoped API keys with spending limits and explaining session-only storage + automatic wipe on tab close/logout) plus 1-click Base URL shortcuts (OpenAI, Kenari, OpenRouter, Ollama).
+
+### Changed
+- **2-step BYOK model fetch UX:** Reordered the BYOK setup flow so users enter Base URL + API Key, click **Muat daftar model** first, and select from a searchable dropdown containing all models returned by the provider key (with manual Model ID kept discreetly as a fallback for gateways without `/v1/models`).
+- **Unified OpenAI-Compatible connection flow:** Removed the redundant separate `OpenAI` provider choice on `/models` so both Admin Managed connections and user BYOK share one OpenAI-Compatible flow.
+- **Cross-mode top-bar model switcher:** Updated `AppShell` dropdown to group active `BYOK sesi` and `Bawaan Rancang.ai` models for both owners and members, with a compact `BYOK` indicator when a session key is active, and wired `signOut` in `Rail` to clear session BYOK keys immediately.
+
 ## [v0.2.4] - 2026-11-27
 
 ### Added

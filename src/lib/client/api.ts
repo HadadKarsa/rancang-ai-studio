@@ -39,24 +39,26 @@ export const api = {
   async get<T>(path: string): Promise<T> {
     return handle(await fetch(`/api/v1${path}`, { credentials: 'same-origin' }));
   },
-  async send<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async send<T>(method: string, path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
+    const headers: Record<string, string> = { ...(extraHeaders ?? {}) };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
     return handle(
       await fetch(`/api/v1${path}`, {
         method,
         credentials: 'same-origin',
-        headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
         body: body !== undefined ? JSON.stringify(body) : undefined,
       }),
     );
   },
-  post<T>(path: string, body?: unknown) {
-    return this.send<T>('POST', path, body);
+  post<T>(path: string, body?: unknown, extraHeaders?: Record<string, string>) {
+    return this.send<T>('POST', path, body, extraHeaders);
   },
-  put<T>(path: string, body?: unknown) {
-    return this.send<T>('PUT', path, body);
+  put<T>(path: string, body?: unknown, extraHeaders?: Record<string, string>) {
+    return this.send<T>('PUT', path, body, extraHeaders);
   },
-  patch<T>(path: string, body?: unknown) {
-    return this.send<T>('PATCH', path, body);
+  patch<T>(path: string, body?: unknown, extraHeaders?: Record<string, string>) {
+    return this.send<T>('PATCH', path, body, extraHeaders);
   },
   delete<T>(path: string) {
     return this.send<T>('DELETE', path);

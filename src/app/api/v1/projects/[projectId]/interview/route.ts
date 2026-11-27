@@ -4,6 +4,7 @@ import { assertProjectOwnership, appendUserAnswer, startInterviewTurn, finalizeI
 import { createSession, abandonActiveSessions, getActiveSessionForProject, listSessionsForProject, listMessages, appendMessage } from '@/lib/db/repositories/interviews';
 import { getProjectById, updateProject } from '@/lib/db/repositories/projects';
 import { ValidationError, NotFoundError, ConflictError } from '@/lib/errors';
+import { parseRuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 
 
 const startSchema = z.object({
@@ -82,7 +83,8 @@ export const PUT = withRoute(async (ctx) => {
 
   let nextTurn = null;
   if (parsed.data.next !== false && !result.isComplete) {
-    nextTurn = await startInterviewTurn({ userId: ctx.session.user.id, sessionId: active.id });
+    const runtimeOverride = parseRuntimeModelOverride(ctx.req);
+    nextTurn = await startInterviewTurn({ userId: ctx.session.user.id, sessionId: active.id, runtimeOverride });
   } else if (result.isComplete) {
     const { finalizeInterview } = await import('@/lib/services/interview');
     await finalizeInterview({ userId: ctx.session.user.id, sessionId: active.id });

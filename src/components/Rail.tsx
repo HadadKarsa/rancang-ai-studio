@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '@/lib/client/api';
+import { clearByokSession } from '@/lib/client/byokSession';
 import { cn } from '@/lib/cn';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
 
@@ -89,6 +90,7 @@ export function Rail({ mobileOpen = false, onMobileClose }: RailProps) {
 
   async function signOut() {
     setSigningOut(true);
+    clearByokSession();
     try {
       await api.post('/auth/logout');
     } catch {

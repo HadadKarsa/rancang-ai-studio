@@ -6,6 +6,7 @@ import { resolveGenerationOrder } from '@/lib/services/orchestrator';
 import { ConflictError, ValidationError } from '@/lib/errors';
 import { isDocumentType } from '@/lib/documents/types';
 import type { DocumentType } from '@/lib/db/enums';
+import { parseRuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 
 const bodySchema = z.object({
   presetId: z.string().optional(),
@@ -54,8 +55,9 @@ export const POST = withRoute(async (ctx) => {
     types = out;
   }
 
+  const runtimeOverride = parseRuntimeModelOverride(ctx.req);
   const started = startBatch({
-    userId, projectId, types, presetId: input.presetId, ephemeralKey: input.apiKey,
+    userId, projectId, types, presetId: input.presetId, ephemeralKey: input.apiKey, runtimeOverride,
   });
   if (started === 'already-running') {
     throw new ConflictError('Pembuatan dokumen sedang berjalan untuk proyek ini', { projectId });

@@ -1,5 +1,6 @@
 import { assertProjectOwnership, loadTranscript } from './interview';
 import { resolveProvider } from '@/lib/llm/credentials';
+import type { RuntimeModelOverride } from '@/lib/llm/runtimeOverride';
 import { buildModel, buildProviderOptions } from '@/lib/llm/registry';
 import { generateText, streamText } from 'ai';
 import { getProjectById } from '@/lib/db/repositories/projects';
@@ -35,6 +36,8 @@ export interface BatchOptions {
   projectId: string;
   presetId?: string | null;
   ephemeralKey?: string;
+  /** Session-only BYOK or Managed runtime override (v0.2.5). */
+  runtimeOverride?: RuntimeModelOverride;
   /** Stop after N documents (used by tests). */
   limit?: number;
   /** Skip wireframe. The default already does; kept for older callers. */
@@ -81,8 +84,12 @@ async function prepareBatch(opts: BatchOptions): Promise<BatchContext> {
   if (!project) throw new NotFoundError('Project not found');
 
   const resolved = await resolveProvider({
-    userId: opts.userId, presetId: opts.presetId ?? project.defaultPresetId, ephemeralKey: opts.ephemeralKey,
-    fallbackProvider: 'custom', fallbackModelId: 'deepseek-chat',
+    userId: opts.userId,
+    presetId: opts.presetId ?? project.defaultPresetId,
+    ephemeralKey: opts.ephemeralKey,
+    runtimeOverride: opts.runtimeOverride,
+    fallbackProvider: 'custom',
+    fallbackModelId: 'deepseek-chat',
   });
   const model = buildModel({
     provider: resolved.provider, modelId: resolved.modelId, apiKey: resolved.apiKey,

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { withRoute, parseJson } from '@/lib/api/middleware';
 import { createPreset, listPresetsForUser, updatePreset, deletePreset, getPresetForUser } from '@/lib/db/repositories/credentials';
 import { PROVIDERS, type ProviderId } from '@/lib/db/enums';
-import { ValidationError, NotFoundError } from '@/lib/errors';
+import { ValidationError, NotFoundError, ForbiddenError } from '@/lib/errors';
 
 const createSchema = z.object({
   name: z.string().min(1).max(80),
@@ -22,11 +22,17 @@ const createSchema = z.object({
 });
 
 export const GET = withRoute(async (ctx) => {
+  if (ctx.session.user.role !== 'owner') {
+    return Response.json({ presets: [] });
+  }
   const presets = await listPresetsForUser(ctx.session.user.id);
   return Response.json({ presets });
 }, { bucket: 'read' });
 
 export const POST = withRoute(async (ctx) => {
+  if (ctx.session.user.role !== 'owner') {
+    throw new ForbiddenError('Hanya admin yang dapat mengelola preset bawaan server');
+  }
   const body = await parseJson<unknown>(ctx.req);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) throw new ValidationError('Invalid preset payload', parsed.error.flatten());
@@ -38,6 +44,9 @@ export const POST = withRoute(async (ctx) => {
 const patchSchema = createSchema.partial();
 
 export const PATCH = withRoute(async (ctx) => {
+  if (ctx.session.user.role !== 'owner') {
+    throw new ForbiddenError('Hanya admin yang dapat mengelola preset bawaan server');
+  }
   const presetId = new URL(ctx.req.url).searchParams.get('id');
   if (!presetId) throw new ValidationError('Missing ?id=');
   const existing = await getPresetForUser(presetId, ctx.session.user.id);
@@ -52,6 +61,9 @@ export const PATCH = withRoute(async (ctx) => {
 }, { bucket: 'write' });
 
 export const DELETE = withRoute(async (ctx) => {
+  if (ctx.session.user.role !== 'owner') {
+    throw new ForbiddenError('Hanya admin yang dapat mengelola preset bawaan server');
+  }
   const presetId = new URL(ctx.req.url).searchParams.get('id');
   if (!presetId) throw new ValidationError('Missing ?id=');
   const existing = await getPresetForUser(presetId, ctx.session.user.id);
