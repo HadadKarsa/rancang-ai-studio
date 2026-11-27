@@ -48,12 +48,20 @@ const NAV_GROUPS: NavGroup[] = [
 
 const STORE_KEY = 'rancang.rail.collapsed';
 
+export interface RailUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'owner' | 'member';
+}
+
 export interface RailProps {
   mobileOpen?: boolean;
   onMobileClose?: () => void;
+  user?: RailUser;
 }
 
-export function Rail({ mobileOpen = false, onMobileClose }: RailProps) {
+export function Rail({ mobileOpen = false, onMobileClose, user }: RailProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
@@ -96,7 +104,7 @@ export function Rail({ mobileOpen = false, onMobileClose }: RailProps) {
     } catch {
       /* cookie cleared server-side either way */
     }
-    router.push('/');
+    router.push('/login');
     router.refresh();
   }
 
@@ -246,9 +254,25 @@ export function Rail({ mobileOpen = false, onMobileClose }: RailProps) {
 
       <footer className="shrink-0 border-t border-line p-2.5">
         {!isCompact && (
-          <div className="mb-1.5 flex items-center justify-between px-2.5 text-[11px] font-mono text-ink-3">
-            <span>local</span>
-            <span>{APP_VERSION}</span>
+          <div className="mb-2 space-y-1 px-2.5">
+            {user && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-xs font-medium text-ink" title={user.email}>
+                  {user.name || user.email}
+                </span>
+                {user.role === 'owner' && (
+                  <span className="shrink-0 rounded bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-medium text-accent-ink">
+                    admin
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-ink-3">
+              <span className="truncate" title={user?.email}>
+                {user?.email ?? 'local'}
+              </span>
+              <span className="shrink-0">{APP_VERSION}</span>
+            </div>
           </div>
         )}
         <button
@@ -258,7 +282,7 @@ export function Rail({ mobileOpen = false, onMobileClose }: RailProps) {
           aria-label="Keluar dari akun"
           title={isCompact ? 'Keluar' : undefined}
           className={cn(
-            'flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-ink-2 transition-colors hover:bg-hover hover:text-ink',
+            'flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-ink-2 transition-colors hover:bg-hover hover:text-ink',
             isCompact && 'justify-center px-0',
           )}
         >

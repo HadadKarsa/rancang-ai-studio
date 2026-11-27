@@ -2,6 +2,18 @@
 
 All notable changes to Rancang.ai Studio are documented in this file, starting from v0.2.4.
 
+## [v0.2.6] - 2026-11-27
+
+### Added
+- **Hybrid Auth (Google OAuth 2.0 + Manual Sign-Up/Sign-In for piloting):**
+  - Native PKCE + CSRF state Google OAuth routes (`GET /api/v1/auth/google`, `GET /api/v1/auth/google/callback`) and public capability endpoint (`GET /api/v1/auth/providers`) controlled by `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (or `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`). When unconfigured, the Google button stays hidden cleanly without dead controls.
+  - Verified Google accounts automatically sign in or register as `member` (preserving `owner` role if an admin signs in with their owner email) with idempotent `user_settings` provisioning.
+  - Manual email + password registration remains immediately active without email OTP for piloting (minimum 8-character password), with show/hide password toggles and OAuth error feedback on `/login` and `/register`.
+- **Server-side cloud auth gate & account identity in sidebar:**
+  - `src/app/(app)/layout.tsx` now checks `getSession()` on the server and redirects unauthenticated visitors to `/login` when `AUTH_MODE=cloud`.
+  - Sidebar footer displays the active signed-in user's name, email, and `admin` badge for `owner` accounts instead of a hardcoded `local` label.
+- **Local Admin password CLI (`scripts/set-admin-password.mjs`):** Added a helper script to set or rotate the local `owner` account's email and scrypt password directly in SQLite before enabling `AUTH_MODE=cloud`.
+
 ## [v0.2.5] - 2026-11-27
 
 ### Added

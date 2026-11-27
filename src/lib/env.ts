@@ -21,6 +21,11 @@ const schema = z.object({
   MANAGED_MODELS: z.string().optional(),
   MANAGED_DEFAULT_MODEL: z.string().optional(),
   MANAGED_LABEL: z.string().optional(),
+  /** Optional Google OAuth 2.0 credentials for hybrid login/signup (v0.2.6). */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  AUTH_GOOGLE_ID: z.string().optional(),
+  AUTH_GOOGLE_SECRET: z.string().optional(),
 });
 
 let _env: z.infer<typeof schema> | null = null;

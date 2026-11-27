@@ -74,6 +74,57 @@ export async function touchLastSeen(userId: string): Promise<void> {
   await execute('UPDATE users SET last_seen_at = ?, updated_at = ? WHERE id = ?', [nowIso(), nowIso(), userId]);
 }
 
+/** Ensure a user_settings row exists idempotently for any newly created account. */
+export async function ensureUserSettings(userId: string): Promise<void> {
+  const existing = await queryOne<{ id: string }>('SELECT id FROM user_settings WHERE user_id = ?', [userId]);
+  if (existing) return;
+  const now = nowIso();
+  await execute(
+    `INSERT INTO user_settings (id, user_id, theme, save_keys_to_disk, editor_font_size, onboarding_completed, created_at, updated_at)
+     VALUES (?, ?, 'system', 1, 14, 0, ?, ?)`,
+    [newId('set'), userId, now, now],
+  );
+}
+
+/**
+ * Find or create a user from a verified Google OAuth profile (v0.2.6).
+ * Preserves existing role if the email already exists (e.g., admin owner account).
+ */
+export async function upsertGoogleUser(input: {
+  email: string;
+  name: string;
+  avatarUrl?: string | null;
+}): Promise<User> {
+  const normalized = input.email.trim().toLowerCase();
+  const now = nowIso();
+  const existing = await getUserByEmail(normalized);
+  if (existing) {
+    await execute(
+      `UPDATE users
+         SET name = COALESCE(name, ?),
+             avatar_url = COALESCE(?, avatar_url),
+             email_verified_at = COALESCE(email_verified_at, ?),
+             last_seen_at = ?,
+             updated_at = ?
+       WHERE id = ?`,
+      [input.name, input.avatarUrl ?? null, now, now, now, existing.id],
+    );
+    await ensureUserSettings(existing.id);
+    return (await getUserById(existing.id)) ?? existing;
+  }
+
+  const id = newId('usr');
+  await execute(
+    `INSERT INTO users (id, email, email_verified_at, name, avatar_url, role, auth_provider, last_seen_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'member', 'google', ?, ?, ?)`,
+    [id, normalized, now, input.name, input.avatarUrl ?? null, now, now, now],
+  );
+  await ensureUserSettings(id);
+  const created = await getUserById(id);
+  if (!created) throw new Error('google user insert vanished');
+  return created;
+}
+
 /** v0.1.2: the scrypt hash for a first-party account (null for seeded/cloud users). */
 export async function getPasswordHash(userId: string): Promise<string | null> {
   const row = await queryOne<{ password_hash: string | null }>('SELECT password_hash FROM users WHERE id = ?', [userId]);

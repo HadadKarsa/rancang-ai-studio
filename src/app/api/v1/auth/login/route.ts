@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { withRoute, parseJson } from '@/lib/api/middleware';
-import { getUserByEmail, getPasswordHash } from '@/lib/db/repositories/users';
+import { getUserByEmail, getPasswordHash, touchLastSeen } from '@/lib/db/repositories/users';
 import { verifyPassword } from '@/lib/crypto/password';
 import { sessionCookie } from '@/lib/auth/session';
 import { createSession } from '@/lib/db/repositories/sessions';
@@ -11,7 +11,7 @@ const schema = z.object({
   password: z.string().min(1).max(200),
 });
 
-/** POST /api/v1/auth/login — same message for unknown email and wrong password. */
+/** POST /api/v1/auth/login - same message for unknown email and wrong password. */
 export const POST = withRoute(async (ctx) => {
   const body = await parseJson<unknown>(ctx.req);
   const parsed = schema.safeParse(body);
@@ -27,9 +27,10 @@ export const POST = withRoute(async (ctx) => {
   const ok = await verifyPassword(parsed.data.password, hash);
   if (!ok) throw invalid();
 
+  await touchLastSeen(user.id);
   const { token } = await createSession(user.id);
   return Response.json(
-    { user: { id: user.id, email: user.email, name: user.name } },
+    { user: { id: user.id, email: user.email, name: user.name, role: user.role } },
     { status: 200, headers: { 'Set-Cookie': sessionCookie(token) } },
   );
 }, { bucket: 'auth', public: true });

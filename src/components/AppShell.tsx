@@ -53,7 +53,14 @@ const ROUTE_LABELS: Record<string, string> = {
   '/docs': 'Dokumentasi',
 };
 
-function ShellInner({ children }: { children: React.ReactNode }) {
+export interface ShellUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'owner' | 'member';
+}
+
+function ShellInner({ children, initialUser }: { children: React.ReactNode; initialUser?: ShellUser }) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const { projectBreadcrumb, modelRefreshTick, refreshActiveModel } = useAppShell();
@@ -240,7 +247,11 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen w-full bg-canvas text-ink">
-      <Rail mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
+      <Rail
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+        user={initialUser}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-13 shrink-0 items-center justify-between gap-3 border-b border-line bg-canvas/95 px-4 backdrop-blur-xs sm:px-6">
@@ -391,10 +402,16 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  initialUser,
+}: {
+  children: React.ReactNode;
+  initialUser?: ShellUser;
+}) {
   return (
     <AppShellProvider>
-      <ShellInner>{children}</ShellInner>
+      <ShellInner initialUser={initialUser}>{children}</ShellInner>
     </AppShellProvider>
   );
 }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { withRoute, parseJson } from '@/lib/api/middleware';
-import { createUser, getUserByEmail, setPasswordHash } from '@/lib/db/repositories/users';
+import { createUser, ensureUserSettings, getUserByEmail, setPasswordHash } from '@/lib/db/repositories/users';
 import { hashPassword } from '@/lib/crypto/password';
 import { sessionCookie } from '@/lib/auth/session';
 import { createSession } from '@/lib/db/repositories/sessions';
@@ -8,11 +8,11 @@ import { AppError, ValidationError } from '@/lib/errors';
 
 const schema = z.object({
   email: z.string().email().max(200),
-  password: z.string().min(10).max(200),
+  password: z.string().min(8).max(200),
   name: z.string().min(1).max(120).optional(),
 });
 
-/** POST /api/v1/auth/register — create an account and set the session cookie. */
+/** POST /api/v1/auth/register - create a member account and set the session cookie. */
 export const POST = withRoute(async (ctx) => {
   const body = await parseJson<unknown>(ctx.req);
   const parsed = schema.safeParse(body);
@@ -26,15 +26,16 @@ export const POST = withRoute(async (ctx) => {
   const passwordHash = await hashPassword(password);
   const user = await createUser({
     email: normalized,
-    name: name ?? normalized.split('@')[0],
+    name: name?.trim() || normalized.split('@')[0],
     authProvider: 'email',
     role: 'member',
   });
   await setPasswordHash(user.id, passwordHash);
+  await ensureUserSettings(user.id);
 
   const { token } = await createSession(user.id);
   return Response.json(
-    { user: { id: user.id, email: user.email, name: user.name } },
+    { user: { id: user.id, email: user.email, name: user.name, role: user.role } },
     { status: 201, headers: { 'Set-Cookie': sessionCookie(token) } },
   );
 }, { bucket: 'auth', public: true });
