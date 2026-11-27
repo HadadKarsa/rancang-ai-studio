@@ -59,6 +59,16 @@ describe('buildDocumentPrompt — purpose threading', () => {
     expect(instructionPart(withPurpose.prompt)).toBe(instructionPart(plain.prompt));
     expect(instructionPart(withPurpose.prompt).length).toBeGreaterThan(50);
   });
+
+  it('adapts context guidance when user skips interview and relies on direct description', () => {
+    const direct = buildDocumentPrompt('prd', { ...baseInput, interviewTranscript: [] });
+    const interviewed = buildDocumentPrompt('prd', baseInput);
+
+    expect(direct.prompt).toContain('user skipped interview');
+    expect(direct.prompt).toContain('Treat PROJECT and DESCRIPTION as the primary authoritative brief');
+    expect(interviewed.prompt).toContain('treat Founder answers as the highest-priority source of truth');
+    expect(interviewed.prompt).not.toContain('user skipped interview');
+  });
 });
 
 describe('buildInterviewPrompt — purpose threading', () => {

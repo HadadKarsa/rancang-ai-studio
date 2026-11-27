@@ -326,7 +326,7 @@ function EffortSelect({
     <div
       role="group"
       aria-label={`Reasoning effort ${label}`}
-      className="inline-flex items-center rounded-lg border border-line bg-canvas p-0.5"
+      className="inline-flex items-center rounded-lg border border-line/70 bg-sidebar/80 p-0.5"
     >
       {EFFORT_OPTIONS.map((o) => {
         const active = (value ?? null) === o.value;
@@ -339,10 +339,10 @@ function EffortSelect({
             title={o.hint}
             onClick={() => onChange(o.value)}
             className={cn(
-              'min-h-8 rounded-[6px] px-2 text-[11px] font-medium transition-colors',
+              'min-h-8 rounded-md px-2.5 text-[11.5px] font-medium transition-colors',
               'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus',
               'disabled:cursor-not-allowed disabled:opacity-50',
-              active ? 'bg-surface text-ink shadow-xs' : 'text-ink-3 hover:text-ink',
+              active ? 'bg-surface text-ink' : 'text-ink-3 hover:text-ink',
             )}
           >
             {o.label}
@@ -585,17 +585,19 @@ export default function ModelsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-5 sm:space-y-7 sm:px-6 sm:py-7 lg:px-8">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <div className="mx-auto w-full max-w-4xl space-y-9 px-5 py-8 sm:space-y-10 sm:px-8 sm:py-10">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Models</h1>
-          <p className="max-w-prose text-sm text-ink-2">
+          <h1 className="text-[26px] font-semibold leading-[1.18] tracking-[-0.025em] text-ink sm:text-[30px]">
+            Models
+          </h1>
+          <p className="max-w-prose text-[14.5px] leading-relaxed text-ink-2">
             Satu model default dipakai untuk wawancara dan penulisan spesifikasi di seluruh studio.
           </p>
         </div>
         <Link
           href="/studio"
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink shadow-xs transition-colors hover:bg-subtle"
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:bg-subtle"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Kembali ke Studio
@@ -619,21 +621,21 @@ export default function ModelsPage() {
             Model aktif &amp; terhubung
           </h2>
           {rows.length > 0 && (
-            <span className="font-mono text-[11px] text-ink-3">
+            <span className="font-mono text-xs text-ink-3">
               {rows.length} model
             </span>
           )}
         </div>
 
         {rows.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-line-strong bg-surface/60 px-5 py-6">
+          <div className="rounded-xl border border-dashed border-line-strong bg-surface/50 px-5 py-7">
             <p className="text-sm font-medium text-ink">Belum ada model terhubung.</p>
             <p className="mt-1 text-sm text-ink-2">
               Tambahkan penyedia di bawah, lalu pilih satu model sebagai default.
             </p>
           </div>
         ) : (
-          <ul className="space-y-2.5">
+          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-panel">
             {rows.map(({ preset: p, credential: c }) => {
               const cached = c?.cachedModels ?? [];
               const busy = rowBusy === p.id;
@@ -642,14 +644,20 @@ export default function ModelsPage() {
                 <li
                   key={p.id}
                   className={cn(
-                    'rounded-xl border bg-surface p-4 shadow-xs transition-colors',
-                    p.isDefault ? 'border-accent/35' : 'border-line',
+                    'relative px-5 py-4 transition-colors',
+                    p.isDefault && 'bg-accent-soft/15',
                   )}
                 >
+                  {p.isDefault && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-0 top-4 bottom-4 w-[2.5px] rounded-r-full bg-accent"
+                    />
+                  )}
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-medium text-ink">{p.name}</span>
+                        <span className="truncate text-[15px] font-semibold text-ink">{p.name}</span>
                         {p.isDefault && (
                           <Badge tone="ready" dot>
                             Default
@@ -657,7 +665,7 @@ export default function ModelsPage() {
                         )}
                         {c?.isValid === false && <Badge tone="danger">Kunci ditolak</Badge>}
                       </div>
-                      <p className="font-mono text-[11px] text-ink-3">
+                      <p className="font-mono text-[11.5px] text-ink-3">
                         {PROVIDER_LABEL[p.provider] ?? p.provider}
                         {c ? ` · ····${c.keyLast4}` : ' · kredensial tidak ditemukan'}
                         {c && !p.credentialId ? ' · kredensial aktif penyedia' : ''}
@@ -689,7 +697,7 @@ export default function ModelsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+                  <div className="mt-3.5 flex flex-wrap items-center gap-2.5 pt-1">
                     <div className="flex min-w-0 items-center gap-1.5">
                       <ModelPicker
                         label={p.name}
@@ -717,8 +725,8 @@ export default function ModelsPage() {
                       </Button>
                     </div>
 
-                    <div className="flex w-full items-center gap-1.5 sm:ml-auto sm:w-auto">
-                      <span className="text-[11px] font-medium text-ink-3">Reasoning</span>
+                    <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+                      <span className="text-[11.5px] font-medium text-ink-3">Reasoning</span>
                       <EffortSelect
                         label={p.name}
                         value={p.reasoningEffort}
@@ -731,7 +739,7 @@ export default function ModelsPage() {
                   </div>
 
                   {cached.length === 0 && (
-                    <p className="mt-2 text-[11px] text-ink-3">
+                    <p className="mt-2.5 text-xs text-ink-3">
                       Daftar model belum tersimpan. Klik Segarkan untuk mengambilnya dari penyedia, atau
                       isi ID manual.
                     </p>
@@ -743,7 +751,7 @@ export default function ModelsPage() {
         )}
 
         {orphanCredentials.length > 0 && (
-          <div className="space-y-2 rounded-xl border border-line bg-canvas/60 p-4">
+          <div className="space-y-2 rounded-xl border border-line/80 bg-sidebar/60 p-4">
             <p className="text-xs font-medium text-ink-2">Kredensial tanpa model</p>
             <ul className="space-y-1.5">
               {orphanCredentials.map((c) => (
@@ -771,7 +779,7 @@ export default function ModelsPage() {
       </section>
 
       {/* Secondary by design: with models connected this is a closed strip, not a form on top. */}
-      <section aria-labelledby="add-heading" className="rounded-xl border border-line bg-surface">
+      <section aria-labelledby="add-heading" className="overflow-hidden rounded-xl border border-line bg-surface">
         <h2 id="add-heading" className="sr-only">
           Tambah penyedia baru
         </h2>
@@ -780,10 +788,10 @@ export default function ModelsPage() {
           aria-expanded={addOpen}
           aria-controls="add-provider-panel"
           onClick={() => setAddOpen((v) => !v)}
-          className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-subtle/60 sm:px-5"
+          className="flex min-h-14 w-full items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors hover:bg-subtle/50"
         >
           <span className="min-w-0">
-            <span className="block text-sm font-medium text-ink">Tambah penyedia baru</span>
+            <span className="block text-sm font-semibold text-ink">Tambah penyedia baru</span>
             <span className="block text-xs text-ink-3">
               Gunakan kunci API milik Anda untuk endpoint OpenAI-compatible.
             </span>
@@ -797,15 +805,15 @@ export default function ModelsPage() {
         {addOpen && (
           <form
             id="add-provider-panel"
-            className="space-y-5 border-t border-line px-4 py-5 sm:px-5"
+            className="space-y-5 border-t border-line px-5 py-5"
             onSubmit={(e) => {
               e.preventDefault();
               if (canSave) void save();
             }}
           >
             <fieldset className="space-y-2.5">
-              <legend className="mb-2 text-xs font-medium text-ink-2">Penyedia</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <legend className="mb-1.5 text-xs font-medium text-ink-2">Penyedia</legend>
+              <div className="grid gap-1 rounded-lg border border-line/70 bg-sidebar/80 p-1 sm:grid-cols-2">
                 {CHOICES.map((c) => {
                   const selected = provider === c.id;
                   return (
@@ -821,14 +829,16 @@ export default function ModelsPage() {
                         setBaseUrl('');
                       }}
                       className={cn(
-                        'flex min-h-14 flex-col justify-center gap-0.5 rounded-lg border px-3.5 py-2.5 text-left transition-colors',
+                        'flex min-h-12 flex-col justify-center gap-0.5 rounded-md px-3.5 py-2 text-left transition-colors',
                         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
                         selected
-                          ? 'border-accent bg-accent-soft/60'
-                          : 'border-line bg-canvas hover:border-line-strong hover:bg-subtle/60',
+                          ? 'bg-surface text-ink ring-1 ring-accent/40'
+                          : 'text-ink-2 hover:bg-surface/50 hover:text-ink',
                       )}
                     >
-                      <span className="text-sm font-medium text-ink">{c.label}</span>
+                      <span className={cn('text-sm font-medium', selected ? 'text-accent-ink' : 'text-ink')}>
+                        {c.label}
+                      </span>
                       <span className="truncate font-mono text-[11px] text-ink-3">{c.hint}</span>
                     </button>
                   );
@@ -854,7 +864,7 @@ export default function ModelsPage() {
                         setTest(null);
                         setSelectedModel('');
                       }}
-                      className="min-h-11 min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent"
+                      className="min-h-11 min-w-0 flex-1 rounded-lg border border-line bg-canvas/70 px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-line-strong focus:border-accent"
                     />
                     <Button
                       variant="secondary"
@@ -891,7 +901,7 @@ export default function ModelsPage() {
                         setTest(null);
                         setSelectedModel('');
                       }}
-                      className="min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-accent"
+                      className="min-h-11 w-full rounded-lg border border-line bg-canvas/70 px-3.5 py-2 font-mono text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-line-strong focus:border-accent"
                     />
                     {!needsBaseUrl && (
                       <p className="text-[11px] text-ink-3">Kosongkan untuk memakai endpoint bawaan.</p>
@@ -907,7 +917,7 @@ export default function ModelsPage() {
                       placeholder={PROVIDER_LABEL[provider] ?? provider}
                       value={label}
                       onChange={(e) => setLabel(e.target.value)}
-                      className="min-h-11 w-full rounded-lg border border-line-strong bg-canvas px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 focus:border-accent"
+                      className="min-h-11 w-full rounded-lg border border-line bg-canvas/70 px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-line-strong focus:border-accent"
                     />
                   </div>
                 </div>
@@ -917,12 +927,12 @@ export default function ModelsPage() {
                     <span className="text-xs font-medium text-ink-2">Reasoning effort</span>
                     <EffortSelect label="penyedia baru" value={effort} onChange={setEffort} />
                   </div>
-                  <p className="text-[11px] text-ink-3">
+                  <p className="text-[11.5px] text-ink-3">
                     Dipakai model ini saat memanggil penyedia. Default mengikuti setelan penyedia.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5 border-t border-line pt-4">
+                <div className="flex flex-wrap items-center gap-2.5 border-t border-line/70 pt-4">
                   <Button variant="secondary" onClick={() => void runTest()} disabled={!canTest || testing}>
                     <Plug className="h-4 w-4" aria-hidden="true" />
                     {testing ? 'Menguji koneksi...' : 'Ambil daftar model'}

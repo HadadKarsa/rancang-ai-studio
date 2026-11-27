@@ -19,6 +19,15 @@ interface PresetLite {
   isDefault: boolean;
 }
 
+interface Connection {
+  id: string;
+  provider: string;
+  label: string;
+  isActive: boolean;
+  isValid: boolean | null;
+  cachedModels: string[];
+}
+
 const ROUTE_LABELS: Record<string, string> = {
   '/studio': 'Studio',
   '/library': 'Library',
@@ -35,6 +44,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const projectId = pathname.match(/^\/projects\/([^/]+)/)?.[1];
   const isProjectRoute = Boolean(projectId);
   const [presets, setPresets] = React.useState<PresetLite[]>([]);
+  const [connections, setConnections] = React.useState<Connection[]>([]);
   const [selected, setSelected] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
@@ -47,22 +57,49 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     Promise.all([
       api.get<{ presets: PresetLite[] }>('/settings/presets'),
       projectId ? api.get<{ project: { defaultPresetId: string | null } }>(`/projects/${projectId}`) : null,
-      api.get<{ credentials: { id: string; isActive: boolean; isValid: boolean | null }[] }>('/settings/credentials'),
+      api.get<{ credentials: Connection[] }>('/settings/credentials'),
     ]).then(([result, detail, keys]) => {
       if (!alive) return;
       const connected = result.presets.filter(p => keys.credentials.some(k => k.id === p.credentialId && k.isActive && k.isValid !== false));
       setPresets(connected);
+      setConnections(keys.credentials.filter(k => k.isActive && k.isValid !== false));
       setSelected(detail?.project.defaultPresetId ?? result.presets.find(p => p.isDefault)?.id ?? '');
       setLoaded(true);
     }).catch(() => {
-      if (alive) { setPresets([]); setSelected(''); setLoaded(true); }
+      if (alive) { setConnections([]); setPresets([]); setSelected(''); setLoaded(true); }
     });
     return () => { alive = false; };
   }, [projectId, modelRefreshTick]);
 
-  async function chooseModel(id: string) {
+  const pendingLists = React.useRef(new Set<string>());
+  async function loadMissingModels() {
+    for (const connection of connections) {
+      if (connection.cachedModels?.length || pendingLists.current.has(connection.id)) continue;
+      pendingLists.current.add(connection.id);
+      try {
+        const result = await api.post<{ models: string[] }>('/providers/test', {
+          credentialId: connection.id, provider: connection.provider,
+        });
+        setConnections(current => current.map(c => c.id === connection.id ? { ...c, cachedModels: result.models } : c));
+      } catch {
+        toast({ tone: 'error', title: `Gagal memuat model dari ${connection.label}` });
+      } finally {
+        pendingLists.current.delete(connection.id);
+      }
+    }
+  }
+
+  async function chooseModel(value: string) {
     setBusy(true);
     try {
+      const [credentialId, modelId] = JSON.parse(value) as [string, string];
+      const connection = connections.find(c => c.id === credentialId);
+      if (!connection) return;
+      const saved = presets.find(p => p.credentialId === credentialId && p.modelId === modelId);
+      const preset = saved ?? (await api.post<{ preset: PresetLite }>('/settings/presets', {
+        provider: connection.provider, credentialId, modelId, name: modelId.slice(0, 80),
+      })).preset;
+      const id = preset.id;
       if (projectId) await api.patch(`/projects/${projectId}`, { defaultPresetId: id });
       else await api.patch(`/settings/presets?id=${encodeURIComponent(id)}`, { isDefault: true });
       setSelected(id);
@@ -75,6 +112,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const active = presets.find(p => p.id === selected);
   const sectionLabel = isProjectRoute
     ? 'Studio'
     : ROUTE_LABELS[pathname] ?? ROUTE_LABELS[`/${pathname.split('/')[1] ?? ''}`] ?? 'Studio';
@@ -117,18 +155,25 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            {loaded && !presets.length ? (
+            {loaded && !connections.length ? (
               <Link href="/models" className="rounded-lg border border-line px-2 py-2 text-xs">Hubungkan model</Link>
             ) : (
               <select
                 aria-label="Model untuk generasi berikutnya"
-                value={presets.some(p => p.id === selected) ? selected : ''}
+                value={active ? JSON.stringify([active.credentialId, active.modelId]) : ''}
                 disabled={!loaded || busy}
+                onFocus={() => void loadMissingModels()}
                 onChange={e => void chooseModel(e.target.value)}
                 className="min-h-11 max-w-[30vw] cursor-pointer rounded-lg border border-line-strong bg-surface px-2 font-mono text-xs text-ink sm:min-h-9 sm:max-w-64"
               >
                 <option value="" disabled>{loaded ? 'Pilih model' : 'Memuat…'}</option>
-                {presets.map(p => <option key={p.id} value={p.id}>{p.modelId} · {p.name}</option>)}
+                {connections.map(c => (
+                  <optgroup key={c.id} label={c.label || c.provider}>
+                    {Array.from(new Set([...(c.cachedModels ?? []), ...presets.filter(p => p.credentialId === c.id).map(p => p.modelId)])).sort().map(model => (
+                      <option key={model} value={JSON.stringify([c.id, model])}>{model}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             )}
 

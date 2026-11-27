@@ -31,13 +31,13 @@ function MermaidBlock({ code }: { code: string }) {
           themeVariables:
             theme === 'dark'
               ? {
-                  background: '#201e1a',
-                  primaryColor: '#2a2722',
-                  primaryTextColor: '#f5f3ee',
-                  primaryBorderColor: '#57534e',
-                  lineColor: '#9c968b',
-                  secondaryColor: '#1b1916',
-                  tertiaryColor: '#2a2722',
+                  background: '#222c3d',
+                  primaryColor: '#2a364a',
+                  primaryTextColor: '#eef2f8',
+                  primaryBorderColor: '#6c7f9c',
+                  lineColor: '#99aac2',
+                  secondaryColor: '#1c2433',
+                  tertiaryColor: '#2a364a',
                   fontFamily: 'Schibsted Grotesk, system-ui, sans-serif',
                 }
               : {
@@ -183,9 +183,11 @@ function CopyablePre({
 export function MarkdownRenderer({
   content,
   className,
+  streaming = false,
 }: {
   content: string;
   className?: string;
+  streaming?: boolean;
 }) {
   return (
     <div className={cn('prose-fresh', className)}>
@@ -198,6 +200,18 @@ export function MarkdownRenderer({
               const cls = child.props.className ?? '';
               const raw = String(child.props.children ?? '').replace(/\n$/, '');
               if (cls.includes('language-mermaid')) {
+                if (streaming) {
+                  return (
+                    <div className="my-4 overflow-hidden rounded-xl border border-line bg-canvas">
+                      <div className="border-b border-line bg-sidebar px-3.5 py-2 font-mono text-xs text-ink-3">
+                        Diagram Mermaid (dirender setelah dokumen selesai)
+                      </div>
+                      <pre className="!my-0 !rounded-none !border-0 overflow-x-auto p-4 font-mono text-xs text-ink-2">
+                        <code>{raw}</code>
+                      </pre>
+                    </div>
+                  );
+                }
                 return <MermaidBlock code={raw} />;
               }
               return <CopyablePre rawText={raw}>{children}</CopyablePre>;

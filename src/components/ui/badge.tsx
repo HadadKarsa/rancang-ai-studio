@@ -9,10 +9,10 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const TONE_CLASSES: Record<BadgeTone, string> = {
-  neutral: 'bg-subtle text-ink-2 border-line',
-  live: 'bg-accent-soft text-accent-ink border-accent/25',
-  ready: 'bg-ready-soft text-ready-ink border-ready/25',
-  danger: 'bg-danger-soft text-danger-ink border-danger/25',
+  neutral: 'bg-subtle text-ink-2 border-transparent',
+  live: 'bg-accent-soft text-accent-ink border-accent/20',
+  ready: 'bg-ready-soft text-ready-ink border-ready/20',
+  danger: 'bg-danger-soft text-danger-ink border-danger/20',
   warn: 'bg-warn-soft text-warn border-warn/25',
 };
 
@@ -28,7 +28,7 @@ export function Badge({ className, tone = 'neutral', dot = false, children, ...p
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap',
+        'inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11.5px] font-medium whitespace-nowrap',
         TONE_CLASSES[tone],
         className,
       )}

@@ -31,7 +31,6 @@ import {
 } from '@/components/ui';
 import { useAppShell } from '@/components/AppShellContext';
 import { InterviewPanel } from './InterviewPanel';
-import { WritePanel } from './WritePanel';
 import { DocumentPanel } from './DocumentPanel';
 import { ShareDialog } from './ShareDialog';
 import type {
@@ -57,8 +56,10 @@ const PROJECT_STATUS_LABEL: Record<string, string> = {
   archived: 'Arsip',
 };
 
-function isValidMode(val: string | null): val is WorkspaceMode {
-  return val === 'interview' || val === 'write' || val === 'documents';
+function normalizeMode(val: string | null): WorkspaceMode | null {
+  if (val === 'interview') return 'interview';
+  if (val === 'documents' || val === 'write') return 'documents';
+  return null;
 }
 
 function StepNumber({ n }: { n: number }) {
@@ -85,14 +86,12 @@ export function ProjectWorkspace() {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
-  const initialModeParam = searchParams.get('mode');
+  const initialModeParam = normalizeMode(searchParams.get('mode'));
   const initialDocParam = searchParams.get('doc');
   const initialAutoStart = searchParams.get('autostart') === '1';
 
-  const [mode, setMode] = useState<WorkspaceMode>(
-    isValidMode(initialModeParam) ? initialModeParam : 'documents',
-  );
-  const [modeInitialized, setModeInitialized] = useState(isValidMode(initialModeParam));
+  const [mode, setMode] = useState<WorkspaceMode>(initialModeParam ?? 'documents');
+  const [modeInitialized, setModeInitialized] = useState(Boolean(initialModeParam));
   const [selectedDoc, setSelectedDoc] = useState<DocumentType>(
     isValidDocType(initialDocParam) ? initialDocParam : 'prd',
   );
@@ -148,13 +147,13 @@ export function ProjectWorkspace() {
 
         if (!modeInitialized) {
           const readyCount = ordered.filter((d) => d.status === 'ready').length;
-          if (res.project.status === 'generating') {
-            setMode('write');
-          } else if (readyCount > 0) {
+          if (res.project.status === 'generating' || readyCount > 0) {
             setMode('documents');
             if (!isValidDocType(initialDocParam)) {
+              const firstGenerating = ordered.find((d) => d.status === 'generating');
               const firstReady = ordered.find((d) => d.status === 'ready');
-              if (firstReady) setSelectedDoc(firstReady.type);
+              if (firstGenerating) setSelectedDoc(firstGenerating.type);
+              else if (firstReady) setSelectedDoc(firstReady.type);
             }
           } else {
             setMode('interview');
@@ -180,10 +179,11 @@ export function ProjectWorkspace() {
 
   const handleModeChange = useCallback(
     (next: string) => {
-      if (!isValidMode(next)) return;
-      setMode(next);
-      syncUrl(next, next === 'documents' ? selectedDoc : undefined);
-      if (next === 'documents') {
+      const normalized = normalizeMode(next);
+      if (!normalized) return;
+      setMode(normalized);
+      syncUrl(normalized, normalized === 'documents' ? selectedDoc : undefined);
+      if (normalized === 'documents') {
         void loadProject(true);
       }
     },
@@ -198,21 +198,11 @@ export function ProjectWorkspace() {
     [syncUrl],
   );
 
-  const openDocumentFromWrite = useCallback(
-    (type: DocumentType) => {
-      setSelectedDoc(type);
-      setMode('documents');
-      syncUrl('documents', type);
-      void loadProject(true);
-    },
-    [syncUrl, loadProject],
-  );
-
   const startWritingFromInterview = useCallback(() => {
     setAutoStartWrite(true);
-    setMode('write');
-    syncUrl('write');
-  }, [syncUrl]);
+    setMode('documents');
+    syncUrl('documents', selectedDoc);
+  }, [selectedDoc, syncUrl]);
 
   const readyCount = useMemo(() => docs.filter((d) => d.status === 'ready').length, [docs]);
   const coreReadyCount = useMemo(
@@ -352,85 +342,78 @@ export function ProjectWorkspace() {
   return (
     <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8 space-y-6">
       {/* Persistent project header */}
-      <header className="rounded-2xl border border-line bg-surface p-4 shadow-panel sm:p-5 space-y-4">
+      <header className="rounded-xl border border-line bg-surface p-4 shadow-panel sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <span
-              aria-hidden="true"
-              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line text-sm font-semibold"
-              style={{
-                backgroundColor: `${project.accentColor}1a`,
-                color: project.accentColor,
-              }}
-            >
-              {project.name.slice(0, 1).toUpperCase()}
-            </span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="truncate text-xl font-semibold tracking-tight text-ink sm:text-2xl">
-                  {project.name}
-                </h1>
-                <Badge
-                  tone={
-                    project.status === 'ready'
-                      ? 'ready'
-                      : project.status === 'generating' || project.status === 'interviewing'
-                        ? 'live'
-                        : 'neutral'
-                  }
-                  dot
-                >
-                  {PROJECT_STATUS_LABEL[project.status] ?? project.status}
-                </Badge>
-                <span
-                  title={`${readyCount} dari ${docs.length || 7} dokumen selesai`}
-                  className="inline-flex items-center rounded-md border border-line bg-sidebar px-2 py-0.5 font-mono text-xs font-medium text-ink-2"
-                >
-                  {readyCount}/{docs.length || 7} dok
-                </span>
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: project.accentColor }}
+              />
+              <h1 className="truncate text-xl font-semibold tracking-tight text-ink sm:text-2xl">
+                {project.name}
+              </h1>
+              <Badge
+                tone={
+                  project.status === 'ready'
+                    ? 'ready'
+                    : project.status === 'generating' || project.status === 'interviewing'
+                      ? 'live'
+                      : 'neutral'
+                }
+                dot
+              >
+                {PROJECT_STATUS_LABEL[project.status] ?? project.status}
+              </Badge>
+              <span
+                title={`${readyCount} dari ${docs.length || 6} dokumen selesai`}
+                className="inline-flex items-center rounded-md border border-line bg-sidebar px-2 py-0.5 font-mono text-xs font-medium text-ink-2"
+              >
+                {readyCount}/{docs.length || 6} dok
+              </span>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={savingPurpose}
-                      className="min-h-9"
-                      title="Tujuan dokumen menentukan penekanan wawancara dan penulisan"
-                    >
-                      <span className="text-ink-2">
-                        {project.purpose ? PROJECT_PURPOSE_LABEL[project.purpose] : 'Pilih tujuan'}
-                      </span>
-                      <ChevronDown className="h-3 w-3 text-ink-3" aria-hidden="true" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuLabel>Tujuan dokumen</DropdownMenuLabel>
-                    {(Object.keys(PROJECT_PURPOSE_LABEL) as ProjectPurpose[]).map((value) => (
-                      <DropdownMenuItem
-                        key={value}
-                        onSelect={() => void changePurpose(value)}
-                        disabled={project.purpose === value}
-                      >
-                        <span>{PROJECT_PURPOSE_LABEL[value]}</span>
-                      </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={savingPurpose}
+                    className="min-h-9"
+                    title="Tujuan dokumen menentukan penekanan wawancara dan penulisan"
+                  >
+                    <span className="text-ink-2">
+                      {project.purpose ? PROJECT_PURPOSE_LABEL[project.purpose] : 'Pilih tujuan'}
+                    </span>
+                    <ChevronDown className="h-3 w-3 text-ink-3" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuLabel>Tujuan dokumen</DropdownMenuLabel>
+                  {(Object.keys(PROJECT_PURPOSE_LABEL) as ProjectPurpose[]).map((value) => (
                     <DropdownMenuItem
-                      onSelect={() => void changePurpose(null)}
-                      disabled={project.purpose === null}
+                      key={value}
+                      onSelect={() => void changePurpose(value)}
+                      disabled={project.purpose === value}
                     >
-                      <span>Belum ditentukan</span>
+                      <span>{PROJECT_PURPOSE_LABEL[value]}</span>
                     </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              {project.description && (
-                <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-ink-2">
-                  {project.description}
-                </p>
-              )}
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => void changePurpose(null)}
+                    disabled={project.purpose === null}
+                  >
+                    <span>Belum ditentukan</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
+            {project.description && (
+              <p className="line-clamp-2 max-w-2xl text-sm text-ink-2">
+                {project.description}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -475,27 +458,18 @@ export function ProjectWorkspace() {
           </div>
         </div>
 
-        {/* Linear stepper: one path, documents stay shut until something is written */}
+        {/* Two-step workspace: Interview (optional) -> Unified Documents (generate, stream, read, edit) */}
         <Tabs value={mode} onValueChange={handleModeChange}>
           <TabsList className="w-full sm:w-auto">
             <TabsTrigger value="interview" className="group">
               <StepNumber n={1} />
               <span>Wawancara</span>
             </TabsTrigger>
-            <TabsTrigger value="write" className="group">
+            <TabsTrigger value="documents" className="group">
               <StepNumber n={2} />
-              <span>Tulis</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="documents"
-              className="group"
-              disabled={readyCount === 0}
-              title={readyCount === 0 ? 'Selesaikan penulisan dulu' : undefined}
-            >
-              <StepNumber n={3} />
               <span>Dokumen</span>
               <span className="ml-0.5 hidden font-mono text-[11px] text-ink-3 sm:inline">
-                {readyCount}/{docs.length || 7}
+                {readyCount}/{docs.length || 6}
               </span>
             </TabsTrigger>
           </TabsList>
@@ -513,25 +487,16 @@ export function ProjectWorkspace() {
           />
         )}
 
-        {mode === 'write' && (
-          <WritePanel
-            project={project}
-            autoStart={autoStartWrite}
-            onAutoStartConsumed={() => setAutoStartWrite(false)}
-            onDocumentsChanged={() => void loadProject(true)}
-            onOpenDocument={openDocumentFromWrite}
-            onBackToInterview={() => handleModeChange('interview')}
-          />
-        )}
-
         {mode === 'documents' && (
           <DocumentPanel
             project={project}
             docs={docs}
             selectedType={selectedDoc}
+            autoStart={autoStartWrite}
+            onAutoStartConsumed={() => setAutoStartWrite(false)}
             onSelectType={handleSelectDoc}
             onDocumentsChanged={() => void loadProject(true)}
-            onGoToWrite={() => handleModeChange('write')}
+            onBackToInterview={() => handleModeChange('interview')}
           />
         )}
       </div>

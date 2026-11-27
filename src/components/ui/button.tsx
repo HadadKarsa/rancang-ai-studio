@@ -13,13 +13,13 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
     'bg-accent text-white border border-accent hover:bg-accent-hover hover:border-accent-hover shadow-xs',
   secondary:
-    'bg-surface text-ink border border-line-strong hover:bg-subtle hover:border-ink-3 shadow-xs',
+    'bg-surface text-ink border border-line hover:bg-subtle hover:border-line-strong',
   subtle:
     'bg-subtle text-ink border border-transparent hover:bg-hover',
   ghost:
-    'bg-transparent text-ink-2 border border-transparent hover:bg-subtle hover:text-ink',
+    'bg-transparent text-ink-2 border border-transparent hover:bg-subtle/80 hover:text-ink',
   danger:
-    'bg-danger text-white border border-danger hover:opacity-90 shadow-xs',
+    'bg-danger text-white border border-danger hover:opacity-90',
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -35,7 +35,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       type={type}
       className={cn(
-        'inline-flex items-center justify-center font-medium transition-colors select-none',
+        'inline-flex items-center justify-center font-medium transition-colors select-none active:translate-y-[0.5px]',
         'disabled:opacity-45 disabled:pointer-events-none',
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],

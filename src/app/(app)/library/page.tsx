@@ -119,7 +119,7 @@ export default function LibraryPage() {
         if (!cursor) {
           setSelectedId((prev) => {
             if (prev && r.items.some((i) => i.id === prev)) return prev;
-            return r.items[0]?.id ?? null;
+            return null;
           });
         }
         setState('ready');
@@ -193,7 +193,7 @@ export default function LibraryPage() {
       setItems((prev) => {
         const next = prev.filter((i) => i.id !== item.id);
         if (selectedId === item.id) {
-          setSelectedId(next[0]?.id ?? null);
+          setSelectedId(null);
           setMobileDetailOpen(false);
         }
         return next;
@@ -239,8 +239,7 @@ export default function LibraryPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Library</h1>
         <p className="text-sm text-ink-2">
-          Pilih artefak di sisi kiri untuk melihat pratinjau penuh, menyalin, atau mengunduhnya di
-          sisi kanan.
+          Buka proyek untuk melihat dokumen dan ekspornya.
         </p>
       </header>
 
@@ -335,8 +334,12 @@ export default function LibraryPage() {
             ) : (
               <div className="max-h-[68vh] overflow-y-auto">
                 {projectGroups.map(([projectId, entries]) => (
-                  <section key={projectId ?? 'unassigned'}>
-                    <h3 className="border-y border-line bg-sidebar px-4 py-2 text-sm font-semibold">{entries[0]?.projectName ?? 'Tanpa proyek'}</h3>
+                  <details key={projectId ?? 'unassigned'} name="library-project"
+                    onToggle={event => {
+                      if (event.currentTarget.open && selectedItem?.projectId !== projectId) setSelectedId(null);
+                    }}
+                  >
+                    <summary className="cursor-pointer border-b border-line px-4 py-4 text-sm font-semibold">{entries[0]?.projectName ?? 'Tanpa proyek'} <span className="ml-2 text-xs font-normal text-ink-2">{entries.length} item</span></summary>
                     <ul className="divide-y divide-line">
                 {entries.map((item) => {
                   const active = item.id === selectedId;
@@ -380,7 +383,7 @@ export default function LibraryPage() {
                   );
                 })}
                     </ul>
-                  </section>
+                  </details>
                 ))}
               </div>
             )}
@@ -408,7 +411,7 @@ export default function LibraryPage() {
           >
             {!selectedItem ? (
               <div className="p-10 text-center text-sm text-ink-3">
-                Pilih salah satu artefak di daftar untuk melihat pratinjaunya di sini.
+                Buka proyek, lalu pilih dokumen untuk melihat isinya.
               </div>
             ) : (
               <>

@@ -14,7 +14,7 @@ export type DocumentType =
 
 export type DocStatus = 'pending' | 'generating' | 'ready' | 'failed' | 'stale';
 
-export type WorkspaceMode = 'interview' | 'write' | 'documents';
+export type WorkspaceMode = 'interview' | 'documents';
 
 
 export interface WorkspaceProject {

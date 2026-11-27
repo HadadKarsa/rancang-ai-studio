@@ -64,6 +64,16 @@ export const GET = withRoute(async (ctx) => {
   const projectId = ctx.params.get('projectId');
   await assertProjectOwnership(ctx.session.user.id, projectId);
 
+  const url = new URL(ctx.req.url);
+  if (url.searchParams.get('snapshot') === '1') {
+    const running = isBatchRunning(projectId);
+    const snap = snapshot(projectId);
+    return Response.json(
+      { running, snapshot: snap },
+      { status: 200, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
   const initial: BatchSnapshot | null = isBatchRunning(projectId) ? snapshot(projectId) : null;
   if (!initial) {
     throw new ConflictError('Tidak ada pembuatan dokumen yang berjalan untuk proyek ini', { projectId });

@@ -28,9 +28,19 @@ Rules:
 - Keep Mermaid diagrams small. Use ASCII identifiers, double-quoted flowchart node labels, and one statement per line. For ER diagrams use simple entity names and Mermaid attribute types without SQL constraints or type parameters. Close each diagram fence.
 - Output Markdown only. No preamble, no closing summary of what you wrote.`;
 
-function transcriptBlock(transcript: GenerationInput['interviewTranscript']): string {
-  if (transcript.length === 0) return '(no interview transcript — work from the baseline assumptions)';
-  return transcript.map((m) => `${m.role === 'user' ? 'Founder' : 'Interviewer'}: ${m.content}`).join('\n');
+function transcriptBlock(
+  transcript: GenerationInput['interviewTranscript'],
+  hasDescription = false,
+): string {
+  if (transcript.length === 0) {
+    if (hasDescription) {
+      return '(no interview transcript: user skipped interview and supplied detailed project description directly. Treat PROJECT and DESCRIPTION as the primary authoritative brief, use BASELINE ASSUMPTIONS only for standard gaps, make pragmatic defaults where specifics are omitted, and list those assumptions and open questions explicitly for user review.)';
+    }
+    return '(no interview transcript: work from PROJECT, DESCRIPTION if present, and BASELINE ASSUMPTIONS, listing assumptions and open questions explicitly.)';
+  }
+  const header = '(interview completed or captured below: treat Founder answers as the highest-priority source of truth, refining DESCRIPTION and BASELINE ASSUMPTIONS wherever they add specifics.)';
+  const lines = transcript.map((m) => `${m.role === 'user' ? 'Founder' : 'Interviewer'}: ${m.content}`).join('\n');
+  return `${header}\n${lines}`;
 }
 
 function assetsBlock(assets: GenerationInput['injectedAssets']): string {
@@ -82,7 +92,7 @@ BASELINE ASSUMPTIONS:
 ${input.baselineAssumptions.length > 0 ? input.baselineAssumptions.map((a) => `- ${a}`).join('\n') : '(none)'}
 
 INTERVIEW TRANSCRIPT:
-${transcriptBlock(input.interviewTranscript)}
+${transcriptBlock(input.interviewTranscript, Boolean(input.projectDescription?.trim()))}
 
 INJECTED CONTEXT (user assets):
 ${assetsBlock(input.injectedAssets)}`;

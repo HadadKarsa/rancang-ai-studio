@@ -170,6 +170,8 @@ export default function StudioPage() {
   const [showOptions, setShowOptions] = useState(false);
   const [purpose, setPurpose] = useState<ProjectPurpose | null>(null);
   const [purposeHelpOpen, setPurposeHelpOpen] = useState(false);
+  const [launchChoiceOpen, setLaunchChoiceOpen] = useState(false);
+  const [launchModePending, setLaunchModePending] = useState<'interview' | 'direct' | null>(null);
   const [accent, setAccent] = useState(ACCENTS[0]!);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
   const [creating, setCreating] = useState(false);
@@ -278,12 +280,20 @@ export default function StudioPage() {
     };
   }, [query, q, refreshTick]);
 
-  async function launchProject() {
+  function requestLaunch() {
+    const trimmedIdea = idea.trim();
+    const trimmedTitle = customTitle.trim();
+    if (!trimmedIdea && !trimmedTitle && !selectedTemplate) return;
+    setLaunchChoiceOpen(true);
+  }
+
+  async function launchProject(startMode: 'interview' | 'direct') {
     const trimmedIdea = idea.trim();
     const trimmedTitle = customTitle.trim();
     if (!trimmedIdea && !trimmedTitle && !selectedTemplate) return;
 
     setCreating(true);
+    setLaunchModePending(startMode);
     setError(null);
     const projectName =
       trimmedTitle ||
@@ -299,17 +309,24 @@ export default function StudioPage() {
         purpose: purpose ?? undefined,
       });
 
-      if (trimmedIdea) {
-        try {
-          window.sessionStorage.setItem(`rancang.seed.${project.id}`, trimmedIdea);
-        } catch {
-          /* private mode */
+      setLaunchChoiceOpen(false);
+      if (startMode === 'interview') {
+        if (trimmedIdea) {
+          try {
+            window.sessionStorage.setItem(`rancang.seed.${project.id}`, trimmedIdea);
+          } catch {
+            /* private mode */
+          }
         }
+        router.push(`/projects/${project.id}?mode=interview`);
+      } else {
+        router.push(`/projects/${project.id}?mode=documents&autostart=1`);
       }
-      router.push(`/projects/${project.id}?mode=interview`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Gagal membuat proyek baru');
       setCreating(false);
+      setLaunchModePending(null);
+      setLaunchChoiceOpen(false);
     }
   }
 
@@ -397,24 +414,32 @@ export default function StudioPage() {
   const filtered = q.trim().length > 0 || status !== 'all';
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-5 py-7 sm:px-8">
+    <div className="mx-auto max-w-5xl space-y-10 px-5 py-8 sm:space-y-12 sm:px-8 sm:py-10">
       {/* Quick-Start Composer */}
-      <section aria-labelledby="studio-heading" className="space-y-4">
-        <div>
-          <h1 id="studio-heading" className="text-2xl font-semibold tracking-tight text-ink">
+      <section aria-labelledby="studio-heading" className="space-y-5">
+        <div className="space-y-1.5">
+          <h1
+            id="studio-heading"
+            className="text-[26px] font-semibold leading-[1.18] tracking-[-0.025em] text-ink sm:text-[30px]"
+          >
             Mulai spesifikasi baru
           </h1>
-          <p className="mt-1 text-sm text-ink-2">
+          <p className="max-w-2xl text-[14.5px] leading-relaxed text-ink-2">
             Tulis satu kalimat tentang aplikasi yang ingin kamu bangun, atau pilih template di
             bawah sebagai titik awal.{' '}
-            <Link href="/docs#panduan-prd" className="text-accent-ink underline">Pelajari PRD dan lima dokumen pendukung.</Link>
+            <Link
+              href="/docs#panduan-prd"
+              className="font-medium text-accent-ink underline decoration-accent/40 underline-offset-4 hover:decoration-accent"
+            >
+              Pelajari PRD dan lima dokumen pendukung.
+            </Link>
           </p>
         </div>
 
         {hasModel === false && (
           <div
             role="status"
-            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-warn/35 bg-warn-soft px-4 py-3 text-sm"
+            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-sm"
           >
             <span className="flex items-start gap-2.5 text-ink">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden="true" />
@@ -436,12 +461,12 @@ export default function StudioPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void launchProject();
+            requestLaunch();
           }}
-          className="rounded-2xl border border-line bg-surface p-4 shadow-panel sm:p-5 space-y-3"
+          className="rounded-xl border border-line bg-surface p-5 shadow-panel sm:p-6 space-y-5"
         >
           {selectedTemplate && (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/25 bg-accent-soft/60 px-3 py-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-accent-soft/70 px-3.5 py-2 text-xs">
               <span className="flex items-center gap-2 font-medium text-accent-ink">
                 <TemplateIcon category={selectedTemplate.category} />
                 <span>Template aktif: {selectedTemplate.name}</span>
@@ -450,14 +475,14 @@ export default function StudioPage() {
                 type="button"
                 onClick={() => setSelectedTemplate(null)}
                 aria-label="Hapus pilihan template"
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-accent-ink hover:bg-accent/15"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-accent-ink hover:bg-accent/15"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label htmlFor="qs-title" className="block text-xs font-medium text-ink-2">
               Judul proyek <span className="font-normal text-ink-3">(otomatis jika kosong)</span>
             </label>
@@ -467,11 +492,11 @@ export default function StudioPage() {
               value={customTitle}
               onChange={(e) => setCustomTitle(e.target.value)}
               placeholder="Contoh: Kasir Bengkel Maju"
-              className="w-full min-h-11 rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:border-accent"
+              className="w-full min-h-11 rounded-lg border border-line bg-canvas/70 px-3.5 py-2 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-line-strong focus:border-accent"
             />
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label htmlFor="quick-start-idea" className="block text-xs font-medium text-ink-2">
               Detail proyek
             </label>
@@ -485,15 +510,15 @@ export default function StudioPage() {
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                   e.preventDefault();
-                  void launchProject();
+                  requestLaunch();
                 }
               }}
               placeholder="Contoh: Aplikasi kasir dan antrean servis untuk bengkel motor, dipakai 2 mekanik dan 1 admin, dengan nota kirim ke WhatsApp..."
-              className="w-full resize-none rounded-xl border border-line bg-canvas px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-3 focus:border-accent"
+              className="w-full resize-none rounded-lg border border-line bg-canvas/70 px-3.5 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-3 transition-colors hover:border-line-strong focus:border-accent"
             />
           </div>
 
-          <fieldset className="space-y-2">
+          <fieldset className="space-y-2.5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <legend className="text-xs font-medium text-ink-2">
                 Dokumen ini akan dipakai untuk apa?
@@ -502,12 +527,12 @@ export default function StudioPage() {
               <button
                 type="button"
                 onClick={() => setPurposeHelpOpen(true)}
-                className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent-ink underline decoration-accent/40 underline-offset-4 hover:decoration-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
               >
                 Bantu pilih
               </button>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-1 rounded-lg border border-line/70 bg-sidebar/80 p-1 sm:grid-cols-3">
               {PURPOSE_OPTIONS.map((opt) => {
                 const active = purpose === opt.value;
                 return (
@@ -517,21 +542,22 @@ export default function StudioPage() {
                     aria-pressed={active}
                     onClick={() => setPurpose(active ? null : opt.value)}
                     className={cn(
-                      'min-h-11 rounded-lg border px-3 py-2 text-left transition-colors',
+                      'min-h-11 rounded-md px-3 py-2 text-left transition-colors',
                       active
-                        ? 'border-accent bg-accent-soft/60'
-                        : 'border-line bg-surface hover:border-line-strong',
+                        ? 'bg-surface text-ink ring-1 ring-accent/40'
+                        : 'text-ink-2 hover:bg-surface/50 hover:text-ink',
                     )}
                   >
-                    <span
-                      className={cn(
-                        'block text-[13px] font-medium',
-                        active ? 'text-accent-ink' : 'text-ink',
+                    <span className="flex items-center gap-1.5 text-[13px] font-medium">
+                      {active && (
+                        <span
+                          aria-hidden="true"
+                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent"
+                        />
                       )}
-                    >
-                      {opt.label}
+                      <span className={active ? 'text-accent-ink' : 'text-ink'}>{opt.label}</span>
                     </span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-ink-2">
+                    <span className="mt-0.5 block text-[11.5px] leading-snug text-ink-3">
                       {opt.hint}
                     </span>
                   </button>
@@ -539,19 +565,18 @@ export default function StudioPage() {
               })}
             </div>
             {purpose && (
-              <p className="text-[11px] text-ink-2">
-                Dipilih: <span className="font-medium text-ink">{PURPOSE_LABEL[purpose]}</span>. Klik
+              <p className="text-[11.5px] text-ink-3">
+                Dipilih: <span className="font-medium text-ink-2">{PURPOSE_LABEL[purpose]}</span>. Klik
                 lagi untuk membatalkan.
               </p>
             )}
           </fieldset>
 
           {showOptions && (
-            <div className="rounded-xl border border-line bg-sidebar/50 p-3.5">
-
-              <div className="space-y-1">
+            <div className="rounded-lg bg-sidebar/70 px-4 py-3">
+              <div className="space-y-1.5">
                 <span className="block text-xs font-medium text-ink-2">Warna penanda kartu</span>
-                <div className="flex items-center gap-2 pt-1" role="radiogroup" aria-label="Warna penanda">
+                <div className="flex items-center gap-2 pt-0.5" role="radiogroup" aria-label="Warna penanda">
                   {ACCENTS.map((c) => (
                     <button
                       key={c}
@@ -561,10 +586,10 @@ export default function StudioPage() {
                       aria-label={`Warna ${c}`}
                       onClick={() => setAccent(c)}
                       className={cn(
-                        'flex h-8 w-8 items-center justify-center rounded-lg border transition-transform',
+                        'flex h-9 w-9 items-center justify-center rounded-lg border transition-transform',
                         accent === c
                           ? 'border-ink scale-105 bg-surface'
-                          : 'border-line bg-surface/60 hover:border-line-strong',
+                          : 'border-transparent bg-surface/50 hover:border-line-strong',
                       )}
                     >
                       <span
@@ -579,8 +604,8 @@ export default function StudioPage() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line/70 pt-4">
+            <div className="flex items-center gap-2.5">
               <Button
                 size="sm"
                 variant="ghost"
@@ -588,7 +613,7 @@ export default function StudioPage() {
                 aria-expanded={showOptions}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{showOptions ? 'Sembunyikan opsi' : 'Warna kartu'}</span>
+                <span>{showOptions ? 'Sembunyikan warna' : 'Warna kartu'}</span>
               </Button>
               <span className="hidden sm:inline font-mono text-[11px] text-ink-3">
                 Ctrl/Cmd+Enter untuk mulai
@@ -607,27 +632,27 @@ export default function StudioPage() {
         </form>
       </section>
 
-      {/* Template Starter Cards from /api/v1/templates */}
+      {/* Template Starters: compact editorial index, visually distinct from project cards */}
       <section aria-labelledby="templates-heading" className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-baseline justify-between gap-3">
           <h2 id="templates-heading" className="text-sm font-semibold text-ink">
             Mulai dari template
           </h2>
           {templatesLoaded && (
-            <span className="font-mono text-xs text-ink-3">{templates.length} template siap</span>
+            <span className="font-mono text-xs text-ink-3">{templates.length} titik awal</span>
           )}
         </div>
 
         {!templatesLoaded ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-32 rounded-xl border border-line bg-surface animate-pulse" />
+              <div key={i} className="h-24 bg-surface animate-pulse" />
             ))}
           </div>
         ) : templates.length === 0 ? (
           <p className="text-xs text-ink-3">Belum ada template tersimpan.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2">
             {templates.map((tpl) => {
               const isSelected = selectedTemplate?.id === tpl.id;
               return (
@@ -637,34 +662,38 @@ export default function StudioPage() {
                   onClick={() => applyTemplate(tpl)}
                   aria-pressed={isSelected}
                   className={cn(
-                    'min-w-0 flex flex-col justify-between rounded-xl border p-4 text-left transition-colors',
+                    'group relative flex min-w-0 flex-col justify-between px-4 py-3.5 text-left transition-colors',
                     isSelected
-                      ? 'border-accent bg-accent-soft/50 shadow-xs'
-                      : 'border-line bg-surface hover:border-line-strong hover:bg-subtle/40',
+                      ? 'bg-accent-soft/45'
+                      : 'bg-surface hover:bg-subtle/60',
                   )}
                 >
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line"
-                        style={{
-                          backgroundColor: `${tpl.accentColor}1a`,
-                          color: tpl.accentColor,
-                        }}
+                  {isSelected && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-0 top-3 bottom-3 w-[2.5px] rounded-r-full bg-accent"
+                    />
+                  )}
+                  <div className="space-y-1">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h3
+                        className={cn(
+                          'text-sm font-semibold transition-colors',
+                          isSelected ? 'text-accent-ink' : 'text-ink group-hover:text-accent-ink',
+                        )}
                       >
-                        <TemplateIcon category={tpl.category} />
-                      </span>
-                      <Badge tone="neutral">
+                        {tpl.name}
+                      </h3>
+                      <span className="shrink-0 text-[11.5px] text-ink-3">
                         {CATEGORY_LABEL[tpl.category] ?? tpl.category}
-                      </Badge>
+                      </span>
                     </div>
-                    <h3 className="mt-3 text-sm font-semibold text-ink">{tpl.name}</h3>
-                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-2">
+                    <p className="line-clamp-2 text-xs leading-relaxed text-ink-2">
                       {tpl.description}
                     </p>
                   </div>
                   {tpl.baselineAssumptions.length > 0 && (
-                    <p className="mt-3 truncate font-mono text-[11px] text-ink-3">
+                    <p className="mt-2 truncate font-mono text-[11px] text-ink-3">
                       {tpl.baselineAssumptions.slice(0, 2).join(' · ')}
                     </p>
                   )}
@@ -676,9 +705,9 @@ export default function StudioPage() {
       </section>
 
       {/* Existing Projects */}
-      <section aria-labelledby="projects-heading" className="space-y-4 border-t border-line pt-7">
+      <section aria-labelledby="projects-heading" className="space-y-5 border-t border-line pt-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="projects-heading" className="text-lg font-semibold tracking-tight text-ink">
+          <h2 id="projects-heading" className="text-xl font-semibold tracking-tight text-ink">
             Proyekmu
           </h2>
 
@@ -694,7 +723,7 @@ export default function StudioPage() {
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Cari proyek..."
                 aria-label="Cari proyek"
-                className="w-full min-h-10 rounded-lg border border-line-strong bg-surface pl-9 pr-3 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent"
+                className="w-full min-h-10 rounded-lg border border-line bg-surface pl-9 pr-3 py-1.5 text-sm text-ink placeholder:text-ink-3 transition-colors hover:border-line-strong focus:border-accent"
               />
             </div>
 
@@ -704,7 +733,7 @@ export default function StudioPage() {
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 aria-label="Urutkan proyek"
-                className="min-h-10 rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-ink focus:border-accent"
+                className="min-h-10 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-line-strong focus:border-accent"
               >
                 {SORTS.map((s) => (
                   <option key={s.key} value={s.key}>
@@ -717,7 +746,7 @@ export default function StudioPage() {
         </div>
 
         {/* Status Filter Chips */}
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Saring berdasarkan status">
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Saring berdasarkan status">
           {FILTERS.map((f) => {
             const count = data?.counts[f.key === 'all' ? 'all' : f.key];
             const active = status === f.key;
@@ -728,10 +757,10 @@ export default function StudioPage() {
                 aria-pressed={active}
                 onClick={() => setStatus(f.key)}
                 className={cn(
-                  'inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-medium transition-colors',
+                  'inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors',
                   active
-                    ? 'border-ink bg-ink text-canvas'
-                    : 'border-line bg-surface text-ink-2 hover:border-line-strong hover:text-ink',
+                    ? 'bg-ink text-canvas'
+                    : 'text-ink-2 hover:bg-subtle hover:text-ink',
                 )}
               >
                 <span>{f.label}</span>
@@ -762,13 +791,13 @@ export default function StudioPage() {
         {!data && !error && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-44 rounded-2xl border border-line bg-surface animate-pulse" />
+              <div key={i} className="h-40 rounded-xl border border-line bg-surface animate-pulse" />
             ))}
           </div>
         )}
 
         {data && cards.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-line-strong bg-surface/60 px-6 py-10 text-center">
+          <div className="rounded-xl border border-dashed border-line-strong bg-surface/50 px-6 py-10 text-center">
             <FolderOpen className="mx-auto h-7 w-7 text-ink-3" aria-hidden="true" />
             <h3 className="mt-3 text-base font-semibold text-ink">
               {filtered ? 'Tidak ada proyek yang cocok.' : 'Belum ada proyek di Studio.'}
@@ -797,122 +826,118 @@ export default function StudioPage() {
 
         {cards.length > 0 && (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {cards.map((p) => (
-              <li key={p.id} className="group relative">
-                <Link
-                  href={`/projects/${p.id}`}
-                  className="flex h-full flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-xs transition-all hover:border-line-strong hover:shadow-panel"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 pr-8">
-                      <span
-                        aria-hidden="true"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line text-sm font-semibold"
-                        style={{
-                          backgroundColor: `${p.accentColor}1a`,
-                          color: p.accentColor,
-                        }}
-                      >
-                        {p.name.slice(0, 1).toUpperCase()}
-                      </span>
-                    </div>
-
-                    <h3 className="mt-3.5 line-clamp-1 text-base font-semibold text-ink group-hover:text-accent-ink transition-colors">
-                      {p.name}
-                    </h3>
-                    {p.purpose && (
-                      <span className="mt-1.5 inline-block rounded border border-line px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-2">
-                        {PURPOSE_LABEL[p.purpose]}
-                      </span>
-                    )}
-                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-2">
-                      {p.description ?? 'Belum ada deskripsi proyek.'}
-                    </p>
-                  </div>
-
-                  <div className="mt-5 space-y-3">
-                    {/* 7-doc progress bar */}
-                    <div
-                      className="flex items-center justify-between gap-2"
-                      title={`${p.docsReady} dari ${p.docsTotal} dokumen siap`}
-                    >
-                      <div className="flex items-center gap-1" aria-hidden="true">
-                        {Array.from({ length: p.docsTotal || 7 }, (_, idx) => (
-                          <span
-                            key={idx}
-                            className={cn(
-                              'h-1.5 w-3.5 rounded-full',
-                              idx < p.docsReady ? 'bg-ready' : 'bg-subtle',
-                            )}
-                          />
-                        ))}
+            {cards.map((p) => {
+              const docTotal = p.docsTotal || 6;
+              return (
+                <li key={p.id} className="group relative">
+                  <Link
+                    href={`/projects/${p.id}`}
+                    className="flex h-full flex-col justify-between rounded-xl border border-line bg-surface/85 p-5 transition-colors hover:border-line-strong hover:bg-surface"
+                  >
+                    <div className="space-y-1.5 pr-8">
+                      <div className="flex items-center gap-2">
+                        <span
+                          aria-hidden="true"
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: p.accentColor }}
+                        />
+                        <h3 className="line-clamp-1 text-[15.5px] font-semibold text-ink transition-colors group-hover:text-accent-ink">
+                          {p.name}
+                        </h3>
                       </div>
-                      <span className="font-mono text-[11px] text-ink-3">
-                        {p.docsReady}/{p.docsTotal || 7} dok
-                      </span>
+                      {p.purpose && (
+                        <p className="text-[11.5px] font-medium text-ink-3">
+                          {PURPOSE_LABEL[p.purpose]}
+                        </p>
+                      )}
+                      <p className="line-clamp-2 text-[13px] leading-relaxed text-ink-2">
+                        {p.description ?? 'Belum ada deskripsi proyek.'}
+                      </p>
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-line pt-3">
-                      <Badge
-                        tone={
-                          p.status === 'ready'
-                            ? 'ready'
-                            : p.status === 'interviewing' || p.status === 'generating'
-                              ? 'live'
-                              : 'neutral'
-                        }
-                        dot
+                    <div className="mt-5 space-y-3">
+                      <div
+                        className="flex items-center justify-between gap-2"
+                        title={`${p.docsReady} dari ${docTotal} dokumen siap`}
                       >
-                        {STATUS_LABEL[p.status]}
-                      </Badge>
-                      <span className="font-mono text-[11px] text-ink-3">
-                        {timeAgo(p.updatedAt)}
-                      </span>
+                        <div className="flex items-center gap-1" aria-hidden="true">
+                          {Array.from({ length: docTotal }, (_, idx) => (
+                            <span
+                              key={idx}
+                              className={cn(
+                                'h-1.5 w-4 rounded-full',
+                                idx < p.docsReady ? 'bg-ready' : 'bg-subtle',
+                              )}
+                            />
+                          ))}
+                        </div>
+                        <span className="font-mono text-[11px] text-ink-3">
+                          {p.docsReady}/{docTotal} dok
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-line/70 pt-3">
+                        <Badge
+                          tone={
+                            p.status === 'ready'
+                              ? 'ready'
+                              : p.status === 'interviewing' || p.status === 'generating'
+                                ? 'live'
+                                : 'neutral'
+                          }
+                          dot
+                        >
+                          {STATUS_LABEL[p.status]}
+                        </Badge>
+                        <span className="font-mono text-[11px] text-ink-3">
+                          {timeAgo(p.updatedAt)}
+                        </span>
+                      </div>
                     </div>
+                  </Link>
+
+                  {/* Overflow menu positioned outside Link for valid HTML */}
+                  <div className="absolute right-3 top-3">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={`Opsi untuk ${p.name}`}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-subtle hover:text-ink"
+                        >
+                          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => void toggleArchive(p)}>
+                          {p.status === 'archived' ? (
+                            <>
+                              <ArchiveRestore className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
+                              <span>Pulihkan proyek</span>
+                            </>
+                          ) : (
+                            <>
+                              <Archive className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
+                              <span>Arsipkan</span>
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          tone="danger"
+                          onSelect={() => {
+                            setDelError(null);
+                            setConfirmDel(p);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>Hapus permanen</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                </Link>
-
-                {/* Overflow menu positioned outside Link for valid HTML */}
-                <div className="absolute right-3 top-3">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={`Opsi untuk ${p.name}`}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-subtle hover:text-ink"
-                      >
-                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => void toggleArchive(p)}>
-                        {p.status === 'archived' ? (
-                          <>
-                            <ArchiveRestore className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
-                            <span>Pulihkan proyek</span>
-                          </>
-                        ) : (
-                          <>
-                            <Archive className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
-                            <span>Arsipkan</span>
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        tone="danger"
-                        onSelect={() => {
-                          setDelError(null);
-                          setConfirmDel(p);
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>Hapus permanen</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -932,6 +957,67 @@ export default function StudioPage() {
           </div>
         )}
       </section>
+
+      {/* Launch mode dialog: interview vs direct generation */}
+      <Dialog
+        open={launchChoiceOpen}
+        onOpenChange={(open) => {
+          if (!creating) setLaunchChoiceOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bagaimana kamu ingin memulai?</DialogTitle>
+            <DialogDescription>
+              {idea.trim().length >= 160
+                ? 'Detail proyekmu sudah cukup lengkap. Kamu bisa langsung membuat 6 dokumen, atau tetap wawancara dulu jika ingin menggali edge case lebih dalam.'
+                : 'Detail proyekmu masih ringkas. Wawancara singkat disarankan agar AI memahami alur, pengguna, dan batasan sebelum menulis 6 dokumen.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => void launchProject('interview')}
+              className="flex w-full flex-col gap-1 rounded-xl border border-accent/40 bg-accent-soft/25 p-4 text-left transition-colors hover:border-accent hover:bg-accent-soft/40 disabled:opacity-50"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-ink">
+                  {launchModePending === 'interview' ? 'Menyiapkan wawancara...' : 'Mulai wawancara dulu'}
+                </span>
+                <Badge tone="live">Disarankan</Badge>
+              </div>
+              <p className="text-xs leading-relaxed text-ink-2">
+                AI mengajukan beberapa pertanyaan terarah untuk menggali kebutuhan dan keputusan penting sebelum menyusun 6 dokumen spesifikasi.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => void launchProject('direct')}
+              className="flex w-full flex-col gap-1 rounded-xl border border-line bg-canvas/70 p-4 text-left transition-colors hover:border-line-strong hover:bg-subtle/60 disabled:opacity-50"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-ink">
+                  {launchModePending === 'direct' ? 'Menyiapkan 6 dokumen...' : 'Langsung buat 6 dokumen'}
+                </span>
+                <span className="text-[11.5px] font-medium text-ink-3">Lewati wawancara</span>
+              </div>
+              <p className="text-xs leading-relaxed text-ink-2">
+                Cocok jika detail proyekmu sudah jelas. AI langsung menyusun 6 dokumen dari brief yang kamu tulis sambil menandai asumsi dan pertanyaan terbuka.
+              </p>
+            </button>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" disabled={creating} onClick={() => setLaunchChoiceOpen(false)}>
+              Kembali sunting detail
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Purpose explainer dialog */}
       <Dialog open={purposeHelpOpen} onOpenChange={setPurposeHelpOpen}>
